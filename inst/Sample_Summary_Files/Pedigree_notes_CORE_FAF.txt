@@ -1,0 +1,33 @@
+021308 YOO
+----------
+Received pedfile named core_faf_CIDR_pedigree.xls, Jackie asked that previous pedfiles be "disregarded and destroyed" so Utah and Norway&Korea pedfiles deleted.  Made ris compliant and named ris version 375_Beaty_core-faf_021308.csv
+
+
+031708  YOO
+-----------
+deleted extra worksheets in pedfile as it was interfering with pedigree/manifest checks.  saved version with pedigree worksheet alone as core_faf_CIDR_pedigree_YOOmod.xls
+
+071708  YOO
+-----------
+Received pedfile named core_faf_CIDR_pedigree_071608.xls with purpose of changing one sample from DNA 1 to 0 as no DNA left to send for the sample (16208_02).  Made RIS compliant and uploaded to cidrweb as 375_Beaty_core-faf_071808.csv.  Saved level3 report to reports folder.
+
+103008  YOO
+-----------
+Received pedfile for extra samples coming from Singapore (these samples are being shipped to Laura's lab at CORE, Laura will then send them to CIDR); file name: backup_peds_set_two_CIDR.xls.  uploaded to cidrweb as 375_Beaty_Core-FAF_103108.csv
+
+112408  YOO
+-----------
+Received Phase I check approval from Jenna at GENEVA 112008; discussion between Jenna and Jackie made me realize some DNA 2's had been coded in the pedfile as DNA 1's, asked Jackie if these were indeed duplicates and if she'd like me to update the pedfile, she stated yes so I changed to DNA 2 the following ID's:
+24086_01
+
+24086_04
+
+24087_01
+
+24087_04
+
+24088_01
+
+24088_04
+
+Uploaded to cidrweb as 375_Beaty_Core-FAF_112408.csv, also put in shipment_site code for CORE instead of SINGAPORE since samples will be coming to us from CORE.

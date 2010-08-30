@@ -1,0 +1,176 @@
+Define an indicator for whether the sample is part of a
+father-mother-offspring trio.
+
+
+We add a \Robject{isDeletion} value column to the
+\Robject{segmean\_ranges} object.  For each segment, we will make a
+call (0 or 1) of whether the segment mean indicates a homozygous or
+hemizygous deletion. (Later we may want to distinguish between
+homozygous and hemizygous deletions.)  Note that the rule we use for
+calling deletions is different for parents and offspring.
+
+<<rules>>=
+## more conservative
+offspring.rule <- function(MAD) ifelse(-2*MAD < log(1/2), -2*MAD, log(1/2))
+## very liberal
+parent.rule <- function(MAD) ifelse(-1.5*MAD < log(1.5/2), -1.5*MAD, log(1.5/2))
+@
+
+
+With the above rules, we make a call of deletion (1=yes, 0=no) for
+each segment.
+
+<<callDeletion>>=
+stop("stop at callDeletion chunk")
+segmeans$family <- substr(segmeans$id, 1, 5)
+segmeans$pedId <- who(segmeans$id)
+## we do not need to examine all rows.
+segmeans$seg.mean <- segmeans$seg.mean/100
+segmeans <- segmeans[segmeans$seg.mean < 0, ]  ## remove all positive segmeans
+uids <- unique(as.character(segmeans$id))
+callDeletion <- function(segmeans, uids, parent.rule, offspring.rule){
+	for(i in seq_along(uids)){
+		cat(".")
+		uid <- uids[i]
+		which.rows <- grep(uid, segmeans$id)
+		j <- which(sampleNames(lset) == uid)
+		if(length(j) == 0) next()  ##
+		pedId <- lset$pedId[j]
+		mad <- lset$MAD[j]
+		is.parent <- pedId == "mother" | pedId == "father"
+		if(is.parent){
+			thr <- parent.rule(mad)
+			is.deletion <- ifelse(segmeans$seg.mean[which.rows] < thr, TRUE, FALSE)
+		} else{
+			thr <- offspring.rule(mad)
+			is.deletion <- ifelse(segmeans$seg.mean[which.rows] < thr, TRUE, FALSE)
+		}
+		segmeans$isDeletion[which.rows] <- is.deletion
+	}
+	##save(segmeans, file=file.path(outdir, "segmeans.rda"))
+	return(segmeans)
+}
+calledRanges <- checkExists("calledRanges", .path=outdir, .FUN=callDeletion, segmeans=segmeans, uids=uids, parent.rule=parent.rule,
+			    offspring.rule=offspring.rule)
+##missing values occur for subjects that were not in the lset object (?? why)
+missing.index <- which(is.na(calledRanges$isDeletion))
+calledRanges <- calledRanges[-missing.index, ]
+@
+
+A few descriptive statistics.
+
+
+\begin{figure}[tbh]
+  \centering
+<<numberDeletions_chr1, fig=TRUE, width=8, height=6>>=
+dset <- calledRanges[calledRanges$pedId == "offspring", ]
+dset$id <- as.character(dset$id)
+freq.o <- sapply(split(dset$isDeletion, dset$id), function(x) sum(x == 1))
+pset <- calledRanges[calledRanges$pedId == "mother" | calledRanges$pedId == "father", ]
+pset$id <- as.character(pset$id)
+freq.p <- sapply(split(pset$isDeletion, pset$id), function(x) sum(x == 1))
+par(mfrow=c(1, 2))
+hist(freq.o, xlim=c(0,25), breaks=200, main="offspring", xlab="number of deletions in chromosome 1")
+abline(v=median(freq.o), col="blue")
+hist(freq.p, xlim=c(0,25), breaks=200, main="parents", xlab="number of deletions in chromosome 1")
+abline(v=median(freq.p), col="blue")
+@
+\caption{The frequency of a deletion event in offspring (left) and
+  parents (right) for chromosome 1.  The distribution of called
+  deletions in parents is greater than the distribution in offspring,
+  largely because of the difference in the rule used to call
+  variants. We used different calling rules order to reduce the number
+  of false positive deletions in the offspring and the number of false
+  negative deletions in the parents. The 'typical' offspring has 2
+  deletions whereas the 'typical' parent has 3 deletions on chromosome
+  1.}
+\end{figure}
+
+\begin{figure}[tbh]
+  \centering
+<<typicalSize_chr1, fig=TRUE>>=
+dset <- dset[dset$isDeletion==1, ]
+w <- width(dset)/1000
+hist(log10(w), breaks=50, xlab="size of deletion in log10(kb)", main="")
+median.w <- round(median(log10(w)), 2)
+abline(v=median.w, col="blue")
+abline(v=median(ww.avg), col="blue")
+@
+\caption{Distribution of deletion sizes. The median deletion size is
+  \Sexpr{round(2^median.w, 2)} kb.}
+\end{figure}
+
+Call denovo.
+
+<<>>=
+## if not deleted in offspring, we do not need to check the parents
+dset$isDenovo <- NA
+## among the regions that are deleted in the offspring, check the parents
+##deleted.in.offspring <- which(is.na(dSet$isDenovo))
+offspring.id <- unique(dset$id)
+cnt <- vector("list", length(offspring.id))
+cnt <- rep(NA, nrow(dset))
+parentRanges <- calledRanges[calledRanges$pedId == "father" | calledRanges$pedId == "mother", ]
+for(i in seq_along(offspring.id)){
+	cat(".")
+	## for each offspring
+	## query is the offspring
+	ii <- which(dset$id == offspring.id[i])
+	query.ir <- IRanges(start(dset)[ii], end(dset)[ii])
+	## subjects are the offsprings parents  -- only pull the regions that have a deletion
+	fam.id <- dset$family[i]
+	jj <- which(parentRanges$isDeletion & parentRanges$family == fam.id)
+	subj.ir <- IRanges(start(parentRanges)[jj], end(parentRanges)[jj])
+	cnt[ii] <- countOverlaps(query.ir, subj.ir)
+}
+dset$isDenovo <- ifelse(cnt > 0, FALSE, TRUE)
+@
+
+Among \Sexpr{nrow(dset)} deletions in the offspring,
+\Sexpr{sum(dSet$isDenovo)} were denovo.
+
+
+\begin{figure}[tbh]
+  \centering
+<<denovoFreq_chr1, fig=TRUE, width=8, height=6>>=
+par(mfrow=c(1,1), las=1)
+freq.denovo <- sapply(split(dset$isDenovo, dset$id), function(x) sum(x))
+hist(freq.denovo, xlim=c(0,25), breaks=200, main="frequency of denovo event by sample", xlab="frequency of denovo deletions on chr 1")
+median.freq <- median(freq.denovo)
+abline(v=median.freq, col="blue")
+@
+\caption{The frequency of a denovo event in offspring.  The typical
+  offspring had \Sexpr{median.freq} events on chr 1.}
+\end{figure}
+
+\begin{figure}[tbh]
+  \centering
+<<denovoSize_chr1, fig=TRUE, width=8, height=5>>=
+w <- width(dset[dset$isDenovo,])/1000
+hist(log10(w), breaks=50, xlab="size of deletion in log10(kb)", main="")
+at <- pretty(log10(w))
+median.w <- round(median(log10(w)), 2)
+abline(v=median.w, col="blue")
+@
+\caption{Distribution of size of denovo event. The median deletion size is
+  \Sexpr{round(2^median.w, 2)} kb.}
+\end{figure}
+
+
+Construct the disjoint ranges and count the frequency.
+
+<<previouscall,eval=F>>=
+dset.denovo <- dset[dset$isDenovo, ]
+subj.ir <- IRanges(start(dset.denovo), end(dset.denovo))
+disjoint.rd <- disjointRanges(dset.denovo, is.index=FALSE)
+disjoint.ranges <- IRanges(start(disjoint.rd), end(disjoint.rd))
+freq <- rep(NA, length(disjoint.ranges))
+for(i in seq_along(freq)){
+	query.ir <- disjoint.ranges[i, ]
+	freq[i] <- countOverlaps(query.ir, subj.ir)
+}
+disjoint.rd$freq <- freq
+@
+
+
+

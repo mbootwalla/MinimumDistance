@@ -1,0 +1,8 @@
+dat.top.csv:  received from Ingo on 11/11/2009.  
+              Contains SNPs where the transmission equilibrium p-value was very small
+              Under the null of no phenotypic association, the number of B alleles transmitted at a particular locus should be binomial(0.5)
+
+Xl0000002.csv: a file containing known cnv anomolies
+
+proband.Rda: e-mailed from ingo, perhaps to check compution of TDT statistics.
+              

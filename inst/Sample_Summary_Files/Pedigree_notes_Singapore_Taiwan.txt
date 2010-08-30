@@ -1,0 +1,39 @@
+4/4/08  YOO
+------------
+Received pedfile (CIDR_sp&tw_pedigree.xls) for portion of samples coming from Singapore.  Asked Jackie to send one file for all samples.
+
+4/18/08  YOO
+-------------
+Received pedfile for all samples; project had been approved for sending a portion of samples above what was approved in anticipation of high sample failure.  File for these back-up samples not sent, asked Jackie to send.  
+
+4/24/08 YOO
+-----------
+Received pedfile for back up samples (CIDR_backups_pedigree.xls); duplicates not included.  Spoke with CDB and conclusion was to ask Jackie to add dup in case these samples ended up being used so as not to have to ask for dups later in the project.  Also reported errors encountered with IRB codes when attempting to merge all 3 files.
+
+4/30/08  YOO
+------------
+Received pedfiles (CIDR_backups_pedigree.xls and CIDR_wf&wh&wc_pedigree.xls) with corrections made.  Back up file contained duplicate samples not coded correctly (coded as DNA = 1) reported to Jackie.
+
+Received corrected file.  Merged the 3 files (CIDR_wf&wh&wc_pedigree.xls; CIDR_backups_pedigree.xls and CIDR_sp&tw_pedigree.xls) and named Singapore_merged_pedfile_043008.xls, made RIS compliant and uploaded to CIDRWeb as 375_Beaty_Singapore_043008.csv
+
+
+5/1/08  MMJ
+-----------
+Checked level3 RIS checks for 375_Beaty_Singapore_043008.csv. 
+Family 19027  genders of parents for ind 1 need to be corrected. Report placed in folder.
+
+5/1/08  YOO
+------------
+Send Jackie Singapore_merged_pedfile_043008.xls and asked her to make level3 changes to the file and return it to me.
+
+Received corrected file (Singapore_merged_pedfile_05012008.xls) from Jackie.  
+
+5/2/08  YOO
+-----------
+Made RIS compliant and uploaded to cidrweb as 375_Beaty_Singapore_050208.csv
+
+
+3/2/08  MMJ
+----------
+New file is fine.  Report placed in folder
+

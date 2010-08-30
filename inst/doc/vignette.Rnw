@@ -1,0 +1,54 @@
+% \VignetteIndexEntry{template Vignette}
+% \VignetteKeywords{microarray}
+% \VignettePackage{template}
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[authoryear,round,numbers]{natbib}
+\usepackage{hyperref}
+\usepackage[mathcal]{euscript}
+
+\parindent 0in  % Left justify
+\newcommand{\scscst}{\scriptscriptstyle}
+\newcommand{\scst}{\scriptstyle}
+
+\newcommand{\Rpackage}[1]{\textit{#1}}
+\newcommand{\Rfunction}[1]{\texttt{#1}}
+\newcommand{\Robject}[1]{\texttt{#1}}
+\newcommand{\R}{\textsf{R}}
+\newcommand{\bioc}{http://www.bioconductor.org}
+
+\textwidth=6.2in
+\textheight=8.5in
+\parskip=.3cm
+\oddsidemargin=.1in
+\evensidemargin=.1in
+\headheight=-.3in
+
+\title{Title}
+
+\author{Robert Scharpf}
+
+\begin{document}
+
+\maketitle
+
+<<echo=FALSE>>=
+options(width=60)
+@ 
+
+\section{Session Information}
+
+The version number of \R{} and packages loaded for generating the
+vignette were:
+
+<<sessionInfo, echo=FALSE, results=tex>>=
+toLatex(sessionInfo())
+@ 
+
+\bibliography{genomics}
+\bibliographystyle{plain}
+
+\end{document}
+
+

@@ -1,0 +1,21 @@
+021308  YOO
+-----------
+Received file named jh_bsph_CIDR_pedigree.xls; made RIS compliant and uploaded
+
+2/14/08  MMJ
+--------------
+375_Beaty_JHBSPH_021408.csv level 3 RIS checks done.  No problems found.
+
+072908  YOO
+-----------
+Received pedfile named jh_bsph_CIDR_pedigree.xls, saved as jh_bsph_CIDR_pedigree_II.xls.  Jackie sent updated file as a result of changes made on their end.  Made RIS compliated and uploaded to cidrweb as 375_Beaty_JHBSPH_073008.csv
+
+
+7/30/08  MMJ
+-------------
+Level3 RIS checks on 375_Beaty_JHBSPH_073008.csv.  No problems.  
+
+
+022509  YOO
+-----------
+Jackie sent mini pedfile (norway_updated_pedigree_CIDR (2).xls) for 6 individuals that were being added to existing families.  uploaded these individuals alone to cidrweb as 375_Beaty_JHBSPH_022509.csv; Ivy had already ran the families through pedcheck to verify that relationships were kosher.

@@ -1,0 +1,26 @@
+Required packages:
+
+<<packages,results=hide>>=
+library(Beaty)
+library(SNPchip)
+library(DNAcopy)
+library(IRanges)
+library(mybase)
+library(ff)
+@
+
+Specify where to store and look for intermediate files.
+
+<<outdir>>=
+outdir <- "/amber1/scratch/rscharpf/beaty_beadStudio"
+if(!file.exists(outdir)) dir.create(outdir)
+ldPath(outdir)
+@
+
+Load the object containing the log R ratios for the entire dataset.
+
+<<lrSet>>=
+lrSet <- checkExists("lrSet", outdir, getLrSet)
+lrSet$pedId <- who(sampleNames(lrSet))
+@
+

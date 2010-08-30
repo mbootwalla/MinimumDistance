@@ -1,0 +1,30 @@
+\SweaveInput{preamble}
+\begin{document}
+<<echo=FALSE>>=
+load.it <- TRUE
+@
+
+\SweaveInput{setup}
+
+The segmentation is done by splitting the samples into batches of 600,
+and running the jobs on separate nodes.  Uncomment the following lines
+to submit (must be on fat node).
+
+% \SweaveInput{segmentation}
+
+Remove the whole genome amplified samples for now and focus on
+chromosome 1 so that we can work with matrices instead of ff objects.
+
+\SweaveInput{DNAsource}
+
+\SweaveInput{CallDenovo}
+
+%\SweaveInput{PlotDenovo}
+
+\section{Session Info}
+
+<<sessionInfo, echo=FALSE, results=tex>>=
+toLatex(sessionInfo())
+@
+
+\end{document}

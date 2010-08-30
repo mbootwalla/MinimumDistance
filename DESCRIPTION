@@ -1,0 +1,18 @@
+Package: Beaty 
+Type: Package
+Title: Analysis of trios on the Illumina platform
+Version: 0.0.1
+Date: 8/14/2009
+Author: Robert B Scharpf
+Maintainer: Robert B Scharpf <rscharpf@jhsph.edu>
+Description: Analysis of trios on the Illumina platform
+License: Artistic-2.0
+Depends: oligoClasses
+Imports: mybase
+collate: AllClasses.R
+	 AllGenerics.R
+	 methods-CNSet.R
+	 methods-MultiSet.R
+	 functions.R
+	 zzz.R
+LazyLoad: yes

@@ -1,0 +1,83 @@
+<<mads, fig=TRUE, width=8, height=6>>=
+library(RColorBrewer)
+pastelcolors <- brewer.pal(3, "Pastel1")
+DNA.source <- as.character(lrSet$DNA.Source)
+cell.lines <- c(grep("CEPH", DNA.source),
+		grep("HAN CHINESE", DNA.source),
+		grep("JAPANESE", DNA.source),
+		grep("Yoruba", DNA.source))
+DNA.source[cell.lines] <- "cell line"
+mads <- split(lrSet$MAD, DNA.source)
+nn <- sapply(mads, length)
+which.wga <- grep("WGA", names(mads))
+col <- rep(pastelcolors[1], length(mads))
+col[which.wga] <- pastelcolors[2]
+par(mfrow=c(1,1), mar=c(8, 4, 2, 2), las=1)
+boxplot(mads, col=col, pch=".", xaxt="n", ylab="mad(log R ratio)", ylim=c(0, max(unlist(mads))),
+	xlim=c(-0.5, length(mads)))
+text(x=seq_along(mads), y=rep(0, length(mads)), labels=nn, cex=0.6, srt=90)
+text(-0.25, 0, "N:")
+par(las=3)
+axis(1, at=seq_along(mads),labels=names(mads), cex.axis=0.8)
+legend("topleft", fill=pastelcolors[2:1], legend=c("whole genome amplified", "other"), title="DNA source", bty="n")
+@
+
+
+
+<<which.wga>>=
+which.wga <- grep("WGA", lrSet$DNA.Source)
+@
+
+Remove \Sexpr{length(which.wga)} whole genome amplified samples.
+Working on one chromosome at a time allows working with matrices
+rather than \Robject{ffdf} objects.
+
+<<matrixObject>>=
+which.markers <- which(chromosome(lrSet) == 1)
+invisible(open(logR(lrSet)))
+f <- function(x, i, j) x[i, j]
+lset <- checkExists("lset", .path=outdir, .FUN=f,  x=lrSet, i=which.markers, j=-which.wga)
+invisible(close(logR(lrSet)))
+logR(lset) <- as.matrix(logR(lset))
+@
+
+
+
+The results from the segmentation analysis were saved as
+rD\_\<strata\>, where strata refers to the index of the R batch job.
+The function \Rfunction{getSegMeanRanges} loops through the stratum
+index, loading the \Robject{RangedData} object.
+
+<<RangedData>>=
+##trace(getSegMeanRanges, browser)
+segmean_ranges <- checkExists("segmean_ranges", outdir, getSegMeanRanges)
+## Focus on chromosome 1
+segmeans <- segmean_ranges[segmean_ranges$chrom == 1, ]
+## Drop 168 WGA samples
+wga.samples <- sampleNames(lset)[which.wga]
+segmeans <- segmeans[!segmeans$id %in% wga.samples, ]
+## Drop samples that are not father, mother, offspring
+unknown.ids <- sampleNames(lset)[lset$pedId == "?"]
+segmeans <- segmeans[!segmeans$id %in% unknown.ids, ]
+## Drop samples that do not appear to be in a trio
+trios.index <- getTriosIndex(lset)
+ids.notintrio <- sampleNames(lset)[!lset$family %in% names(trios.index)]
+segmeans <- segmeans[!segmeans$id %in% ids.notintrio, ]
+## Drop other samples in which DNA quality may be affected
+famids.poordna <- lset$family[lset$MAD > 0.3]
+famids.poordna <- famids.poordna[!is.na(famids.poordna)]
+ids.poordna <- sampleNames(lset)[lset$family %in% famids.poordna]
+segmeans <- segmeans[!segmeans$id %in% ids.poordna, ]
+##w <- width(segmeans)
+##w <- split(w, segmeans$id)
+##nm <- sapply(w, sum)
+@
+
+
+
+
+
+
+
+
+
