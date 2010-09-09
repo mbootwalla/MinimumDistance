@@ -6,9 +6,9 @@ load.it <- TRUE
 
 \SweaveInput{setup}
 
-The segmentation is done by splitting the samples into batches of 600,
+The segmentation is done by splitting the samples into batches of 600
 and running the jobs on separate nodes.  Uncomment the following lines
-to submit (must be on fat node).
+to submit (must be on a fat node).
 
 % \SweaveInput{segmentation}
 

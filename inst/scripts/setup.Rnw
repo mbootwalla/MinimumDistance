@@ -1,6 +1,7 @@
 Required packages:
 
 <<packages,results=hide>>=
+library(oligoClasses)
 library(Beaty)
 library(SNPchip)
 library(DNAcopy)

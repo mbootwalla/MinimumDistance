@@ -1,6 +1,6 @@
 <<mads, fig=TRUE, width=8, height=6>>=
 library(RColorBrewer)
-pastelcolors <- brewer.pal(3, "Pastel1")
+pastelcolors <- brewer.pal(4, "Set1")[2:3]
 DNA.source <- as.character(lrSet$DNA.Source)
 cell.lines <- c(grep("CEPH", DNA.source),
 		grep("HAN CHINESE", DNA.source),
@@ -15,6 +15,7 @@ col[which.wga] <- pastelcolors[2]
 par(mfrow=c(1,1), mar=c(8, 4, 2, 2), las=1)
 boxplot(mads, col=col, pch=".", xaxt="n", ylab="mad(log R ratio)", ylim=c(0, max(unlist(mads))),
 	xlim=c(-0.5, length(mads)))
+abline(h=0.3, lty=2)
 text(x=seq_along(mads), y=rep(0, length(mads)), labels=nn, cex=0.6, srt=90)
 text(-0.25, 0, "N:")
 par(las=3)
@@ -35,18 +36,18 @@ rather than \Robject{ffdf} objects.
 <<matrixObject>>=
 which.markers <- which(chromosome(lrSet) == 1)
 invisible(open(logR(lrSet)))
-f <- function(x, i, j) x[i, j]
-lset <- checkExists("lset", .path=outdir, .FUN=f,  x=lrSet, i=which.markers, j=-which.wga)
+fff <- function(x, i, j) x[i, j]
+ylset <- checkExists("lset", .path=outdir, .FUN=fff,  x=lrSet, i=which.markers, j=-which.wga)
 invisible(close(logR(lrSet)))
 logR(lset) <- as.matrix(logR(lset))
 @
 
 
 
-The results from the segmentation analysis were saved as
-rD\_\<strata\>, where strata refers to the index of the R batch job.
-The function \Rfunction{getSegMeanRanges} loops through the stratum
-index, loading the \Robject{RangedData} object.
+The results from the segmentation analysis were saved as $rD<strata>$,
+where strata refers to the index of the R batch job.  The function
+\Rfunction{getSegMeanRanges} loops through the stratum index, loading
+the \Robject{RangedData} object.
 
 <<RangedData>>=
 ##trace(getSegMeanRanges, browser)
@@ -54,7 +55,7 @@ segmean_ranges <- checkExists("segmean_ranges", outdir, getSegMeanRanges)
 ## Focus on chromosome 1
 segmeans <- segmean_ranges[segmean_ranges$chrom == 1, ]
 ## Drop 168 WGA samples
-wga.samples <- sampleNames(lset)[which.wga]
+wga.samples <- sampleNames(lrSet)[which.wga]
 segmeans <- segmeans[!segmeans$id %in% wga.samples, ]
 ## Drop samples that are not father, mother, offspring
 unknown.ids <- sampleNames(lset)[lset$pedId == "?"]
@@ -71,6 +72,12 @@ segmeans <- segmeans[!segmeans$id %in% ids.poordna, ]
 ##w <- width(segmeans)
 ##w <- split(w, segmeans$id)
 ##nm <- sapply(w, sum)
+segmeans$family <- substr(segmeans$id, 1, 5)
+segmeans$pedId <- who(segmeans$id)
+## we do not need to examine all rows.
+segmeans$seg.mean <- segmeans$seg.mean/100
+segmeans <- segmeans[segmeans$seg.mean < 0, ]  ## remove all positive segmeans
+## remove samples that were
 @
 
 

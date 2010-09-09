@@ -12,7 +12,9 @@ for(KK in 1:length(sampleBatch)){
 	fn <- paste("tmp_", KK, ".R", sep="")
 	if(file.exists(fn)) unlink(fn)
 	system(paste("cat temp runSegmentation.R >", fn))
-	system(paste("clusterMcmc 5G", fn))
+	system(paste('cat ~/bin/cluster.template | perl -pe "s/Rprog/tmp_', KK, '.R/" > tmp_', KK, '.R.sh', sep=""))
+	system(paste("qsub -m e -r y -cwd -l mem_free=10G,h_vmem=16G tmp_", KK, ".R.sh", sep=""))
+##	system(paste("clusterMcmc 5G", fn))
 	Sys.sleep(45)
 }
 @
@@ -29,7 +31,7 @@ for(j in 1:ncol(lset)){
 			  data.type="logratio",
 			  sampleid=sampleNames(lset))
 	smu.object <- smooth.CNA(CNA.object)
-	tmp <- segment(smu.object)$output
+	tmp <- segment(smu.object)##$output
 	tmp2 <- print(tmp, showSegRows=TRUE)
 }
 @

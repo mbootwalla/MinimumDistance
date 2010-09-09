@@ -1,0 +1,6 @@
+* <2010-09-02 Thu>
+  Met with Terri and Allan
+  - boxplot of distribution of denovo size for each chromosome
+  - boxplot of distribution of frequency across trios by chromosome
+  - example plot
+  
