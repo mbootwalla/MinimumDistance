@@ -2,7 +2,7 @@
 ## must run make from a fat node
 Beaty : Beaty.Rnw
 	echo "Stangle(\"Beaty.Rnw\")"| R-devel --no-save --no-restore;	
-	cat ~/bin/cluster.templateRelease | perl -pe "s/Rprog/Beaty.R/" > Beaty.R.sh
+	cat ~/bin/cluster.template | perl -pe "s/Rprog/Beaty.R/" > Beaty.R.sh
 	qsub -m e -r y -cwd -l mem_free=5G,h_vmem=12G Beaty.R.sh
 clean:
 	-rm *.pdf

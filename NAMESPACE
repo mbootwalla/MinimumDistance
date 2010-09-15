@@ -1,5 +1,6 @@
 importClassesFrom(mybase, "LogRatioSet")
 importMethodsFrom(mybase, "baf")
+importMethodsFrom(mybase, "logR")
 exportPattern("^[^\\.]")
 
 

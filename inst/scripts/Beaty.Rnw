@@ -1,8 +1,5 @@
 \SweaveInput{preamble}
 \begin{document}
-<<echo=FALSE>>=
-load.it <- TRUE
-@
 
 \SweaveInput{setup}
 
@@ -15,7 +12,11 @@ to submit (must be on a fat node).
 Remove the whole genome amplified samples for now and focus on
 chromosome 1 so that we can work with matrices instead of ff objects.
 
-\SweaveInput{DNAsource}
+%\SweaveInput{DNAsource}
+
+\SweaveInput{Exclusions}
+
+\SweaveInput{CallDeletions}
 
 \SweaveInput{CallDenovo}
 

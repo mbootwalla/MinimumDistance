@@ -5,6 +5,7 @@ rsync -avuzbpt -e ssh ~/projects2/Beaty/inst/scripts/sync enigma2.jhsph.edu:~/pr
 rsync -avuzbpt -e ssh ~/projects2/Beaty/R/ enigma2.jhsph.edu:~/projects2/Beaty/R
 rsync -avuzbpt -e ssh ~/projects2/Beaty/inst/scripts/Makefile enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/
 rsync -avuzbpt -e ssh ~/projects2/Beaty/inst/scripts/*.R enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/
+rsync -avuzbpt -e ssh ~/projects2/Beaty/NAMESPACE enigma2.jhsph.edu:~/projects2/Beaty/
 
 ## PULL
 rsync -avuzbpt -e ssh enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/Beaty*.pdf ~/projects2/Beaty/inst/scripts/
