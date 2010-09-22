@@ -1,3 +1,7 @@
+<<which.CHR>>=
+CHR <- 1
+@
+
 <<which.wga>>=
 which.wga <- grep("WGA", lrSet$DNA.Source)
 @
@@ -7,10 +11,11 @@ Working on one chromosome at a time allows working with matrices
 rather than \Robject{ffdf} objects.
 
 <<matrixObject>>=
-which.markers <- which(chromosome(lrSet) == 1)
+which.markers <- which(chromosome(lrSet) == CHR)
 invisible(open(logR(lrSet)))
+sample.index <- (1:ncol(lrSet))[-which.wga]
 fff <- function(x, i, j) x[i, j]
-lset <- checkExists("lset", .path=outdir, .FUN=fff,  x=lrSet, i=which.markers, j=-which.wga)
+lset <- checkExists("lset", .path=outdir, .FUN=fff,  x=lrSet, i=which.markers, j=sample.index)
 invisible(close(logR(lrSet)))
 logR(lset) <- as.matrix(logR(lset))
 @
@@ -23,61 +28,14 @@ where strata refers to the index of the R batch job.  The function
 the \Robject{RangedData} object.
 
 <<RangedData>>=
-getSegMeans <- function(outdir, CHR){
-	fnames <- list.files(outdir, pattern=paste("cbs.segs_chr", CHR, sep=""), full.name=TRUE)
-	segmeans <- vector("list", length(fnames))
-	for(i in seq_along(segmeans)){
-		load(fnames[i])
-		rd <- RangedData(IRanges(start=cbs.segs$startRow,
-					 end=cbs.segs$endRow),
-				 pos.start=cbs.segs$loc.start,
-				 pos.end=cbs.segs$loc.end,
-				 num.mark=cbs.segs$num.mark,
-				 seg.mean=cbs.segs$seg.mean,
-				 id=cbs.segs$ID,
-				 chrom=cbs.segs$chrom)
-		segmeans[[i]] <- rd
-	}
-	segmean_ranges <- do.call(rbind, segmeans)
-	segmean_ranges
-}
-segmean_ranges <- getSegMeans(outdir, CHR=1)
-excludeRanges <- function(segmeans, lrSet){
-	##trace(getSegMeanRanges, browser)
-	## Drop 168 WGA samples
-	which.wga <- grep("WGA", lrSet$DNA.Source)
-	wga.samples <- sampleNames(lrSet)[which.wga]
-	segmeans <- segmeans[!segmeans$id %in% wga.samples, ]
-	## Drop samples that are not father, mother, offspring
-	unknown.ids <- sampleNames(lrSet)[lrSet$pedId == "?"]
-	if(length(unknown.ids) > 0)
-		segmeans <- segmeans[!segmeans$id %in% unknown.ids, ]
-	## Drop samples that do not appear to be in a trio
-##	trios.index <- getTriosIndex(lrSet)
-##	ids.notintrio <- sampleNames(lrSet)[!lrSet$family %in% names(trios.index)]
-##	segmeans <- segmeans[!segmeans$id %in% ids.notintrio, ]
-
-	## Drop other samples in which DNA quality may be affected
-	famids.poordna <- lrSet$family[lrSet$MAD > 0.3]
-	famids.poordna <- famids.poordna[!is.na(famids.poordna)]
-	ids.poordna <- sampleNames(lrSet)[lrSet$family %in% famids.poordna]
-	segmeans <- segmeans[!segmeans$id %in% ids.poordna, ]
-	##w <- width(segmeans)
-	##w <- split(w, segmeans$id)
-	##nm <- sapply(w, sum)
-	segmeans$family <- substr(segmeans$id, 1, 5)
-	segmeans$pedId <- who(segmeans$id)
-	trios <- split(who(segmeans$id), segmeans$family)
-	trios <- lapply(trios, unique)
-	trios <- trios[sapply(trios, length) == 3]
-	family.inTrio <- names(trios)
-	segmeans <- segmeans[segmeans$family %in% family.inTrio, ]
-
-	## we do not need to examine all rows.
-	## segmeans$seg.mean <- segmeans$seg.mean/100
-	## segmeans <- segmeans[segmeans$seg.mean < 0, ]  ## remove all positive segmeans
-	## remove samples that were
-	return(segmeans)
-}
+segmean_ranges <- getSegMeans(outdir, CHR=CHR)
 segmeans <- excludeRanges(segmean_ranges, lrSet)
+@
+
+<<triosUsed, eval=FALSE>>=
+ids <- lapply(split(segmeans$id, segmeans$family), unique)
+ix <- match(unlist(ids), sampleNames(lset))
+beaty_samples <- cbind(sampleNames(lset)[ix], lset$sampleNames[ix])
+colnames(beaty_samples) <- c("IDATprefix", "Sample.ID")
+write.csv(beaty_samples, "beaty_samples.csv", quote=FALSE, row.names=FALSE)
 @

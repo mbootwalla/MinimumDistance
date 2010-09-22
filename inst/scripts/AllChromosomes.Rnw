@@ -1,0 +1,48 @@
+<<allchrom>>=
+offspring.rule <- function(MAD) ifelse(-2*MAD < log(1.25/2), -2*MAD, log(1.25/2))
+parent.rule <- function()  log(1.8/2)
+for(CHR in 1:22){
+	which.wga <- grep("WGA", lrSet$DNA.Source)
+	which.markers <- which(chromosome(lrSet) == CHR)
+	invisible(open(logR(lrSet)))
+	sample.index <- (1:ncol(lrSet))[-which.wga]
+	lset <- lrSet[which.markers, sample.index]
+	invisible(close(logR(lrSet)))
+	logR(lset) <- as.matrix(logR(lset))
+
+	segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+	segmeans <- excludeRanges(segmean_ranges, lrSet)
+	segmeans$is.deletion <- callDeletion(segmeans, lset, parent.rule, offspring.rule)
+
+	queryset <- segmeans[segmeans$pedId == "offspring" & segmeans$is.deletion, ]
+	query.list <- split(queryset, queryset$id)
+	##query.list <- checkExists("query.list", .path=outdir, .FUN=split, x=queryset, f=queryset$id)#, .load.it=FALSE)
+	names(query.list) <- substr(names(query.list), 1, 5)
+
+	is.parent <- segmeans$pedId == "father" | segmeans$pedId == "mother"
+	family.in.query <- substr(segmeans$id, 1, 5) %in% names(query.list)
+	parent.ranges <- segmeans[is.parent & family.in.query, ]# & segmeans$is.deletion, ]
+	stopifnot(length(unique(parent.ranges$family)) == length(query.list))
+	##subject.list <- checkExists("subject.list", .path=outdir, .FUN=split, x=parent.ranges, f=parent.ranges$family)#, .load.it=FALSE)
+	subject.list <- split(parent.ranges, parent.ranges$family)
+	stopifnot(identical(names(query.list), names(subject.list)))
+
+	##denovo.list <- checkExists("denovo.list", .path=outdir, .FUN=callDenovo, query.list=query.list, subject.list=subject.list)##, .load.it=F)
+	denovo.list <- callDenovo(query.list=query.list, subject.list=subject.list)
+	denovo.list <- as(denovo.list, "list")
+	## for each query, calculate the proportion of logR values in the parents that is below the threshold
+##	denovoset <- checkExists("denovoset", .path=outdir, .FUN=pBelow,
+##				 denovo.list=denovo.list, lset=lset)
+	denovoset <- pBelow(denovo.list=denovo.list, lset=lset)
+	denovoset$is.denovo <- denovoset$number.overlap == 0 & denovoset$propLow.Father < 0.25 & denovoset$propLow.Mother < 0.25
+	denovo.ranges <- denovoset[denovoset$is.denovo, ]
+	overlapList <- myOverlaps(denovo.ranges)
+	disjoint.ranges <- overlapList[["disjoint.rd"]]
+	denovo.sns <- overlapList[["sns"]]
+
+	freq <- disjoint.ranges$freq
+	region.factor <- cumsum(c(0, diff(freq > 0) !=0))
+	disjoint.ranges$region <- region.factor
+	## exclude disjoint ranges without a denovo event
+}
+@

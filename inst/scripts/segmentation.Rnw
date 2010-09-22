@@ -1,40 +1,30 @@
 <<segmentation>>=
 library(oligoClasses)
 NN <- 1000
-CHR <- 1
+##CHR <- 1
+iter <- 1
 sampleBatch <- splitIndicesByLength(1:7599, NN)
-for(KK in 1:length(sampleBatch)){
-	sink("temp")
-	cat("runSegmentation <- TRUE \n")
-	cat("sourceSubmitter <- FALSE \n")
-	cat("batch <- ", KK, "\n")
-	cat("NN <- ", NN, "\n")
-	cat("CHR <- ", CHR, "\n")
-	sink()
-	fn <- paste("tmp_", KK, ".R", sep="")
-	if(file.exists(fn)) unlink(fn)
-	system(paste("cat temp runSegmentation.R >", fn))
-	system(paste('cat ~/bin/cluster.template | perl -pe "s/Rprog/tmp_', KK, '.R/" > tmp_', KK, '.R.sh', sep=""))
-	system(paste("qsub -m e -r y -cwd -l mem_free=10G,h_vmem=16G tmp_", KK, ".R.sh", sep=""))
-##	system(paste("clusterMcmc 5G", fn))
-	Sys.sleep(45)
+for(CHR in 4:22){
+	for(KK in 1:length(sampleBatch)){
+		iter <- iter+1
+		sink("temp")
+		cat("runSegmentation <- TRUE \n")
+		cat("sourceSubmitter <- FALSE \n")
+		cat("batch <- ", KK, "\n")
+		cat("NN <- ", NN, "\n")
+		cat("CHR <- ", CHR, "\n")
+		sink()
+		fn <- paste("tmp_", iter, ".R", sep="")
+		if(file.exists(fn)) unlink(fn)
+		system(paste("cat temp runSegmentation.R >", fn))
+		system(paste('cat ~/bin/cluster.template | perl -pe "s/Rprog/tmp_', iter, '.R/" > tmp_', iter, '.R.sh', sep=""))
+		system(paste("qsub -m e -r y -cwd -l mem_free=10G,h_vmem=16G tmp_", iter, ".R.sh", sep=""))
+		##	system(paste("clusterMcmc 5G", fn))
+		Sys.sleep(45)
+	}
+	Sys.sleep(60*60*2.5)
 }
 @
 
 
-<<eval=FALSE>>=
-library(DNAcopy)
-lset <- lset[-which(duplicated(position(lset))), ]
-cbs.segments <- vector("list", ncol(lset))
-for(j in 1:ncol(lset)){
-	CNA.object <- CNA(genomdat=logR(lset),
-			  chrom=chromosome(lset),
-			  maploc=position(lset),
-			  data.type="logratio",
-			  sampleid=sampleNames(lset))
-	smu.object <- smooth.CNA(CNA.object)
-	tmp <- segment(smu.object)##$output
-	tmp2 <- print(tmp, showSegRows=TRUE)
-}
-@
 

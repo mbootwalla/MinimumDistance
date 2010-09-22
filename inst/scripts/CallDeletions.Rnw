@@ -18,29 +18,6 @@ With the above rules, we make a call of deletion (1=yes, 0=no) for
 each segment.
 
 <<callDeletion>>=
-callDeletion <- function(segmeans, lset, parent.rule, offspring.rule){
-	## call for parents
-	is.deletion <- rep(NA, nrow(segmeans))
-	index <- which(segmeans$pedId == "father" | segmeans$pedId == "mother")
-	is.deletion[index] <- ifelse(segmeans$seg.mean[index] < parent.rule(), TRUE, FALSE)
-
-	offspring.index <- which(segmeans$pedId == "offspring")
-	offspring.ids <- segmeans$id[offspring.index]
-	uids <- unique(offspring.ids)
-	offspring.ids <- split(offspring.ids, offspring.ids)
-	offspring.ids <- offspring.ids[match(uids, names(offspring.ids))]
-	nn <- sapply(offspring.ids, length)
-
-	##uids <- unique(segmeans$id[segmeans$pedId == "offspring"])
-	mads <- lset$MAD
-	names(mads) <- sampleNames(lset)
-	mads <- mads[match(uids, names(mads))]
-	stopifnot(identical(names(mads), uids))
-	mads <- rep(mads, nn)
-	thr <- offspring.rule(mads)
-	is.deletion[offspring.index] <- ifelse(segmeans$seg.mean[offspring.index] < thr, TRUE, FALSE)
-	return(is.deletion)
-}
 segmeans$is.deletion <- callDeletion(segmeans, lset, parent.rule, offspring.rule)
 @
 
@@ -59,14 +36,14 @@ freq.p <- sapply(split(pset$is.deletion, pset$id), function(x) sum(x == 1))
 par(mfrow=c(1, 2), las=1)
 med.o <- median(freq.o)
 freq.o[freq.o > 15] <- 15
-hist(freq.o, xlim=c(0,15), breaks=40, main="offspring", xlab="number of deletions in chromosome 1", xaxt="n", col="lightblue")
+hist(freq.o, xlim=c(0,15), breaks=40, main="offspring", xlab=paste("number of deletions in chr", CHR), xaxt="n", col="lightblue")
 axis(1, at=15, labels="15+")
 axis(1, at=pretty(c(0, 14)), labels=pretty(c(0,14)))
 abline(v=med.o, col="blue")
 
 med.p <- median(freq.p)
 freq.p[freq.p > 15] <- 15
-hist(freq.p, xlim=c(0,25), breaks=40, main="parents", xlab="number of deletions in chromosome 1", xaxt="n", col="lightblue")
+hist(freq.p, xlim=c(0,25), breaks=40, main="parents", xlab=paste("number of deletions in chr", CHR), xaxt="n", col="lightblue")
 axis(1, at=15, labels="15+")
 axis(1, at=pretty(c(0, 14)), labels=pretty(c(0,14)))
 abline(v=median(freq.p), col="blue")

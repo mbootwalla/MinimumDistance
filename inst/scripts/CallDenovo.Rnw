@@ -5,70 +5,17 @@ ranges of the parents corresponding to the element in queryList.
 <<queryList>>=
 ## the query list are the deletions found in the offspring
 queryset <- segmeans[segmeans$pedId == "offspring" & segmeans$is.deletion, ]
-query.list <- checkExists("query.list", .path=outdir, .FUN=split, x=queryset, f=queryset$id, .load.it=FALSE)
+query.list <- checkExists("query.list", .path=outdir, .FUN=split, x=queryset, f=queryset$id)#, .load.it=FALSE)
 names(query.list) <- substr(names(query.list), 1, 5)
 
 ## among the regions that are deleted in the offspring (filter by family), check the parents
 is.parent <- segmeans$pedId == "father" | segmeans$pedId == "mother"
 family.in.query <- substr(segmeans$id, 1, 5) %in% names(query.list)
-parent.ranges <- segmeans[is.parent & family.in.query & segmeans$is.deletion, ]
-stopifnot(length(unique(substr(parent.ranges$id, 1,5))) != length(query.list))
-subject.list <- checkExists("subject.list", .path=outdir, .FUN=split, x=parent.ranges, f=substr(parent.ranges$id, 1, 5))
+parent.ranges <- segmeans[is.parent & family.in.query, ]# & segmeans$is.deletion, ]
+stopifnot(length(unique(parent.ranges$family)) == length(query.list))
+subject.list <- checkExists("subject.list", .path=outdir, .FUN=split, x=parent.ranges, f=parent.ranges$family)#, .load.it=FALSE)
+stopifnot(identical(names(query.list), names(subject.list)))
 @
-
-For each range in the query.list, check the running median of the log
-R ratios in the parents.
-
-<<runningMedian>>=
-max.end <- max(end(segmeans))
-sns <- sampleNames(lset)
-k <- 5
-## why would an offspring not have either parent in lset?????
-for(i in seq_len(length(query.list))){
-	query <- query.list[[i]]
-	ymin <- matrix(NA, nrow(query), 2)
-	family <- unique(query$family)
-	father.index <- grep(paste(family, "_03", sep=""), sns)
-	mother.index <- grep(paste(family, "_02", sep=""), sns)
-	if(length(father.index) < 1) next()
-	for(j in 1:nrow(query)){
-		index <- start(query)[j]:end(query)[j]
-		min.index <- max(1, min(index) - k)
-		max.index <- min(max(index)+k, max.end)
-		marker.index <- min.index:max.index
-		y <- logR(lset)[marker.index, c(father.index, mother.index)]
-		if(any(is.nan(y))){
-			y[is.nan(y)] <- median(y, na.rm=T)
-		}
-		ymed <- apply(y, 2, runmed, k=k)
-		index2 <- seq_along(y[, 1])[(1+k):(nrow(y)-k)]
-		ymin[j, ] <- apply(ymed[index2, ], 2, min)
-	}
-	query$min.runmed.F <- ymin[, 1]
-	query$min.runmed.M <- ymin[, 2]
-	query.list[[i]] <- query
-}
-@
-<<subjectList>>=
-###subjectList <- function(dset, lset, parentRanges){
-###	offspring.name <- sapply(split(dset$id, dset$id), unique)
-###	subject.list <- vector("list", length(offspring.name))
-###	sns.lset <- sampleNames(lset)
-###	for(i in seq_along(offspring.name)){
-###		if(i %% 100 == 0) cat(".")
-###		family.name <- lset$family[match(offspring.name[i], sns.lset)]
-###		is.family <- lset$family == family.name
-###		father.name <- sns.lset[which(is.family & lset$pedId == "father")]
-###		mother.name <- sns.lset[which(is.family & lset$pedId == "mother")]
-###		parent.indices <- which(parentRanges$id %in% c(father.name, mother.name))
-###		subject.list[[i]] <- parentRanges[parent.indices, ]
-###	}
-###	subject.list
-###}
-###subject.list <- checkExists("subject.list", .path=outdir, .FUN=subjectList,
-###			    dset=dset, lset=lset, parentRanges=parentRanges)
-@
-
 
 For each element in the query.list (the deletion ranges for one
 offspring, one chromosome), count the overlap with the corresponding
@@ -78,126 +25,71 @@ Deletions with 1 or more overlaps are inherited.
 
 <<callDenovo>>=
 ##denovoList <- vector("list", length(query.list))
-for(i in seq_along(query.list)){
-	if(i %% 100 == 0) cat(".")
-	query.ir <- IRanges(start(query.list[[i]]), end(query.list[[i]]))
-	subj.ir <- IRanges(start(subject.list[[i]]), end(subject.list[[i]]))
-	cnt <- countOverlaps(query.ir, subj.ir)
-	query.list[[i]]$numberOverlap <- cnt
-##	cnt[ii] <- countOverlaps(query.ir, subj.ir)
-}
-queryset <- do.call("c", query.list)
-queryset$isDenovo <- queryset$numberOverlap == 0
-##
-##
-##callDenovo <- function(dset, calledRgs){
-##	offspring.id <- unique(dset$id)
-##	cnt <- rep(NA, nrow(dset))
-####	parentRanges <- calledRgs[calledRgs$pedId == "father" | calledRgs$pedId == "mother", ]
-##	for(i in seq_along(offspring.id)){
-##		cat(".")
-##		## for each offspring
-##		## query is the offspring
-##		ii <- which(dset$id == offspring.id[i])
-##		query.ir <- IRanges(start(dset)[ii], end(dset)[ii])
-##		## subjects are the offsprings parents  -- only pull the regions that have a deletion
-##		fam.id <- dset$family[i]
-##		jj <- which(parentRanges$isDeletion & parentRanges$family == fam.id)
-##		subj.ir <- IRanges(start(parentRanges)[jj], end(parentRanges)[jj])
-##		cnt[ii] <- countOverlaps(query.ir, subj.ir)
-##	}
-##	return(ifelse(cnt > 0, FALSE, TRUE))
-##}
-##is.denovo <- checkExists("is.denovo", .path=outdir, .FUN=callDenovo, dset=dset, calledRgs=calledRgs)
-##dset$isDenovo <- is.denovo
+denovo.list <- checkExists("denovo.list", .path=outdir, .FUN=callDenovo, query.list=query.list, subject.list=subject.list)##, .load.it=F)
+denovo.list <- as(denovo.list, "list")
+## for each query, calculate the proportion of logR values in the parents that is below the threshold
+denovoset <- checkExists("denovoset", .path=outdir, .FUN=pBelow,
+			 denovo.list=denovo.list, lset=lset)
+denovoset$is.denovo <- denovoset$number.overlap == 0 & denovoset$propLow.Father < 0.25 & denovoset$propLow.Mother < 0.25
 @
 
-Among \Sexpr{nrow(dset)} deletions in the offspring,
-\Sexpr{sum(dset$isDenovo)} were denovo.
+Among \Sexpr{nrow(denovoset)} deletions in the offspring,
+\Sexpr{sum(denovoset$is.denovo)} were denovo.
 
 
-\begin{figure}[tbh]
-  \centering
-<<denovoFreq_chr1, fig=TRUE, width=8, height=6>>=
-par(mfrow=c(1,1), las=1)
-freq.denovo <- sapply(query.list, function(x) sum(x$numberOverlap==0))
-##freq.denovo <- sapply(split(dset$isDenovo, dset$id), function(x) sum(x))
-med.d <- median(freq.denovo)
-freq.denovo[freq.denovo > 10] <- 10
-hist(freq.denovo, xlim=c(0,10), breaks=50,  xlab="frequency of denovo deletions on chr 1", xaxt="n")
-axis(1, at=10, labels="10+")
-axis(1, at=pretty(c(0,8)), labels=pretty(c(0,8)))
-abline(v=med.d, col="blue")
+<<numberMarkers, fig=TRUE>>=
+denovo.ranges <- denovoset[denovoset$is.denovo, ]
+par(las=1)
+hist(width(denovo.ranges), col="lightblue", breaks=50, xlab="number of markers",
+     ylab="number of denovo events", xlim=c(0,40))
 @
-\caption{The frequency of a denovo event for each offspring.  The
-  typical offspring had \Sexpr{med.d} denovo events on chr 1.}
-\end{figure}
-
-\begin{figure}[tbh]
-  \centering
-<<denovoSize_chr1, fig=TRUE, width=8, height=5>>=
-w <- width(queryset[queryset$isDenovo,])/1000
-median.w <- median(w)
-w[w > 50] <- 50
-hist(w, breaks=100, xlab="size of denovo event (kb)", main="", xaxt="n", xlim=c(0, 50))
-axis(1, at=pretty(c(0, 40)), labels=pretty(c(0,40)))
-axis(1, at=50, labels="50+")
-##median.w <- round(median(log10(w)), 2)
-abline(v=median.w, col="blue")
-axis(1, at=median.w, labels=round(median.w, 2))
-abline(v=median.w, col="blue")
-@
-\caption{Distribution of size of denovo event. The median deletion size is
-  \Sexpr{round(2^median.w, 2)} kb.}
-\end{figure}
 
 
 Construct the disjoint ranges and count the frequency.
 
 <<findOverlaps>>=
-denovoset <- queryset[queryset$isDenovo, ]
-##dset.denovo <- dset[dset$isDenovo, ]
-myOverlaps <- function(dset.denovo){
-	subj.ir <- IRanges(start(dset.denovo), end(dset.denovo))
-	subj.sns <- dset.denovo$id
-	ix <- order(start(subj.ir))
-	subj.ir <- subj.ir[ix]
-	subj.sns <- subj.sns[ix]
-	brks <- unique(c(start(subj.ir), end(subj.ir)))
-	brks <- brks[order(brks)]
-	ir <- matrix(NA, length(brks)-1, 2)
-	ir[, 1] <- brks[-length(brks)]
-	ir[, 2] <- brks[-1]
-	disj.ir <- IRanges(ir[,1], ir[,2])
-	matching.subj <- vector("list", length(disj.ir))
-	for(i in seq_along(matching.subj)){
-		query.ir <- disj.ir[i, ]
-		w <- width(query.ir)
-		## require overlap to be the length of the interval
-		tmp <- findOverlaps(query.ir, subj.ir, minoverlap=w)
-		matching.subj[[i]] <- matchMatrix(tmp)[, "subject"]
-		##freq[i] <- countOverlaps(query.ir, subj.ir)
-	}
-	disjoint.rd <- RangedData(disj.ir, freq=sapply(matching.subj, length))
-	sns <- lapply(matching.subj, function(i, subj.sns) subj.sns[i], subj.sns)
-	res <- list(disjoint.rd=disjoint.rd, sns=sns)
-	return(res)
-}
-overlapList <- checkExists("overlapList", .path=outdir, .FUN=myOverlaps, dset.denovo=denovoset)
-disjoint.rd <- overlapList[["disjoint.rd"]]
-sns <- overlapList[["sns"]]
+overlapList <- myOverlaps(denovo.ranges)
+disjoint.ranges <- overlapList[["disjoint.rd"]]
+denovo.sns <- overlapList[["sns"]]
 @
+
+Interesting 'regions' will be separated by a range without any denovo
+events. Consecutive disjoint ranges with a frequency greater than 1
+demarcate a region of interest. Find the number of interesting
+regions.
+
+<<numberOfRegions>>=
+freq <- disjoint.ranges$freq
+region.factor <- cumsum(c(0, diff(freq > 0) !=0))
+disjoint.ranges$region <- region.factor
+## exclude disjoint ranges without a denovo event
+region.factor <- region.factor[freq > 0]
+@
+
+There are \Sexpr{length(region.factor)} interesting regions.
 
 \begin{figure}[tbh]
   \centering
 <<widthVfreq, fig=TRUE, width=8, height=6>>=
-x <- width(disjoint.rd)/1e3
-y <- disjoint.rd$freq
-##y[y > 150] <- 150
-x[x > 1000] <- 1000
-xmax <- max(x[y >= 1])
-##x <- jitter(x, amount=1)
-plot(x, y, ylab="frequency", xlab="kb", pch=21, col="grey60", cex=0.6, xlim=c(0, xmax+5), ylim=c(0,150))
+x.start <- position(lset)[start(disjoint.ranges)]
+x.end <- position(lset)[end(disjoint.ranges)]
+x <- (x.end-x.start)/1e3
+y <- disjoint.ranges$freq
+x <- x[disjoint.ranges$freq > 0]
+y <- y[disjoint.ranges$freq > 0]
+x[x > 100] <- 100
+plot(x, jitter(y, amount=0.1),
+     xlab="size (kb) of disjoint range", pch=21, col="grey60", cex=0.6, xaxt="n", yaxt="n",
+     ylab="offspring with denovo event",
+     main=paste("chr", CHR))##, xlim=c(0, xmax+5), ylim=c(0,150))
+axis(1, at=seq(0, 90, 10))
+axis(1, at=100, labels="100+")
+axis(2, at=1:3, labels=1:3)
+@
+\end{figure}
+
+<<poissonForNull, eval=FALSE, echo=FALSE>>=
+##axis(1, at=1, labels=1)
 ## estimate mu
 library(Hmisc)
 mycuts <- cut2(x=x, g=50)
@@ -223,131 +115,21 @@ index <- which(index2 & index1)
 points(unlist(xx)[index], unlist(yy)[index], bg=bg, pch=21)
 orig.index <- unlist(split(seq_along(x), mycuts))[index]
 @
-\end{figure}
-
-How many markers are in the above intervals?
-<<num.mark>>=
-num.mark <- rep(NA, length(index))
-for(i in seq_along(index)){
-##	ii <- index[i]
-	ii <- orig.index[i]
-	num.mark[i] <- sum(position(lset) >= start(disjoint.rd)[ii] & position(lset) <= end(disjoint.rd)[ii])
-}
-@
-
-<<>>=
-stop("redoSegment")
-@
-
 
 Extract the lower level data: log R ratios and B allele frequencies.
 Make a plot for each trio involved.  Think of a more efficient data
 summary, perhaps using image and shading proportional to the segment
 mean.  Plot the region for an individual with a denovo event.
 
-<<lowerleveldata, eval=FALSE>>=
-stop("lowerleveldata")
-segmeans.chr1 <- segmean_ranges[segmean_ranges$chrom == 1, ]
-segmeans.chr1$seg.mean <- segmeans.chr1$seg.mean/100
-segmeans.chr1$seg.mean[segmeans.chr1$seg.mean < -2] <- -2
-## index <- which(disjoint.rd$freq > 100)
-## Get the sample names of the subjects for each 'hotspot'
 
-pdf("denovoregions_chr1_%02d.pdf", onefile=FALSE, width=8, height=7)
-locus.index <- which(width(disjoint.rd)/1e3 > 100 & disjoint.rd$freq > 5)
-disjoint.rd[locus.index, ]
-##locus.index <- orig.index[[i]]
-sample.index <- match(sns[[locus.index]], sampleNames(lset))
-##sample.index <- match(sns[[i]], sampleNames(lset))
-marker.index <- window(which(position(lset) >= start(disjoint.rd)[locus.index] &
-			     position(lset) <= end(disjoint.rd)[locus.index]), 100)
-## add another 1000 to the right:
-##marker.index <- c(marker.index, (max(marker.index) + 1):(max(marker.index) + 5000))
-x <- position(lset)[marker.index]
-y <- logR(lset)[marker.index, sample.index]
-ylim <- c(-2, 0.5)
-y[y < -2] <- -2
-y[y > 0.5] <-  0.5
-v <- c(start(disjoint.rd)[orig.index], end(disjoint.rd)[orig.index])
-v <- c(start(disjoint.rd)[locus.index], end(disjoint.rd)[locus.index])
-for(j in 1:ncol(y)){
-	layout(matrix(1:4, 4,1), heights=c(1, 1, 1, 0.25))
-	par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
-	sample.name <- colnames(y)[j]
-	this.family <- substr(sample.name, 1, 5)
-	father.index <- which(lset$family == this.family & lset$pedId == "father")
-	mother.index <- which(lset$family == this.family & lset$pedId == "mother")
-	iii <- which(lrSet$family == this.family)
-	dna.source <- lrSet$DNA.Source[iii]
-	names(dna.source) <- sampleNames(lrSet)[iii]
-	y.f <- logR(lset)[marker.index, father.index]
-	y.f[y.f < ylim[1]] <- ylim[1]
-	y.f[y.f > ylim[2]] <- ylim[2]
-	plot(x, y.f, ylab="log R Ratio", xlab="", pch=21, col="grey60",
-	     ylim=ylim, xaxt="n")
-	abline(v=v, col="black", lty=2)
-	father.name <- sampleNames(lset)[father.index]
-	grep.id <- grep(father.name, segmeans.chr1$id)
-	segs <- segmeans.chr1[grep.id, ]
-	segments(segs,strict=F, lwd=2)
-##	F.segs <- cbs.segs[cbs.segs$id %in% father.name, ]
-##	segments(F.segs, strict=F, lwd=2, col="red")
-	rmed <- runmed(logR(lset)[marker.index, father.index], k=5)
-	lines(x, rmed, col="green3", lwd=2)
 
-	points(x, logR(lset)[marker.index, father.index], pch=21, col="grey60")
-	legend("bottomright", legend="F", bty="n")
-	father.mad <- lrSet$MAD[match(sampleNames(lset)[father.index], sampleNames(lrSet))]
-	legend("bottomleft", legend=paste("MAD:", round(father.mad, 3)), bg="white")
+How often would we expect to find such a region by chance?  - regions
+near centromere and telomeres are more unstable (need to take
+instability into account when simulating a null) - do we think common
+cnv variants contribute to the phenotype?  - for the hotspots, what
+type of cleft palate disorder do the affected offspring have?
 
-	y.m <- logR(lset)[marker.index, mother.index]
-	y.m[y.m < ylim[1]] <- ylim[1]
-	y.m[y.m > ylim[2]] <- ylim[2]
-	plot(x, y.m,
-	     ylab="log R Ratio", xlab="", pch=21, col="grey60",
-	     ylim=ylim, xaxt="n")
-	abline(v=v, col="black", lty=2)
-	mother.name <- sampleNames(lset)[mother.index]
-	grep.id <- grep(mother.name, segmeans.chr1$id)
-	segs <- segmeans.chr1[grep.id, ]
-	segments(segs,strict=F, lwd=2)
-	rmed <- runmed(logR(lset)[marker.index, mother.index], k=5)
-	lines(x, rmed, col="green3", lwd=2)
-##	M.segs <- cbs.segs[cbs.segs$id %in% mother.name, ]
-##	segments(M.segs,strict=F, lwd=2, col="red")
 
-	points(x, y.m, pch=21, col="grey60")
-	legend("bottomright", legend="M", bty="n")
-	mother.mad <- lrSet$MAD[match(sampleNames(lset)[mother.index], sampleNames(lrSet))]
-	legend("bottomleft", legend=paste("MAD:", round(mother.mad, 3)), bg="white")
-
-	plot(x, y[, j], ylab="log R Ratio", xlab="", pch=21, col="grey60",
-	     ylim=ylim, xaxt="n")
-	offspring.mad <- lrSet$MAD[match(sample.name, sampleNames(lrSet))]
-	abline(v=v, col="black", lty=2)
-	grep.id <- grep(sample.name, segmeans.chr1$id)
-	segs <- segmeans.chr1[grep.id, ]
-	segments(segs,strict=F, lwd=2)
-	points(x, y[, j], pch=21, col="grey60")
-	legend("bottomleft", legend=paste("MAD:", round(offspring.mad, 3)), bg="white")
-	legend("bottomright", legend=substr(sample.name, 1, 8), bty="n")
-	invisible(plotCytoband(1, label.cytoband=FALSE, xlim=range(x)))
-	at <- pretty(x)
-	axis(1, at, labels=at/1e3)
-	mtext("kb", 1, outer=TRUE, line=1)
-	mtext("chr 1", 3, outer=TRUE, line=1)
-}
-dev.off()
-##overlay segmentation
-##stop("denovoregions")
-@
-
-How often would we expect to find such a region by chance?
-- regions near centromere and telomeres are more unstable (need to
-take instability into account when simulating a null)
-- do we think common cnv variants contribute to the phenotype?
-- for the hotspots, what type of cleft palate disorder do the affected
-offspring have?
 
 
 

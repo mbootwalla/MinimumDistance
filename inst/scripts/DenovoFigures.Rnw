@@ -1,0 +1,114 @@
+<<lowerleveldata,echo=FALSE>>=
+segmeans.chr1 <- segmean_ranges[segmean_ranges$chrom == CHR, ]
+segmeans.chr1$seg.mean[segmeans.chr1$seg.mean < -2] <- -2
+## index <- which(disjoint.rd$freq > 100)
+## Get the sample names of the subjects for each 'hotspot'
+WINDOW.SIZE=500e3
+
+region.factor <- region.factor[freq > 0]
+unique.regions <- unique(region.factor)
+pdf("denovoregions_chr1_%02d.pdf", onefile=FALSE, width=8, height=7)
+for(i in seq_along(unique.regions)){
+	query <- disjoint.ranges[disjoint.ranges$region == unique.regions[i], ]
+	affected.offspring <- unique(unlist(denovo.sns[disjoint.ranges$region == region.factor[i]]))
+	##locus.index <- which(width(disjoint.rd)/1e3 > 100 & disjoint.rd$freq > 5)
+	locus.index <- min(start(query)):max(end(query))
+	##disjoint.rd[locus.index, ]
+	##locus.index <- orig.index[[i]]
+	sample.index <- match(affected.offspring, sampleNames(lset))
+	##sample.index <- match(sns[[i]], sampleNames(lset))
+
+	pos <- position(lset)[locus.index]
+	min.pos <- min(pos)-WINDOW.SIZE
+	max.pos <- max(pos)+WINDOW.SIZE
+	marker.index <- which(position(lset) >= min.pos & position(lset) <= max.pos)
+	##marker.index <- window(locus.index, 100)
+	##marker.index <- marker.index[marker.index <= nrow(lset)]
+	##	marker.index <- window(which(position(lset) >= start(disjoint.rd)[locus.index] &
+	##				     position(lset) <= end(disjoint.rd)[locus.index]), 100)
+	## add another 1000 to the right:
+	##marker.index <- c(marker.index, (max(marker.index) + 1):(max(marker.index) + 5000))
+	x <- position(lset)[marker.index]
+	y <- logR(lset)[marker.index, sample.index, drop=FALSE]
+	ylim <- c(-2, 0.5)
+	y[y < -2] <- -2
+	y[y > 0.5] <-  0.5
+	v <- position(lset)[c(start(query), end(query))]
+	for(j in 1:ncol(y)){
+		layout(matrix(1:4, 4,1), heights=c(1, 1, 1, 0.25))
+		par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+		sample.name <- colnames(y)[j]
+		this.family <- substr(sample.name, 1, 5)
+		father.index <- which(lset$family == this.family & lset$pedId == "father")
+		mother.index <- which(lset$family == this.family & lset$pedId == "mother")
+		iii <- which(lset$family == this.family)
+		dna.source <- lset$DNA.Source[iii]
+		names(dna.source) <- sampleNames(lset)[iii]
+		y.f <- logR(lset)[marker.index, father.index]
+		y.f[y.f < ylim[1]] <- ylim[1]
+		y.f[y.f > ylim[2]] <- ylim[2]
+		plot(x, y.f, ylab="log R Ratio", xlab="", pch=21, col="grey60",
+		     ylim=ylim, xaxt="n")
+		abline(v=v, col="black", lty=2)
+		father.name <- sampleNames(lset)[father.index]
+		grep.id <- grep(father.name, segmeans.chr1$id)
+		segs <- segmeans.chr1[grep.id, ]
+		segments2(segs,strict=F, lwd=2)
+		##	F.segs <- cbs.segs[cbs.segs$id %in% father.name, ]
+		##	segments(F.segs, strict=F, lwd=2, col="red")
+		if(FALSE){
+			rmed <- runmed(logR(lset)[marker.index, father.index], k=5)
+			lines(x, rmed, col="green3", lwd=2)
+		}
+		points(x, logR(lset)[marker.index, father.index], pch=21, col="grey60")
+		legend("bottomright", legend="F", bty="n")
+		father.mad <- lrSet$MAD[match(sampleNames(lset)[father.index], sampleNames(lrSet))]
+		legend("bottomleft", legend=paste("MAD:", round(father.mad, 3)), bg="white")
+
+		y.m <- logR(lset)[marker.index, mother.index]
+		y.m[y.m < ylim[1]] <- ylim[1]
+		y.m[y.m > ylim[2]] <- ylim[2]
+		plot(x, y.m,
+		     ylab="log R Ratio", xlab="", pch=21, col="grey60",
+		     ylim=ylim, xaxt="n")
+		abline(v=v, col="black", lty=2)
+		mother.name <- sampleNames(lset)[mother.index]
+		grep.id <- grep(mother.name, segmeans.chr1$id)
+		segs <- segmeans.chr1[grep.id, ]
+		segments2(segs,strict=F, lwd=2)
+		if(FALSE){
+
+			rmed <- runmed(logR(lset)[marker.index, mother.index], k=5)
+			lines(x, rmed, col="green3", lwd=2)
+		}
+		##	M.segs <- cbs.segs[cbs.segs$id %in% mother.name, ]
+		##	segments(M.segs,strict=F, lwd=2, col="red")
+
+		points(x, y.m, pch=21, col="grey60")
+		legend("bottomright", legend="M", bty="n")
+		mother.mad <- lrSet$MAD[match(sampleNames(lset)[mother.index], sampleNames(lrSet))]
+		legend("bottomleft", legend=paste("MAD:", round(mother.mad, 3)), bg="white")
+
+		plot(x, y[, j], ylab="log R Ratio", xlab="", pch=21, col="grey60",
+		     ylim=ylim, xaxt="n")
+		offspring.mad <- lrSet$MAD[match(sample.name, sampleNames(lrSet))]
+		abline(v=v, col="black", lty=2)
+		grep.id <- grep(sample.name, segmeans.chr1$id)
+		segs <- segmeans.chr1[grep.id, ]
+		segments2(segs,strict=F, lwd=2)
+		if(FALSE){
+			rmed <- runmed(logR(lset)[marker.index, sample.index], k=5)
+			lines(x, rmed, col="green3", lwd=2)
+		}
+		points(x, y[, j], pch=21, col="grey60")
+		legend("bottomleft", legend=paste("MAD:", round(offspring.mad, 3)), bg="white")
+		legend("bottomright", legend=substr(sample.name, 1, 8), bty="n")
+		invisible(plotCytoband(1, label.cytoband=FALSE, xlim=range(x)))
+		at <- pretty(x)
+		axis(1, at, labels=at/1e6)
+		mtext("Mb", 1, outer=TRUE, line=1)
+		mtext(paste("chr ", CHR, "; affected offspring ", j, " of ", nrow(query)),  3, outer=TRUE, line=1)
+	}
+}
+dev.off()
+@

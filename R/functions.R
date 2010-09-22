@@ -2405,56 +2405,56 @@ initializeEmptyDenovoSet <- function(object){
 	return(denovoSet)
 }
 
-callDenovo <- function(reduced_ranges){
-	stopifnot(inherits(reduced_ranges, "RangedData"))
-	data(pedigree)
-	## exclude ranges for which no event has occurred.
-	pedId <- who(reduced_ranges$id)
-	offspring_ranges <- reduced_ranges[pedId == "offspring", ]
-	denovo <- rep(NA, nrow(offspring_ranges))
-	uid <- substr(unique(as.character(offspring_ranges$id)), 1, 8)
-	stopifnot(all(substr(uid, 1,5) %in% trio.family))
-	rr <- IRanges(start(reduced_ranges), end(reduced_ranges))
-	rr.ids <- substr(as.character(reduced_ranges$id), 1, 8)
-	orr.ids <- substr(as.character(offspring_ranges$id), 1, 8)
-	ped.ids <- substr(pedigree$Sample.Name, 1, 8)
-	rr.chr <- reduced_ranges$chrom
-	for(i in seq_along(uid)){
-		##if(i %% 100 == 0) cat(i, " ")
-		cat(i, " ")
-		## construct the query seg.  Ignore unaffected offspring for now.
-		oid <- uid[i]
-		index1 <- which(rr.ids == oid)
-		query <- rr[index1, ]
-		parents <- as.character(pedigree[match(oid, ped.ids), 4:5])
-		index2 <- which(rr.ids %in% parents)
-		subject <- rr[index2, ]
-
-		query.chrom <- rr.chr[index1]
-		subject.chrom <- rr.chr[index2]
-
-		uchrom <- unique(query.chrom)
-
-		olaps <- vector("list", length(uchrom))
-		for(j in seq_along(uchrom)){
-			CHR <- uchrom[j]
-			qq <- query[query.chrom == CHR, ]
-			ss <- subject[subject.chrom == CHR, ]
-			if(length(ss) < 1) {
-				olaps[[j]] <- rep(0, length(qq))
-				next()
-			}
-			olaps[[j]] <- countOverlaps(qq, ss)
-		}
-		olaps <- unlist(olaps)
-		index <- which(orr.ids == oid)
-		stopifnot(length(index) == length(olaps))
-		## if > 0, one of the parents had a deletion in this region and it is not a denovo event
-		denovo[index] <- ifelse(olaps > 0, 0, 1)
-	}
-	return(denovo)
-}
-
+##callDenovo <- function(reduced_ranges){
+##	stopifnot(inherits(reduced_ranges, "RangedData"))
+##	data(pedigree)
+##	## exclude ranges for which no event has occurred.
+##	pedId <- who(reduced_ranges$id)
+##	offspring_ranges <- reduced_ranges[pedId == "offspring", ]
+##	denovo <- rep(NA, nrow(offspring_ranges))
+##	uid <- substr(unique(as.character(offspring_ranges$id)), 1, 8)
+##	stopifnot(all(substr(uid, 1,5) %in% trio.family))
+##	rr <- IRanges(start(reduced_ranges), end(reduced_ranges))
+##	rr.ids <- substr(as.character(reduced_ranges$id), 1, 8)
+##	orr.ids <- substr(as.character(offspring_ranges$id), 1, 8)
+##	ped.ids <- substr(pedigree$Sample.Name, 1, 8)
+##	rr.chr <- reduced_ranges$chrom
+##	for(i in seq_along(uid)){
+##		##if(i %% 100 == 0) cat(i, " ")
+##		cat(i, " ")
+##		## construct the query seg.  Ignore unaffected offspring for now.
+##		oid <- uid[i]
+##		index1 <- which(rr.ids == oid)
+##		query <- rr[index1, ]
+##		parents <- as.character(pedigree[match(oid, ped.ids), 4:5])
+##		index2 <- which(rr.ids %in% parents)
+##		subject <- rr[index2, ]
+##
+##		query.chrom <- rr.chr[index1]
+##		subject.chrom <- rr.chr[index2]
+##
+##		uchrom <- unique(query.chrom)
+##
+##		olaps <- vector("list", length(uchrom))
+##		for(j in seq_along(uchrom)){
+##			CHR <- uchrom[j]
+##			qq <- query[query.chrom == CHR, ]
+##			ss <- subject[subject.chrom == CHR, ]
+##			if(length(ss) < 1) {
+##				olaps[[j]] <- rep(0, length(qq))
+##				next()
+##			}
+##			olaps[[j]] <- countOverlaps(qq, ss)
+##		}
+##		olaps <- unlist(olaps)
+##		index <- which(orr.ids == oid)
+##		stopifnot(length(index) == length(olaps))
+##		## if > 0, one of the parents had a deletion in this region and it is not a denovo event
+##		denovo[index] <- ifelse(olaps > 0, 0, 1)
+##	}
+##	return(denovo)
+##}
+##
 
 callDenovoEvents <- function(denovoSet, bsSet, trios.index, THR){
 	segmentMeans <- assayData(bsSet)[["segmentMeans"]]
@@ -2860,26 +2860,26 @@ isParent <- function(sample.name, object){
 ##	object
 ##}
 
-callDeletion <- function(segmean_ranges, lrSet, offspring.rule, parent.rule, MAD.thr=0.3){
-	isDeletion <- rep(NA, nrow(segmean_ranges))
-	lr.fam <- as.character(lrSet$family)
-	highMad <- lrSet$MAD > MAD.thr
-	fam.highMad <- substr(sampleNames(lrSet)[highMad], 1, 5)
-	include.fam <- (lr.fam %in% trio.family) & (!lr.fam %in% fam.highMad)
-	lrset.index <- seq_len(ncol(lrSet))[!isCidr & include.fam]
-	sample.indices <- split(seq_len(nrow(segmean_ranges)), as.character(segmean_ranges$id))
-	MAD <- lrSet$MAD[lrset.index]
-	stopifnot(all.equal(names(sample.indices), sampleNames(lrSet)[lrset.index]))
-	MAD <- segmean_ranges$MAD <- rep(MAD, sapply(sample.indices, length))
-	seg.mean <- segmean_ranges$seg.mean/100
-	threshold.offspring <- offspring.rule(MAD)
-	threshold.parent <- parent.rule(MAD)
-	i <- grep("offspring", segmean_ranges$pedId)
-	isDeletion[i] <- ifelse(seg.mean[i] < threshold.offspring[i], 1L, 0L)
-	i <- c(grep("mother", segmean_ranges$pedId), grep("father", segmean_ranges$pedId))
-	isDeletion[i] <- ifelse(seg.mean[i] < threshold.parent[i], 1L, 0L)
-	return(isDeletion)
-}
+##callDeletion <- function(segmean_ranges, lrSet, offspring.rule, parent.rule, MAD.thr=0.3){
+##	isDeletion <- rep(NA, nrow(segmean_ranges))
+##	lr.fam <- as.character(lrSet$family)
+##	highMad <- lrSet$MAD > MAD.thr
+##	fam.highMad <- substr(sampleNames(lrSet)[highMad], 1, 5)
+##	include.fam <- (lr.fam %in% trio.family) & (!lr.fam %in% fam.highMad)
+##	lrset.index <- seq_len(ncol(lrSet))[!isCidr & include.fam]
+##	sample.indices <- split(seq_len(nrow(segmean_ranges)), as.character(segmean_ranges$id))
+##	MAD <- lrSet$MAD[lrset.index]
+##	stopifnot(all.equal(names(sample.indices), sampleNames(lrSet)[lrset.index]))
+##	MAD <- segmean_ranges$MAD <- rep(MAD, sapply(sample.indices, length))
+##	seg.mean <- segmean_ranges$seg.mean/100
+##	threshold.offspring <- offspring.rule(MAD)
+##	threshold.parent <- parent.rule(MAD)
+##	i <- grep("offspring", segmean_ranges$pedId)
+##	isDeletion[i] <- ifelse(seg.mean[i] < threshold.offspring[i], 1L, 0L)
+##	i <- c(grep("mother", segmean_ranges$pedId), grep("father", segmean_ranges$pedId))
+##	isDeletion[i] <- ifelse(seg.mean[i] < threshold.parent[i], 1L, 0L)
+##	return(isDeletion)
+##}
 
 
 getDeletions <- function(){
@@ -2934,7 +2934,135 @@ sapply.split <- function(x, indices, FUN, ...){
 	return(res)
 }
 
+getSegMeans <- function(outdir, CHR){
+	fnames <- list.files(outdir, pattern=paste("cbs.segs_chr", CHR, sep=""), full.name=TRUE)
+	segmeans <- vector("list", length(fnames))
+	for(i in seq_along(segmeans)){
+		load(fnames[i])
+		rd <- RangedData(IRanges(start=cbs.segs$startRow,
+					 end=cbs.segs$endRow),
+				 pos.start=cbs.segs$loc.start,
+				 pos.end=cbs.segs$loc.end,
+				 num.mark=cbs.segs$num.mark,
+				 seg.mean=cbs.segs$seg.mean,
+				 id=cbs.segs$ID,
+				 chrom=cbs.segs$chrom)
+		segmeans[[i]] <- rd
+	}
+	segmean_ranges <- do.call("c", segmeans)
+	segmean_ranges
+}
 
+excludeRanges <- function(segmeans, lrSet){
+	##trace(getSegMeanRanges, browser)
+	## Drop 168 WGA samples
+	which.wga <- grep("WGA", lrSet$DNA.Source)
+	wga.samples <- sampleNames(lrSet)[which.wga]
+	segmeans <- segmeans[!segmeans$id %in% wga.samples, ]
+	## Drop samples that are not father, mother, offspring
+	unknown.ids <- sampleNames(lrSet)[lrSet$pedId == "?"]
+	if(length(unknown.ids) > 0)
+		segmeans <- segmeans[!segmeans$id %in% unknown.ids, ]
+	## Drop other samples in which DNA quality may be affected
+	famids.poordna <- lrSet$family[lrSet$MAD > 0.3]
+	famids.poordna <- famids.poordna[!is.na(famids.poordna)]
+	ids.poordna <- sampleNames(lrSet)[lrSet$family %in% famids.poordna]
+	segmeans <- segmeans[!segmeans$id %in% ids.poordna, ]
+	segmeans$family <- substr(segmeans$id, 1, 5)
+	segmeans$pedId <- who(segmeans$id)
+	## remove samples that are not part of a true, or no longer part of a trio as a result of the above filter
+	trios <- split(who(segmeans$id), segmeans$family)
+	trios <- lapply(trios, unique)
+	trios <- trios[sapply(trios, length) == 3]
+	family.inTrio <- names(trios)
+	segmeans <- segmeans[segmeans$family %in% family.inTrio, ]
+	return(segmeans)
+}
 
+callDeletion <- function(segmeans, lset, parent.rule, offspring.rule){
+	## call for parents
+	is.deletion <- rep(NA, nrow(segmeans))
+	index <- which(segmeans$pedId == "father" | segmeans$pedId == "mother")
+	is.deletion[index] <- ifelse(segmeans$seg.mean[index] < parent.rule(), TRUE, FALSE)
 
+	offspring.index <- which(segmeans$pedId == "offspring")
+	offspring.ids <- segmeans$id[offspring.index]
+	uids <- unique(offspring.ids)
+	offspring.ids <- split(offspring.ids, offspring.ids)
+	offspring.ids <- offspring.ids[match(uids, names(offspring.ids))]
+	nn <- sapply(offspring.ids, length)
 
+	##uids <- unique(segmeans$id[segmeans$pedId == "offspring"])
+	mads <- lset$MAD
+	names(mads) <- sampleNames(lset)
+	mads <- mads[match(uids, names(mads))]
+	stopifnot(identical(names(mads), uids))
+	mads <- rep(mads, nn)
+	thr <- offspring.rule(mads)
+	is.deletion[offspring.index] <- ifelse(segmeans$seg.mean[offspring.index] < thr, TRUE, FALSE)
+	return(is.deletion)
+}
+
+callDenovo <- function(query.list, subject.list){
+	for(i in seq_len(length(query.list))){
+		if(i %% 100 == 0) cat(".")
+		query.ir <- IRanges(start(query.list[[i]]), end(query.list[[i]]))
+		subj.ir <- IRanges(start(subject.list[[i]]), end(subject.list[[i]]))
+		subj.ir <- subj.ir[subject.list[[i]]$is.deletion, ]
+		if(length(subj.ir) > 0){
+			cnt <- countOverlaps(query.ir, subj.ir)
+		} else  cnt <- 0
+		query.list[[i]]$number.overlap <- cnt
+		query.list[[i]]$is.denovo <- cnt==0
+	}
+	return(query.list)
+}
+
+pBelow <- function(denovo.list, lset){
+	for(i in seq_along(denovo.list)){
+		if(i %% 100 == 0) cat(".")
+		query <- denovo.list[[i]]
+		father.name <- paste(query$family[1], "_03", sep="")
+		mother.name <- paste(query$family[1], "_02", sep="")
+		father.index <- grep(father.name, sampleNames(lset))
+		mother.index <- grep(mother.name, sampleNames(lset))
+		for(j in 1:nrow(query)){
+			query2 <- query[j, ]
+			p.f <- mean(logR(lset)[start(query2):end(query2), father.index] < parent.rule(), na.rm=TRUE)
+			p.m <- mean(logR(lset)[start(query2):end(query2), mother.index] < parent.rule(), na.rm=TRUE)
+			query2$propLow.Father <- p.f
+			query2$propLow.Mother <- p.m
+		}
+		denovo.list[[i]] <- query2
+	}
+	queryset <- do.call("rbind", denovo.list)
+	return(queryset)
+}
+
+## moved to mybase
+##myOverlaps <- function(dset.denovo){
+##	subj.ir <- IRanges(start(dset.denovo), end(dset.denovo))
+##	subj.sns <- dset.denovo$id
+##	ix <- order(start(subj.ir))
+##	subj.ir <- subj.ir[ix]
+##	subj.sns <- subj.sns[ix]
+##	brks <- unique(c(start(subj.ir), end(subj.ir)))
+##	brks <- brks[order(brks)]
+##	ir <- matrix(NA, length(brks)-1, 2)
+##	ir[, 1] <- brks[-length(brks)]
+##	ir[, 2] <- brks[-1]
+##	disj.ir <- IRanges(ir[,1], ir[,2])
+##	matching.subj <- vector("list", length(disj.ir))
+##	for(i in seq_along(matching.subj)){
+##		query.ir <- disj.ir[i, ]
+##		w <- width(query.ir)
+##		## require overlap to be the length of the interval
+##		tmp <- findOverlaps(query.ir, subj.ir, minoverlap=w)
+##		matching.subj[[i]] <- matchMatrix(tmp)[, "subject"]
+##		##freq[i] <- countOverlaps(query.ir, subj.ir)
+##	}
+##	disjoint.rd <- RangedData(disj.ir, freq=sapply(matching.subj, length))
+##	sns <- lapply(matching.subj, function(i, subj.sns) subj.sns[i], subj.sns)
+##	res <- list(disjoint.rd=disjoint.rd, sns=sns)
+##	return(res)
+##}
