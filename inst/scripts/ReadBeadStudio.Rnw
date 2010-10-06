@@ -1,0 +1,17 @@
+<<populateFF>>=
+library(oligoClasses)
+sns=read.csv("beaty_samples.csv")[,2]
+ocSamples(500)
+batches <- splitIndicesByLength(seq(along=sns), ocSamples())
+for(J in seq_along(batches)){
+	sink("temp")
+	cat("J <- ", J, "\n")
+	sink()
+	fn <- paste("tmp_", J, ".R", sep="")
+	if(file.exists(fn)) unlink(fn)
+	system(paste("cat temp ReadBsScript.R >", fn))
+	system(paste('cat ~/bin/cluster.template | perl -pe "s/Rprog/tmp_', J, '.R/" > tmp_', J, '.R.sh', sep=""))
+	system(paste("qsub -m e -r y -cwd -l mem_free=10G,h_vmem=16G tmp_", J, ".R.sh", sep=""))
+	Sys.sleep(60*3)
+}
+@

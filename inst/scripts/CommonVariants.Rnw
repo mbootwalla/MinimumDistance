@@ -1,4 +1,3 @@
-
 <<commonVariantsData, eval=FALSE>>=
 path <- system.file("extdata", package="mybase")
 cnv <- read.delim(list.files(path, pattern="variation.hg18", full.names=TRUE))

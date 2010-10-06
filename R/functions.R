@@ -2935,7 +2935,8 @@ sapply.split <- function(x, indices, FUN, ...){
 }
 
 getSegMeans <- function(outdir, CHR){
-	fnames <- list.files(outdir, pattern=paste("cbs.segs_chr", CHR, sep=""), full.name=TRUE)
+	fnames <- list.files(outdir, pattern=paste("cbs.segs_chr", CHR, "_batch", sep=""), full.name=TRUE)
+	if(length(fnames) == 0) stop(paste("There are no segmentation files for chrom", CHR))
 	segmeans <- vector("list", length(fnames))
 	for(i in seq_along(segmeans)){
 		load(fnames[i])
@@ -2956,9 +2957,11 @@ getSegMeans <- function(outdir, CHR){
 excludeRanges <- function(segmeans, lrSet){
 	##trace(getSegMeanRanges, browser)
 	## Drop 168 WGA samples
-	which.wga <- grep("WGA", lrSet$DNA.Source)
-	wga.samples <- sampleNames(lrSet)[which.wga]
-	segmeans <- segmeans[!segmeans$id %in% wga.samples, ]
+##	which.wga <- grep("WGA", lrSet$DNA.Source)
+	if(length(which.wga) > 0){
+		wga.samples <- sampleNames(lrSet)[which.wga]
+		segmeans <- segmeans[!segmeans$id %in% wga.samples, ]
+	}
 	## Drop samples that are not father, mother, offspring
 	unknown.ids <- sampleNames(lrSet)[lrSet$pedId == "?"]
 	if(length(unknown.ids) > 0)
@@ -2985,6 +2988,9 @@ callDeletion <- function(segmeans, lset, parent.rule, offspring.rule){
 	index <- which(segmeans$pedId == "father" | segmeans$pedId == "mother")
 	is.deletion[index] <- ifelse(segmeans$seg.mean[index] < parent.rule(), TRUE, FALSE)
 
+	if(!"pedId" %in% colnames(segmeans)){
+		segmeans$pedId <- who(segmeans$id)
+	}
 	offspring.index <- which(segmeans$pedId == "offspring")
 	offspring.ids <- segmeans$id[offspring.index]
 	uids <- unique(offspring.ids)
@@ -3003,15 +3009,20 @@ callDeletion <- function(segmeans, lset, parent.rule, offspring.rule){
 	return(is.deletion)
 }
 
-callDenovo <- function(query.list, subject.list){
+callDenovo <- function(query.list, subject.list, overlapPercentage=0.25){
 	for(i in seq_len(length(query.list))){
 		if(i %% 100 == 0) cat(".")
 		query.ir <- IRanges(start(query.list[[i]]), end(query.list[[i]]))
 		subj.ir <- IRanges(start(subject.list[[i]]), end(subject.list[[i]]))
 		subj.ir <- subj.ir[subject.list[[i]]$is.deletion, ]
-		if(length(subj.ir) > 0){
-			cnt <- countOverlaps(query.ir, subj.ir)
-		} else  cnt <- 0
+		cnt <- rep(NA, length(query.ir))
+		for(j in 1:length(query.ir)){
+			query <- query.ir[j, ]
+			w <- width(query)
+			if(length(subj.ir) > 0){
+				cnt[j] <- countOverlaps(query, subj.ir, minoverlap=overlapPercentage*w)
+			} else  cnt[j] <- 0
+		}
 		query.list[[i]]$number.overlap <- cnt
 		query.list[[i]]$is.denovo <- cnt==0
 	}
@@ -3019,7 +3030,7 @@ callDenovo <- function(query.list, subject.list){
 }
 
 pBelow <- function(denovo.list, lset){
-	for(i in seq_along(denovo.list)){
+	for(i in 1:NROW(denovo.list)){
 		if(i %% 100 == 0) cat(".")
 		query <- denovo.list[[i]]
 		father.name <- paste(query$family[1], "_03", sep="")
@@ -3035,8 +3046,7 @@ pBelow <- function(denovo.list, lset){
 		}
 		denovo.list[[i]] <- query2
 	}
-	queryset <- do.call("rbind", denovo.list)
-	return(queryset)
+	return(denovo.list)
 }
 
 ## moved to mybase
@@ -3065,4 +3075,170 @@ pBelow <- function(denovo.list, lset){
 ##	sns <- lapply(matching.subj, function(i, subj.sns) subj.sns[i], subj.sns)
 ##	res <- list(disjoint.rd=disjoint.rd, sns=sns)
 ##	return(res)
+##}
+
+constructBeadStudioSet <- function(path, sns, outdir){
+}
+
+##plotRange <- function(i, disjoint.rd, binSet, FRAME, samples.altered,
+##		      x=c("index", "position"), add.cytoband=TRUE, lset, ...){
+##	CHR <- disjoint.rd$chrom[i]
+##	rd <- disjoint.rd[i, ]
+##	marker.index <- start(rd):end(rd)
+##	marker.index <- window(marker.index, FRAME)
+##	marker.index <- marker.index[chromosome(binSet)[marker.index] == CHR]
+##	if(x[1] == "position"){
+##		x <- position(binSet)[marker.index]
+##	} else{
+##		x <- seq_along(marker.index)
+##	}
+##	sns <- sampleNames(binSet)
+##	if(is(samples.altered, "list")){
+##		sample.index <- match(samples.altered[[i]], sns)
+##	} else sample.index <- match(samples.altered, sns)
+##	y <- loess.residuals(binSet)[marker.index, sample.index]
+##	y.raw <- logR(binSet)[marker.index, sample.index]
+##	y[y < ylim[1]] <- ylim[1]
+##	y[y > ylim[2]] <- ylim[2]
+##	y.raw[y.raw < ylim[1]] <- ylim[1]
+##	y.raw[y.raw > ylim[2]] <- ylim[2]
+##	for(k in seq_along(sample.index)){
+##		plot(x, y[, k], pch=21, col="grey60", cex=0.5,xaxt="n", xlab="Mb", ylim=ylim, ...)
+##		abline(h=c(THR1, THR2), col="blue", lty=2)
+##		tmp <- cbs.ir[cbs.ir$id == colnames(y)[k] & cbs.ir$chrom == CHR, ]
+##		sample.segs <- RangedData(IRanges(tmp$loc.start,
+##						  tmp$loc.end), seg.mean=tmp$seg.mean)
+##		segments(sample.segs, strict=F, lwd=2)
+##		legend("topright", legend=paste("grade:", binSet$PanIN.Grade[sample.index[k]]), bty="o",
+##		       bg="white")
+##		legend("topleft", legend=paste("id:", binSet$individual.id[sample.index[k]]), bty="o",
+##		       bg="white")
+##		if(add.cytoband){
+##			require(SNPchip)
+##			data(chromosomeAnnotation)
+##			chr.ann <- chromosomeAnnotation[CHR, 1:2]
+##			polygon(x=c(chr.ann, rev(chr.ann)),
+##				y=c(ylim[1], ylim[1], ylim[2], ylim[2]), col="bisque")
+##		}
+##		## plot ballele freq.
+##		index <- which(chromosome(lset)==CHR & position(lset) >= min(x) & position(lset) <= max(x))
+##		ba <- baf(lset)[index, sample.index]
+##		plot(position(lset)[index], ba[, k], pch=".", col="grey60")
+##	}
+##	points(rd$loc.start, ylim[1], pch=24, bg="red", cex=3)
+##	points(rd$loc.end, ylim[1], pch=24, bg="red", cex=3)
+##	points(rd$loc.start, 0, pch=24, bg="red", cex=3)
+##	points(rd$loc.end, 0, pch=24, bg="red", cex=3)
+##	at <- pretty(x, n=8)
+##	axis(1, at=at, labels=at/1e6, outer=T)
+##	mtext(paste("Chr", unique(chromosome(binSet)[marker.index])), 3, outer=TRUE)
+##	return()
+##}
+
+
+setMethod("chromosome", "GRanges", function(object) {
+	as.integer(sapply(as.character(seqnames(object)), function(x) strsplit(x, "chr")[[1]][2]))
+})
+
+featuresInRange <- function(object, range, FRAME=0){
+ 	stopifnot(length(range)==1)
+	if(is(range, "GRanges")) CHR <- chromosome(range) else CHR <- range$chrom
+	if(FRAME > 0){
+		require(SNPchip)
+		data(chromosomeAnnotation)
+		size <- chromosomeAnnotation[CHR, "chromosomeSize"]
+		start(range) <- max(start(range) - FRAME, 1)
+		end(range) <- end(range) + FRAME  ## need to look up chromosome annotation
+##		end(range) <- min(end(range), size)
+	}
+	which(position(object) >= start(range) & position(object) <= end(range) & chromosome(object) == CHR)
+}
+
+getFamily <- function(object) substr(sampleNames(object), 1, 5)
+
+triosInRange <- function(object, ## LogRatioSet or something similar
+			 range){ ## genomicRanges
+	stopifnot(length(range)==1)
+	if(is(range, "GRanges")){
+		sample.index <- denovoIndicesInRange(range)
+	} else {
+		sample.index <- match(range$id, sampleNames(object))
+	}
+	family <- substr(sampleNames(object)[sample.index], 1, 5)
+	sampleNames(object)[which(getFamily(object) %in% family)]
+}
+
+framePositionIndex <- function(object,  ##LogRatioSet or something similar
+			       FRAME){  ##basepairs
+		min.pos <- min(pos)-WINDOW.SIZE
+	max.pos <- max(pos)+WINDOW.SIZE
+}
+
+denovoIndicesInRange <- function(range){
+	sample.index <- elementMetadata(range)[, "denovoSamples"]
+	as.integer(strsplit(sample.index, ",")[[1]])
+}
+
+plotRange <- function(sampleName,    ## names of samples to plot
+		      segmentation,  ## the segmentation for the trio
+		      lset,          ## LogRatioSet or something similar
+		      add.cytoband=TRUE,
+		      range,
+		      ylim,
+		      THR, strict=FALSE, ...){
+	stopifnot(length(sampleName) == 1)
+	stopifnot(length(range) == 1)
+	j <- match(sampleName, sampleNames(lset))
+	cn <- copyNumber(lset)[, j]
+	if(!missing(ylim)){
+		##ylim <- list(...)[["ylim"]]
+		cn[cn < ylim[1]] <- ylim[1]
+		cn[cn > ylim[2]] <- ylim[2]
+		segmentation$seg.mean[segmentation$seg.mean < ylim[1]] <- ylim[1]
+		segmentation$seg.mean[segmentation$seg.mean > ylim[2]] <- ylim[2]
+	} else ylim <- c(-2,1)
+	x <- position(lset)
+	plot(x, cn, ylim=ylim, ...)
+	abline(h=THR, col="blue", lty=2)
+	abline(v=c(start(range), end(range)), lty=2)
+
+	segs <- segmentation[segmentation$id %in% sampleName, ]
+	segments2(segs, strict=strict, lwd=2)
+	legend("bottomleft", legend=paste("MAD:", round(lset$MAD[j], 3)), bg="white")
+	legend("bottomright", legend=who(sampleName),  bty="n", cex=0.8)
+
+	b <- baf(lset)[, j]
+	plot(x, b, ylim=c(0,1), ...)
+	abline(v=c(start(range), end(range)), lty=2)
+	legend("bottomright", legend=who(sampleName),  bty="n", cex=0.8)
+}
+
+##	tmp <- cbs.ir[cbs.ir$id == colnames(y)[k] & cbs.ir$chrom == CHR, ]
+##	sample.segs <- RangedData(IRanges(tmp$loc.start,
+##					  tmp$loc.end), seg.mean=tmp$seg.mean)
+##	segments(sample.segs, strict=F, lwd=2)
+##	legend("topright", legend=paste("grade:", binSet$PanIN.Grade[sample.index[k]]), bty="o",
+##	       bg="white")
+##	legend("topleft", legend=paste("id:", binSet$individual.id[sample.index[k]]), bty="o",
+##	       bg="white")
+##	if(add.cytoband){
+##		require(SNPchip)
+##		data(chromosomeAnnotation)
+##		chr.ann <- chromosomeAnnotation[CHR, 1:2]
+##		polygon(x=c(chr.ann, rev(chr.ann)),
+##			y=c(ylim[1], ylim[1], ylim[2], ylim[2]), col="bisque")
+##	}
+##		## plot ballele freq.
+##		index <- which(chromosome(lset)==CHR & position(lset) >= min(x) & position(lset) <= max(x))
+##		ba <- baf(lset)[index, sample.index]
+##		plot(position(lset)[index], ba[, k], pch=".", col="grey60")
+##	}
+##	points(rd$loc.start, ylim[1], pch=24, bg="red", cex=3)
+##	points(rd$loc.end, ylim[1], pch=24, bg="red", cex=3)
+##	points(rd$loc.start, 0, pch=24, bg="red", cex=3)
+##	points(rd$loc.end, 0, pch=24, bg="red", cex=3)
+##	at <- pretty(x, n=8)
+##	axis(1, at=at, labels=at/1e6, outer=T)
+##	mtext(paste("Chr", unique(chromosome(binSet)[marker.index])), 3, outer=TRUE)
+##	return()
 ##}

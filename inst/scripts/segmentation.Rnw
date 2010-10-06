@@ -4,7 +4,7 @@ NN <- 1000
 ##CHR <- 1
 iter <- 1
 sampleBatch <- splitIndicesByLength(1:7599, NN)
-for(CHR in 4:22){
+for(CHR in 17:22){
 	for(KK in 1:length(sampleBatch)){
 		iter <- iter+1
 		sink("temp")

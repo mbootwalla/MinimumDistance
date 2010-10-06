@@ -1,114 +1,199 @@
-<<lowerleveldata,echo=FALSE>>=
-segmeans.chr1 <- segmean_ranges[segmean_ranges$chrom == CHR, ]
-segmeans.chr1$seg.mean[segmeans.chr1$seg.mean < -2] <- -2
-## index <- which(disjoint.rd$freq > 100)
-## Get the sample names of the subjects for each 'hotspot'
-WINDOW.SIZE=500e3
+<<eval=FALSE>>=
+bsSet <- checkExists("bsSet", .path=outdir, .FUN=load)
+invisible(open(logR(bsSet)))
+invisible(open(baf(bsSet)))
+load(file.path(outdir, "disjointRangesList.rda"))
+gr <- do.call("c", disjointRangesList)
+offspring.rule <- function(MAD) ifelse(-1.5*MAD < log(1.5/2), -1.5*MAD, log(1.5/2))
+parent.rule <- function()  log(1.8/2)
+table(seqnames(gr))
+@
 
-region.factor <- region.factor[freq > 0]
-unique.regions <- unique(region.factor)
-pdf("denovoregions_chr1_%02d.pdf", onefile=FALSE, width=8, height=7)
-for(i in seq_along(unique.regions)){
-	query <- disjoint.ranges[disjoint.ranges$region == unique.regions[i], ]
-	affected.offspring <- unique(unlist(denovo.sns[disjoint.ranges$region == region.factor[i]]))
-	##locus.index <- which(width(disjoint.rd)/1e3 > 100 & disjoint.rd$freq > 5)
-	locus.index <- min(start(query)):max(end(query))
-	##disjoint.rd[locus.index, ]
-	##locus.index <- orig.index[[i]]
-	sample.index <- match(affected.offspring, sampleNames(lset))
-	##sample.index <- match(sns[[i]], sampleNames(lset))
+<<sizeVfreq, eval=FALSE>>=
+gr <- gr[elementMetadata(gr)[, "freq"] > 0, ]
+freq <- elementMetadata(gr)[, "freq"]
+w <- width(gr)
+fact <- rep(NA, length(w))
+fact[w < 1e3] <- 1
+fact[w >= 1e3 & w< 10e3] <- 2
+fact[w >= 10e3 & w < 50e3] <- 3
+fact[w >= 50e3] <- 4
+freq.split <- split(freq, fact)
+pdf("try1figs/sizeVfreq.pdf")
+par(las=1)
+boxplot(freq.split, col="lightblue", xaxt="n", pch=21, cex=0.7)
+axis(1, at=1:4, labels=c("< 1kb", "[1kb, 10kb)",
+		"[10kb, 50kb)", "> 50kb"), cex.axis=0.8)
+dev.off()
+@
 
-	pos <- position(lset)[locus.index]
-	min.pos <- min(pos)-WINDOW.SIZE
-	max.pos <- max(pos)+WINDOW.SIZE
-	marker.index <- which(position(lset) >= min.pos & position(lset) <= max.pos)
-	##marker.index <- window(locus.index, 100)
-	##marker.index <- marker.index[marker.index <= nrow(lset)]
-	##	marker.index <- window(which(position(lset) >= start(disjoint.rd)[locus.index] &
-	##				     position(lset) <= end(disjoint.rd)[locus.index]), 100)
-	## add another 1000 to the right:
-	##marker.index <- c(marker.index, (max(marker.index) + 1):(max(marker.index) + 5000))
-	x <- position(lset)[marker.index]
-	y <- logR(lset)[marker.index, sample.index, drop=FALSE]
-	ylim <- c(-2, 0.5)
-	y[y < -2] <- -2
-	y[y > 0.5] <-  0.5
-	v <- position(lset)[c(start(query), end(query))]
-	for(j in 1:ncol(y)){
-		layout(matrix(1:4, 4,1), heights=c(1, 1, 1, 0.25))
+<<selectRange, eval=FALSE>>=
+nmark <- elementMetadata(gr)[, "nmarkers"]
+freq <- elementMetadata(gr)[, "freq"]
+(II <- which(freq > 10 & nmark > 15))
+gr[II, ]
+##(index <- which(freq > 2 & nmark > 15))
+@
+
+Some of the biggest deletions may be singletons with a small number of
+markers.
+
+<<lowerleveldata,echo=FALSE, eval=FALSE>>=
+load.it <- ifelse(c(1, diff(chromosome(gr))) == 1, TRUE, FALSE)
+gr <- gr[elementMetadata(gr)[, "freq"] > 0, ]
+samples <- elementMetadata(gr)[, "denovoSamples"]
+samples.list <- split(elementMetadata(gr)[, "denovoSamples"], chromosome(gr))
+samples.list <- lapply(samples.list, function(x) paste(x, collapse=","))
+samples.list <- lapply(samples.list, function(x) unique(as.integer(strsplit(x, ",")[[1]])))
+names(samples.list) <- paste("chr", 1:22, sep="")
+FRAME <- 1e6
+dir.create("try1figs", showWarnings=F)
+(II <- which(elementMetadata(gr)[, "freq"] > 10 & elementMetadata(gr)[, "nmarkers"] > 15))
+bitmap("try1figs/denovo%02d.png", width=8, height=7, res=400)
+for(range.index in II){
+	CHR <- chromosome(gr)[range.index]
+	if(load.it[range.index]){
+		i <- which(chromosome(bsSet) == CHR)
+		denovo.families <- substr(sampleNames(bsSet)[samples.list[[CHR]]], 1, 5)
+		all.families <- substr(sampleNames(bsSet), 1, 5)
+		j <- which(all.families %in% denovo.families)
+		chrset <- new("LogRatioSet",
+			      logRRatio=as.matrix(logR(bsSet)[i, j]),
+			      BAF=as.matrix(baf(bsSet)[i, j]),
+			      featureData=featureData(bsSet)[i, ],
+			      phenoData=phenoData(bsSet)[j, ],
+			      annotation=annotation(bsSet))
+		segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+		segmean_ranges <- segmean_ranges[substr(segmean_ranges$id, 1, 5) %in% denovo.families, ]
+	}
+	i <- featuresInRange(chrset, gr[range.index, ], FRAME=FRAME)
+	sns <- triosInRange(bsSet, gr[range.index, ])
+	sns.list <- split(sns, substr(sns, 1, 5))
+	for(k in seq_along(sns.list)){
+
+		ids <- sns.list[[k]]
+		j <- match(ids, sampleNames(chrset))
+		lset <- chrset[i, j]
+		segmentation <- segmean_ranges[segmean_ranges$id %in% sampleNames(chrset)[j], ]
+		layout(matrix(1:6, 6,1), heights=c(1, 1, 1, 1, 1, 1, 0.25))
 		par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
-		sample.name <- colnames(y)[j]
-		this.family <- substr(sample.name, 1, 5)
-		father.index <- which(lset$family == this.family & lset$pedId == "father")
-		mother.index <- which(lset$family == this.family & lset$pedId == "mother")
-		iii <- which(lset$family == this.family)
-		dna.source <- lset$DNA.Source[iii]
-		names(dna.source) <- sampleNames(lset)[iii]
-		y.f <- logR(lset)[marker.index, father.index]
-		y.f[y.f < ylim[1]] <- ylim[1]
-		y.f[y.f > ylim[2]] <- ylim[2]
-		plot(x, y.f, ylab="log R Ratio", xlab="", pch=21, col="grey60",
-		     ylim=ylim, xaxt="n")
-		abline(v=v, col="black", lty=2)
-		father.name <- sampleNames(lset)[father.index]
-		grep.id <- grep(father.name, segmeans.chr1$id)
-		segs <- segmeans.chr1[grep.id, ]
-		segments2(segs,strict=F, lwd=2)
-		##	F.segs <- cbs.segs[cbs.segs$id %in% father.name, ]
-		##	segments(F.segs, strict=F, lwd=2, col="red")
-		if(FALSE){
-			rmed <- runmed(logR(lset)[marker.index, father.index], k=5)
-			lines(x, rmed, col="green3", lwd=2)
-		}
-		points(x, logR(lset)[marker.index, father.index], pch=21, col="grey60")
-		legend("bottomright", legend="F", bty="n")
-		father.mad <- lrSet$MAD[match(sampleNames(lset)[father.index], sampleNames(lrSet))]
-		legend("bottomleft", legend=paste("MAD:", round(father.mad, 3)), bg="white")
-
-		y.m <- logR(lset)[marker.index, mother.index]
-		y.m[y.m < ylim[1]] <- ylim[1]
-		y.m[y.m > ylim[2]] <- ylim[2]
-		plot(x, y.m,
-		     ylab="log R Ratio", xlab="", pch=21, col="grey60",
-		     ylim=ylim, xaxt="n")
-		abline(v=v, col="black", lty=2)
-		mother.name <- sampleNames(lset)[mother.index]
-		grep.id <- grep(mother.name, segmeans.chr1$id)
-		segs <- segmeans.chr1[grep.id, ]
-		segments2(segs,strict=F, lwd=2)
-		if(FALSE){
-
-			rmed <- runmed(logR(lset)[marker.index, mother.index], k=5)
-			lines(x, rmed, col="green3", lwd=2)
-		}
-		##	M.segs <- cbs.segs[cbs.segs$id %in% mother.name, ]
-		##	segments(M.segs,strict=F, lwd=2, col="red")
-
-		points(x, y.m, pch=21, col="grey60")
-		legend("bottomright", legend="M", bty="n")
-		mother.mad <- lrSet$MAD[match(sampleNames(lset)[mother.index], sampleNames(lrSet))]
-		legend("bottomleft", legend=paste("MAD:", round(mother.mad, 3)), bg="white")
-
-		plot(x, y[, j], ylab="log R Ratio", xlab="", pch=21, col="grey60",
-		     ylim=ylim, xaxt="n")
-		offspring.mad <- lrSet$MAD[match(sample.name, sampleNames(lrSet))]
-		abline(v=v, col="black", lty=2)
-		grep.id <- grep(sample.name, segmeans.chr1$id)
-		segs <- segmeans.chr1[grep.id, ]
-		segments2(segs,strict=F, lwd=2)
-		if(FALSE){
-			rmed <- runmed(logR(lset)[marker.index, sample.index], k=5)
-			lines(x, rmed, col="green3", lwd=2)
-		}
-		points(x, y[, j], pch=21, col="grey60")
-		legend("bottomleft", legend=paste("MAD:", round(offspring.mad, 3)), bg="white")
-		legend("bottomright", legend=substr(sample.name, 1, 8), bty="n")
-		invisible(plotCytoband(1, label.cytoband=FALSE, xlim=range(x)))
-		at <- pretty(x)
-		axis(1, at, labels=at/1e6)
-		mtext("Mb", 1, outer=TRUE, line=1)
-		mtext(paste("chr ", CHR, "; affected offspring ", j, " of ", nrow(query)),  3, outer=TRUE, line=1)
+		father.name <- ids[who(ids) == "father"]
+		mother.name <- ids[who(ids) == "mother"]
+		offspring.name <- ids[who(ids) == "offspring"]
+		plotRange(father.name, segmentation, lset, range=gr[range.index, ],
+			  THR=log(1.8/2), ylim=c(-1.5, 0.5),
+			  pch=21, col="grey60", cex=0.6,
+			  xaxt="n")
+		plotRange(mother.name, segmentation, lset, range=gr[range.index, ],
+			  THR=log(1.8/2), ylim=c(-1.5,0.5),
+			  pch=21, col="grey60", cex=0.6,
+			  xaxt="n")
+		THR <- offspring.rule(lset$MAD[match(offspring.name, sampleNames(lset))])
+		plotRange(offspring.name, segmentation, lset, range=gr[range.index, ],
+			  THR=THR, ylim=c(-1.5, 0.5), strict=F,
+			  pch=21, col="grey60", cex=0.6,
+			  xaxt="n")
+		at <- pretty(range(position(lset)), 8)
+		axis(1, at=at, labels=at/1e6)
+		mtext(paste("offspring ", k , " of ", length(sns.list), sep=""), 3, outer=T)
 	}
 }
 dev.off()
 @
+% Region1: why is k=4 selected? The overlap should be considered on
+% the set of disjoint intervals
+
+
+% Region2: Why is k=1 selected for region 2?  Why isn't this a deletion in mom?
+% k = 2: why isn't this a deletion in dad?
+<<debug>>=
+
+@
+
+% For the region on chr 17, the selected interval doesn't appear
+% right.  is this a plotting artifact?  e.g., for k=32, this does not
+% appear to be a disjoint interval.  k=32 might be an inherited CN
+% polymorphism.  Look for a batch effect here...
+
+Plot the biggest deletions in the offspring, irrespective of the
+parent call.  Do any of these look real?  what are we missing?
+
+<<bigDeletions>>=
+bsSet <- checkExists("bsSet", .path=outdir, .FUN=load)
+invisible(open(logR(bsSet)))
+invisible(open(baf(bsSet)))
+CHR <- 22
+segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+i <- which(chromosome(bsSet) == CHR)
+offspring.index <- which(who(segmean_ranges$id) == "offspring")
+offspring.ranges <- segmean_ranges[offspring.index, ]
+## the segmentation still includes WGA and samples with high mad.
+offspring.ranges <- offspring.ranges[offspring.ranges$id %in% sampleNames(bsSet), ]
+j <- which(who(sampleNames(bsSet)) == "offspring")
+lset <- new("LogRatioSet",
+	    logRRatio=as.matrix(logR(bsSet)[i, ]),
+	    BAF=as.matrix(baf(bsSet)[i, ]),
+	    featureData=featureData(bsSet)[i, ],
+	    phenoData=phenoData(bsSet),
+	    annotation=annotation(bsSet))
+offspring.rule <- function(MAD) ifelse(-1.5*MAD < log(1.5/2), -1.5*MAD, log(1.5/2))
+parent.rule <- function()  log(1.8/2)
+is.deletion <- callDeletion(offspring.ranges, lset, parent.rule, offspring.rule)
+offspring.ranges$is.deletion <- is.deletion
+hist(width(offspring.ranges)[offspring.ranges$is.deletion], breaks=100)
+deletion.ranges <- offspring.ranges[offspring.ranges$is.deletion, ]
+index <- order(width(deletion.ranges), decreasing=TRUE)
+deletion.ranges <- RangedData(IRanges(deletion.ranges$pos.start[index],
+				      deletion.ranges$pos.end[index]),
+			      index.start=start(deletion.ranges)[index],
+			      index.end=end(deletion.ranges)[index],
+			      num.mark=deletion.ranges$num.mark[index],
+			      seg.mean=deletion.ranges$seg.mean[index],
+			      id=deletion.ranges$id[index],
+			      chrom=CHR)
+##plot the top 50
+for(i in 1:10){
+	sns <- sampleNames(bsSet)[which(getFamily(bsSet) %in% substr(deletion.ranges$id[i], 1,5))]
+	j <- match(sns, sampleNames(bsSet))
+	marker.index <- which(chromosome(bsSet) == CHR)
+	chrset <- new("LogRatioSet",
+		      logRRatio=as.matrix(logR(bsSet)[marker.index, j]),
+		      BAF=as.matrix(baf(bsSet)[marker.index, j]),
+		      featureData=featureData(bsSet)[marker.index, ],
+		      phenoData=phenoData(bsSet)[j, ],
+		      annotation=annotation(bsSet))
+ 	k <- featuresInRange(chrset, deletion.ranges[i, ], FRAME=1e6)
+	lset <- chrset[k, ]
+	ids <- sampleNames(chrset)
+	segmentation <- segmean_ranges[segmean_ranges$id %in% sampleNames(chrset), ]
+	layout(matrix(1:6, 6,1), heights=c(1, 1, 1, 1, 1, 1, 0.25))
+	par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+	father.name <- ids[who(ids) == "father"]
+	mother.name <- ids[who(ids) == "mother"]
+	offspring.name <- ids[who(ids) == "offspring"]
+	plotRange(father.name, segmentation, lset, range=deletion.ranges[i, ],
+		  THR=log(1.8/2), ylim=c(-1.5, 0.5),
+		  pch=21, col="grey60", cex=0.6,
+		  xaxt="n")
+	plotRange(mother.name, segmentation, lset, range=deletion.ranges[i, ],
+		  THR=log(1.8/2), ylim=c(-1.5,0.5),
+		  pch=21, col="grey60", cex=0.6,
+		  xaxt="n")
+	THR <- offspring.rule(lset$MAD[match(offspring.name, sampleNames(lset))])
+	plotRange(offspring.name, segmentation, lset, range=deletion.ranges[i, ],
+		  THR=THR, ylim=c(-1.5, 0.5),
+		  pch=21, col="grey60", cex=0.6,
+		  xaxt="n")
+	at <- pretty(range(position(lset)), 8)
+	axis(1, at=at, labels=at/1e6)
+}
+
+##For each deletion.range with more than 10 markers, check whether there is 25% overlap or more with parents
+query.rd <- deletion.ranges[1, ]
+query <- IRanges(start(query.rd), end(query.rd))
+ii <- which(!deletion.ranges$id %in% query.rd$id)
+subject <- IRanges(start(deletion.ranges[ii, ]), end(deletion.ranges[ii, ]))
+cnt <- countOverlaps(query, subject, minoverlap=width(query)/4)
+@
+
+

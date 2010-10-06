@@ -1,0 +1,13 @@
+<<>>=
+library(GenomicFeatures)
+library(rtracklayer)
+session <- browserSession()
+genome(session) <- "hg18"
+
+geneTable <- makeTranscriptDbFromUCSC(genome = "hg18", tablename = "knownGene")
+
+query <- ucscTableQuery(session,
+			GenomicRanges(289991, 296156, "chr6"))
+
+
+@

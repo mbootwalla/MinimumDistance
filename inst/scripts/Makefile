@@ -3,12 +3,17 @@
 Beaty : Beaty.Rnw
 	echo "Stangle(\"Beaty.Rnw\")"| R-devel --no-save --no-restore;	
 	cat ~/bin/cluster.template | perl -pe "s/Rprog/Beaty.R/" > Beaty.R.sh
-	qsub -m e -r y -cwd -l mem_free=5G,h_vmem=12G Beaty.R.sh
+	qsub -m e -r y -cwd -l mem_free=15G,h_vmem=20G Beaty.R.sh
 
 segmentation: segmentation.Rnw
 	echo "Stangle(\"segmentation.Rnw\")"| R-devel --no-save --no-restore;	
 	cat ~/bin/cluster.template | perl -pe "s/Rprog/segmentation.R/" > segmentation.R.sh
 	qsub -m e -r y -cwd -l fat -l mem_free=5G,h_vmem=12G segmentation.R.sh
+
+readBS: ReadBeadStudio.Rnw	
+	echo "Stangle(\"ReadBeadStudio.Rnw\")"| R-devel --no-save --no-restore;	
+	cat ~/bin/cluster.template | perl -pe "s/Rprog/ReadBeadStudio.R/" > ReadBeadStudio.R.sh
+	qsub -m e -r y -cwd -l fat -l mem_free=5G,h_vmem=12G ReadBeadStudio.R.sh
 
 clean:
 	-rm *.pdf
