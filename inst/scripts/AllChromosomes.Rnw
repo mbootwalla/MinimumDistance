@@ -35,7 +35,6 @@ for(CHR in 1:22){
 	segmean_ranges<- segmean_ranges[segmean_ranges$id %in% sampleNames(lset), ]
 	segmean_ranges$is.deletion <- callDeletion(segmean_ranges, lset, parent.rule, offspring.rule)
 	deletion.ranges <- segmean_ranges[segmean_ranges$is.deletion, ]
-	trace(disjointRanges, browser)
 	disjoint.ranges <- disjointRanges(deletion.ranges)
 ##	deletion.ranges <- deletion.ranges[substr(deletion.ranges$id, 1, 5) == "12403", ]
 ##	disjoint.ranges <- IRanges(start(disjoint.RD)[78], end(disjoint.RD)[78])
@@ -78,13 +77,13 @@ for(CHR in 1:22){
 	## 4. look at frequency.  this tells us nothing about the size of the deletion in the offspring.
 	hist(cnt, breaks=250)
 	## 5. filter intervals that appear in fewer than 10 offspring
-	disjoint.ranges <- disjoint.ranges[cnt > 10, ]
+	disjoint.ranges <- disjoint.ranges[cnt > 0, ]  ## makes it run faster
 	## 6. Among the intervals that appear in more than 10 offspring,
 	##    find the size of the deletions and compute the median size
 	##     -- e.g., if a region is shared by 11 offspring, compute the median size of the 11 deletions
 	mm <- matchMatrix(findOverlaps(disjoint.ranges, denovo.ir, minoverlap=2L))
-	query.index <- split(1:nrow(mm), mm[, "query"])
-	median.size <- rep(NA, length(query.index))
+	query.index <- split(1:nrow(mm), mm[, "query"])  ## one disjoint range can overlap many denovo ranges (from different samples)
+	median.size <- rep(NA, length(query.index))      ##  - splitting on the query range groups all of the denovo events that correspond to each disjoint range
 	denovo.samples <- rep(NA, length(query.index))
 	for(j in seq_along(query.index)){
 		if(j %% 10 == 0) cat(j, " ")
@@ -96,135 +95,18 @@ for(CHR in 1:22){
 		tmp2 <- deletion.ranges[deletion.ranges$id %in% tmp$id, ]
 		subject <- IRanges(start(tmp2), end(tmp2))
 		ii <- matchMatrix(findOverlaps(query, subject, minoverlap=2L))[, "subject"]
-		segment.sizes <- tmp2$pos.end[ii] -  tmp2$pos.start[ii]
+		segment.sizes <- width(tmp2)[ii]
 		median.size[j] <- median(segment.sizes)
 	}
-	disjoint.RD <- RangedData(disjoint.ranges, freq=cnt[cnt > 10], median.size=median.size,
-				  denovo.samples=denovo.samples,
-				  pos.start=position(lset)[start(disjoint.ranges)],
-				  pos.end=position(lset)[end(disjoint.ranges)])
-	##    plot frequency vs median size
-	##    select intervals for which both are somewhat high
-	##    - plot
-	##    - add genomic features to plot
-##	disjoint.ranges <- myOverlaps(deletion.ranges)
-##	## denovo: any interval in offspring that is not called in parents.
-##	denovo.index <- list()
-##	for(i in seq_along(offspring.samples)){
-##		id <- offspring.samples[i]
-##		## Ranges in which offspring has deletion
-##		range.index <- grep(id, disjoint.ranges$samples.with.deletion)
-##
-##		## Ranges in which parents have deletion
-##		family.of.offspring <- substr(id, 1, 5)
-##		parent.ids <- paste(family.of.offspring, c("02", "03"), sep="_")
-##		parent.index <- grep(parent.ids, disjoint.ranges$samples.with.deletion)
-##		denovo.index[[i]] <- range.index[!range.index %in% parent.index]
-##	}
-##	names(denovo.index) <- offspring.samples
-##
-##
-##
-##
-##
-####	queryset <- segmeans[segmeans$pedId == "offspring" & segmeans$is.deletion, ]
-####	## lets start with the bigger ones
-####	queryset <- queryset[width(queryset) > MIN.DELETION.SIZE, ]
-####	##get rid of warnings:
-##	querySet <- RangedData(IRanges(start(queryset), end(queryset)),
-##			       id=queryset$id,
-##			       chrom=queryset$chrom,
-##			       pos.start=queryset$pos.start,
-##			       pos.end=queryset$pos.end,
-##			       num.mark=queryset$num.mark,
-##			       seg.mean=queryset$seg.mean,
-##			       pedId=queryset$pedId,
-##			       is.deletion=queryset$is.deletion)
-####	rm(queryset); gc()
-####	stopifnot(all(querySet$is.deletion))
-####	trace(myOverlaps, browser)
-####	trace(myOverlaps, browser)
-####	res <- myOverlaps(querySet)
-####	disjoint.ranges <- res[["disjoint.rd"]]
-####	samples.in.disjoint.ranges <- res[["sns"]]
-##
-##
-##
-##	query.list <- split(queryset, queryset$id)
-##	names(query.list) <- substr(names(query.list), 1, 5)
-##
-##	is.parent <- segmeans$pedId == "father" | segmeans$pedId == "mother"
-##	family.in.query <- substr(segmeans$id, 1, 5) %in% names(query.list)
-##	parent.ranges <- segmeans[is.parent & family.in.query, ]# & segmeans$is.deletion, ]
-##	parent.ranges$family <- substr(parent.ranges$id, 1, 5)
-##	stopifnot(length(unique(parent.ranges$family)) == length(query.list))
-##	subject.list <- split(parent.ranges, parent.ranges$family)
-##	stopifnot(identical(names(query.list), names(subject.list)))
-##
-##	##trace(callDenovo, browser)
-##	denovo.list <- callDenovo(query.list=query.list, subject.list=subject.list, overlapPercentage=OVERLAP.PERCENT)
-##	##denovoset <- pBelow(denovo.list=denovo.list, lset=lset)
-##	##denovoset <- as.list(denovoset)
-##	##denovoset <- as.list(denovo.list)
-##	##** do.call("rbind", denovo.list)  does not work
-##	starts <- sapply(denovo.list, start)
-##	ends <- sapply(denovo.list, end)
-##	pos.start <- sapply(denovo.list, function(x) x$pos.start)
-##	pos.end <- sapply(denovo.list, function(x) x$pos.end)
-##	num.mark <- sapply(denovo.list, function(x) x$num.mark)
-##	seg.mean <- sapply(denovo.list, function(x) x$seg.mean)
-##	id <- sapply(denovo.list, function(x) x$id)
-##	is.deletion <- sapply(denovo.list, function(x) x$is.deletion)
-##	is.denovo <- sapply(denovo.list, function(x) x$is.denovo)
-##	denovoset <- RangedData(IRanges(unlist(starts),
-##					unlist(ends)),
-##				pos.start=unlist(pos.start),
-##				pos.end=unlist(pos.end),
-##				id=unlist(id),
-##				num.mark=unlist(num.mark),
-##				seg.mean=unlist(seg.mean),
-##				is.deletion=unlist(is.deletion),
-##				is.denovo=unlist(is.denovo))
-##	denovoset$chrom <- CHR
-##	denovoset$family <- who(denovoset$id)
-##	##ix <- order(width(denovoset), decreasing=T)
-##
-##	##denovoset$is.denovo <- denovoset$number.overlap == 0 & denovoset$propLow.Father < 0.25 & denovoset$propLow.Mother < 0.25
-##	denovo.ranges <- denovoset[denovoset$is.denovo, ]
-##	## Among the denovo ranges, rule out ranges in which more than 10% of the genotypes are hets.
-##	pHet <- rep(NA, nrow(denovo.ranges))
-##	for(i in 1:nrow(denovo.ranges)){
-##		jj <- match(denovo.ranges$id[i], sampleNames(bsSet))
-##		ii <- which(position(lset) >= denovo.ranges$pos.start[i] & position(lset) <= denovo.ranges$pos.end[i])
-##		bs <- baf(lset)[ii, jj]
-##		pHet[i] <- mean(bs >= 0.1 & bs <= 0.9, na.rm=TRUE)
-##	}
-##	denovo.ranges <- denovo.ranges[pHet < PROP.HET, ]
-##	## calculate the disjoint ranges
-##	## find whether any of the interals are also denovo in other offspring.
-##	overlapList <- myOverlaps(denovo.ranges)
-##	disjoint.ranges <- overlapList[["disjoint.rd"]]
-##	denovo.sns <- overlapList[["sns"]]
-##	## get rid of this
-##	##columnIndex <- lapply(denovo.sns, function(x, sns) match(x, sns), sampleNames(lset))
-##	##columnIndex <- unlist(lapply(columnIndex, function(x) paste(x, collapse=",")))
-##	denovo.sns <- lapply(denovo.sns, function(x) paste(x, collapse=","))
-##	##disjoint.ranges$denovoSamples <- columnIndex
-##	disjoint.ranges$denovo.sns <- denovo.sns
-##	freq <- disjoint.ranges$freq
-##	region.factor <- cumsum(c(0, diff(freq > 0) !=0))
-##	disjoint.ranges$region <- region.factor
-##	disjoint.ranges$chrom <- CHR
-##	fD <- fData(lset)
-##	disjoint.ranges$pos.start <- fD$position[start(disjoint.ranges)]
-##	disjoint.ranges$pos.end <- fD$position[end(disjoint.ranges)]
+	disjoint.RD <- RangedData(disjoint.ranges, freq=cnt[cnt > 0],##b[cnt > 0],
+				  median.size=median.size,
+				  denovo.samples=denovo.samples)
 	chr <- paste("chr", CHR, sep="")
 	gr <- GRanges(seqnames=Rle(chr, nrow(disjoint.RD)),
-		      ranges=IRanges(disjoint.RD$pos.start,
-		      disjoint.RD$pos.end),
+		      ranges=IRanges(start(disjoint.RD),
+		      end(disjoint.RD)),
 		      freq=disjoint.RD$freq,
 		      denovo.samples=disjoint.RD$denovo.samples,
-##		      region=disjoint.ranges$region,
 		      median.size=disjoint.RD$median.size,
 		      nmarkers=width(disjoint.RD))
 	disjointRangesList[[CHR]] <- gr
@@ -238,12 +120,15 @@ invisible(close(baf(bsSet)))
 q("no")
 @
 
-<<>>=
-plot(disjoint.RD$freq, disjoint.RD$median.size, pch=21, cex=0.7, xlab="frequency", ylab="median size")
-index <- which(disjoint.RD$freq > 20 & disjoint.RD$median.size > 50e3)
+<<sizeFreqChr6, fig=TRUE>>=
+par(las=1)
+plot(disjoint.RD$median.size/1e3, disjoint.RD$freq, pch=21, cex=0.7, ylab="frequency", xlab="median size (kb)",
+     main="Chr 22")
+(index <- which(disjoint.RD$freq > 10 & disjoint.RD$median.size > 1e6))
 @
 
 <<>>=
+FRAME <- 2e6
 for(range.index in index){
 	if(TRUE){
 		i <- which(chromosome(bsSet) == CHR)
@@ -263,6 +148,7 @@ for(range.index in index){
 	}
 	i <- featuresInRange(chrset, gr[range.index, ], FRAME=FRAME)
 	sns <- strsplit(elementMetadata(gr)[range.index, "denovo.samples"], ",")[[1]]
+	par(ask=TRUE)
 	for(k in seq_along(sns)){
 		offspring.name <- substr(sns[k], 1, 8)
 		offspring.family <- substr(offspring.name, 1, 5)
@@ -277,7 +163,7 @@ for(range.index in index){
 		par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
 		plotRange(father.name, segmentation, lset, range=gr[range.index, ],
 			  THR=log(1.8/2), ylim=c(-1.5, 0.5),
-			  pch=21, col="grey60", cex=0.6, strict=T,
+			  pch=21, col="grey60", cex=0.6, strict=F,
 			  xaxt="n")
 		plotRange(mother.name, segmentation, lset, range=gr[range.index, ],
 			  THR=log(1.8/2), ylim=c(-1.5,0.5),
@@ -293,4 +179,40 @@ for(range.index in index){
 		mtext(paste("offspring ", k , " of ", length(sns), sep=""), 3, outer=T)
 	}
 }
+
+
+
+library("GenomicFeatures")
+hh <- makeTranscriptDbFromUCSC(genome = "hg18", tablename = "knownGene")
+tmp <- transcripts(hh)
+saveFeatures(tmp, file="tmp.sqlite")
+##
+tmp <- loadFeatures("tmp.sqlite")
+
+
+tmp <- transcripts(txdb, vals <- list(tx_chrom = "chr22", tx_strand = "+"))
+length(GR)
+unique(strand(GR))
+
+
+gr <- GRanges(
+    seqnames = rep("chr5",4),
+    ranges = IRanges(start = c(244620, 244670, 245804, 247502),
+                     end = c(244652, 244702, 245836, 247534)),
+    strand = rep("+", 4))
+samplefile <- system.file("extdata", "UCSC_knownGene_sample.sqlite",
+                          package="GenomicFeatures")
+txdb <- loadFeatures(samplefile)
+transcriptsByOverlaps(txdb, gr)
+
+##library(GenomeGraphs)
+##mart <- useMart("ensembl", dataset="hsapiens_gene_ensembl")
+##plusStrand <- makeGeneRegion(chromosome = CHR, start = min(position(lset)), end = max(position(lset)), strand = "+", biomart = mart)
+##genomeAxis <- makeGenomeAxis(add53 = TRUE)
+##gdPlot(list(genomeAxis, plusStrand))
+####add genes on negative stand as well as an idiogram
+##minStrand <- makeGeneRegion(chromosome = CHR, start = min(position(lset)), end = max(position(lset)), strand = "-", biomart = mart)
+##ideogram <- makeIdeogram(chromosome = CHR)
+##genomeAxis <- makeGenomeAxis(add53=TRUE, add35=TRUE)
+##gdPlot(list(ideogram, plusStrand, genomeAxis, minStrand), minBase = min(position(lset)), maxBase =  max(position(lset)))
 @
