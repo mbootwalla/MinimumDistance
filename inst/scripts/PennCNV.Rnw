@@ -1,0 +1,80 @@
+\SweaveInput{setup}
+
+<<penncnv>>=
+penn.joint <- checkExists("penn.joint", .path=outdir, .FUN=readPennCnv,
+			  penndir="/thumper/ctsa/beaty/holger/penncnv/trioDat", .load.it=FALSE)
+@
+
+<<>>=
+##pennJoint <- pennJoint[pennJoint$id %in% sns, ]
+gr <- freqOfDisjointRange(pennDenovo)
+(index <- which(gr$freq > 10 & gr$median.coverage > 20))
+offspring.rule <- function(MAD) ifelse(-1.5*MAD < log(1.5/2), -1.5*MAD, log(1.5/2))
+parent.rule <- function()  log(1.8/2)
+load.it <- c(TRUE, diff(chromosome(gr)[index]) != 0)
+FRAME <- 2e6
+bitmap("penn%02d.png", width=8, height=6, res=300)
+for(m in seq_along(index)){
+	range.index <- index[m]
+	CHR <- chromosome(gr)[range.index]
+	if(exists("chrset")){
+		if(unique(chromosome(chrset)) != CHR) rm(chrset)
+	}
+	if(!exists("chrset")){
+		marker.index <- which(chromosome(bsSet) == CHR)
+		tmp <- paste(gr$denovo.samples[range.index], collapse=",")
+		denovo.samples <- unique(strsplit(tmp, ",")[[1]])
+		denovo.families <- substr(denovo.samples, 1, 5)
+		all.families <- substr(sampleNames(bsSet), 1, 5)
+		j <- which(all.families %in% denovo.families)
+		chrset <- new("LogRatioSet",
+			      logRRatio=as.matrix(logR(bsSet)[marker.index, j]),
+			      BAF=as.matrix(baf(bsSet)[marker.index, j]),
+			      featureData=featureData(bsSet)[marker.index, ],
+			      phenoData=phenoData(bsSet)[j, ],
+			      annotation=annotation(bsSet))
+		segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+		segmean_ranges <- RangedData(IRanges(segmean_ranges$pos.start,
+						     segmean_ranges$pos.end),
+					     id=segmean_ranges$id,
+					     chrom=segmean_ranges$chrom,
+					     num.mark=width(segmean_ranges), ## would be number of markers that were not NAs (I think)
+					     seg.mean=segmean_ranges$seg.mean,
+					     pedId=who(segmean_ranges$id))
+		segmean_ranges <- segmean_ranges[substr(segmean_ranges$id, 1, 5) %in% denovo.families, ]
+	}
+	i <- featuresInRange(chrset, gr[range.index, ], FRAME=FRAME)
+	sns <- strsplit(elementMetadata(gr)[range.index, "denovo.samples"], ",")[[1]]
+	par(ask=TRUE)
+	for(k in seq_along(sns)){
+		offspring.name <- substr(sns[k], 1, 8)
+		offspring.family <- substr(offspring.name, 1, 5)
+		parents <- paste(offspring.family, c("_02", "_03"), sep="")
+		father.name <- parents[2]
+		mother.name <- parents[1]
+		jj <- match(c(father.name, mother.name, offspring.name), substr(sampleNames(chrset), 1, 8))
+		lset <- chrset[i, jj]
+		father.name <- sampleNames(lset)[1]; mother.name <- sampleNames(lset)[2]; offspring.name <- sampleNames(lset)[3]
+		segmentation <- segmean_ranges[segmean_ranges$id %in% c(offspring.name, mother.name, father.name), ]
+		layout(matrix(1:6, 6,1), heights=c(1, 1, 1, 1, 1, 1, 0.25))
+		par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+		plotRange(father.name, segmentation, lset, range=gr[range.index, ],
+			  THR=log(1.8/2), ylim=c(-1.5, 0.5),
+			  pch=21, col="grey60", cex=0.6, strict=F,
+			  xaxt="n")
+		plotRange(mother.name, segmentation, lset, range=gr[range.index, ],
+			  THR=log(1.8/2), ylim=c(-1.5,0.5),
+			  pch=21, col="grey60", cex=0.6,
+			  xaxt="n")
+		THR <- offspring.rule(lset$MAD[match(offspring.name, sampleNames(lset))])
+		plotRange(offspring.name, segmentation, lset, range=gr[range.index, ],
+			  THR=THR, ylim=c(-1.5, 0.5),
+			  pch=21, col="grey60", cex=0.6,
+			  xaxt="n")
+		at <- pretty(range(position(lset)), 8)
+		axis(1, at=at, labels=at/1e6)
+		mtext(paste("Chr: ", chromosome(gr)[range.index], ", offspring ", k , " of ", length(sns), sep=""), 3, outer=T)
+	}
+}
+
+@

@@ -1,0 +1,57 @@
+\SweaveInput{setup}
+
+<<centromeres>>=
+library(SNPchip)
+data(chromosomeAnnotation)
+centromere.ranges <- GRanges(seqnames=Rle(paste("chr", 1:22, sep=""), rep(1,22)),
+			     ranges=IRanges(chromosomeAnnotation[1:22, "centromereStart"],
+			     chromosomeAnnotation[1:22, "centromereEnd"]))
+
+minDistanceSet <- checkExists("minDistanceSet", .path=outdir, .FUN=load)
+invisible(open(copyNumber(minDistanceSet)))
+offspring.rule <- function(MAD) ifelse(1.5*MAD >  0.5, 1.5*MAD, 0.5)
+bsSet <- checkExists("bsSet", .path=outdir, .FUN=load)
+sampleNames(bsSet) <- substr(sampleNames(bsSet), 1, 8)
+open(baf(bsSet))
+open(logR(bsSet))
+@
+
+<<loadSegmentation>>=
+cat(CHR, "\n")
+ranges <- getRanges(outdir, pattern=paste("md.segs.chr", CHR, "_batch", sep=""),
+		    name="md.segs", CHR=CHR)
+mset <- constructTrioSet(minDistanceSet, bsSet, CHR)
+ranges$is.deletion <- callDeletion2(ranges, mset, offspring.rule)
+ranges$noCentromere.overlap <- !(overlapsCentromere(ranges, centromere.ranges, CHR))
+ranges <- ranges[order(start(ranges), end(ranges)), ]
+
+segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+segmean_ranges$family <- substr(segmean_ranges$id, 1, 5)
+segmean_ranges <- segmean_ranges[segmean_ranges$family %in% sampleNames(mset), ]
+
+deletion.index <- which(ranges$is.deletion & ranges$noCentromere.overlap & ranges$num.mark >= 10)
+if(length(deletion.index) < 1) next()
+
+bitmap(paste("tmp_chr", CHR, "_%02d.png", sep=""), width=8, height=8, res=500)
+for(i in seq_along(deletion.index)){
+	layout(matrix(1:7, 7,1, byrow=TRUE), heights=rep(1,7))
+	par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+	##trace(plotSegs, browser)
+	plotSegs(index=deletion.index[i],
+		 ranges1=ranges,
+		 ranges2=segmean_ranges,
+		 mset=mset)#, FRAME=0.05)
+}
+dev.off()
+rm(segmean_ranges, mset, ranges); gc()
+if(FALSE){
+	## to check a range
+	ranges[deletion.index[i], ]
+	marker.index <- featuresInRange(mset, ranges[deletion.index[1], ], FRAME=10000)
+	j <- match(substr(ranges$id[deletion.index[1]], 1, 5), sampleNames(mset))
+	md <- mindist(mset)[marker.index, j]
+	mean(md)
+}
+q("no")
+@
+

@@ -2,13 +2,21 @@
 bsSet <- checkExists("bsSet", .path=outdir, .FUN=load)
 invisible(open(logR(bsSet)))
 invisible(open(baf(bsSet)))
+offspring.rule <- function(MAD) ifelse(-1.5*MAD < log(1.5/2), -1.5*MAD, log(1.5/2))
+parent.rule <- function()  log(1.8/2)
+@
+
+<<centromereRanges>>=
+library(SNPchip)
+data(chromosomeAnnotation)
+centromere.ranges <- GRanges(seqnames=Rle(paste("chr", 1:22, sep=""), rep(1,22)),
+			     ranges=IRanges(chromosomeAnnotation[1:22, "centromereStart"],
+			     chromosomeAnnotation[1:22, "centromereEnd"]))
 @
 
 <<allchrom>>=
-offspring.rule <- function(MAD) ifelse(-1.5*MAD < log(1.5/2), -1.5*MAD, log(1.5/2))
-parent.rule <- function()  log(1.8/2)
 ##MINOVERLAP <- 2
-MIN.DELETION.SIZE <- 10  # the minimum size of deletion event in offspring
+##MIN.DELETION.SIZE <- 10  # the minimum size of deletion event in offspring
 ##OVERLAP.PERCENT <- 0.50  # if 50% of the range (or more) is deleted in the parent, it is not denovo.  Otherwise, it is potentially denovo.
 ##PROP.HET <- 0.1
 ##PROP.THR <- 0.25  ## mother / father must have fewer than PROP.THR * 100% of the markers in a region with logR values below parent.rule
@@ -16,13 +24,6 @@ disjointRangesList <- vector("list", 22)
 for(CHR in 1:22){
  	cat(CHR, "\n")
 	segmean_ranges <- getSegMeans(outdir, CHR=CHR)
-	segmean_ranges <- RangedData(IRanges(segmean_ranges$pos.start,
-					     segmean_ranges$pos.end),
-				     id=segmean_ranges$id,
-				     chrom=segmean_ranges$chrom,
-				     num.mark=segmean_ranges$num.mark,
-				     seg.mean=segmean_ranges$seg.mean)
-	segmean_ranges$pedId <- who(segmean_ranges$id)
 	which.markers <- which(chromosome(bsSet) == CHR)
 	lset <- new("LogRatioSet",
 		    logRRatio=as.matrix(logR(bsSet)[which.markers, ]),
@@ -32,86 +33,109 @@ for(CHR in 1:22){
 		    annotation=annotation(bsSet))
 	lset$pedId <- who(sampleNames(lset))
 	lset$family <- substr(sampleNames(lset), 1, 5)
-	segmean_ranges<- segmean_ranges[segmean_ranges$id %in% sampleNames(lset), ]
+	segmean_ranges <- segmean_ranges[segmean_ranges$id %in% sampleNames(lset), ]
 	segmean_ranges$is.deletion <- callDeletion(segmean_ranges, lset, parent.rule, offspring.rule)
 	deletion.ranges <- segmean_ranges[segmean_ranges$is.deletion, ]
+	## ---------------------------------------------------------------------------
+	## remove deletion.ranges that span centromeres.
+	##
+	## a cleaner solution would be to force a break at the start of the centromere
+	## ---------------------------------------------------------------------------
+	deletion.ranges <- removeCentromereRanges(deletion.ranges, centromere.ranges, CHR)
 	disjoint.ranges <- disjointRanges(deletion.ranges)
-##	deletion.ranges <- deletion.ranges[substr(deletion.ranges$id, 1, 5) == "12403", ]
-##	disjoint.ranges <- IRanges(start(disjoint.RD)[78], end(disjoint.RD)[78])
-	offspring.samples <- unique(deletion.ranges$id[deletion.ranges$pedId == "offspring"])
-	## roughly 20 minutes for chromosome 6
-	rdList <- vector("list", length(offspring.samples))
-	for(i in seq_along(offspring.samples)){
-		if(i %% 50 == 0) cat(i, " ")
-		id <- offspring.samples[i]
-		offspring.index <- which(deletion.ranges$id == id)
-		tmp <- deletion.ranges[offspring.index, ]
-		subject.ranges <- IRanges(start(tmp), end(tmp))
-		cnt <- countOverlaps(disjoint.ranges, subject.ranges, minoverlap=2L) ## must share start and stop --> minimum of 2
-		off.ranges <- disjoint.ranges[cnt > 0, ]
+	## ---------------------------------------------------------------------------
+	##
+	## call denovo events
+	##
+	## ---------------------------------------------------------------------------
+##	trace(callDenovo, browser)
+##	i1 <- grep("11005_01", sampleNames(lset))
+##	i2 <- grep("11005_02", sampleNames(lset))
+##	i3 <- grep("11005_03", sampleNames(lset))
+##	##independent samples  are highly correlated (probe effect)
+##	##remove probe effect by median-centering
+##	meds=rowMedians(logR(lset), na.rm=TRUE)
+##	logR2 <- logR(lset) - meds
+##	cor(logR2[, i2], logR2[,i3], use="complete.obs")
+##	cor(logR(lset)[, i2], logR(lset)[,i3], use="complete.obs")
+##
+##	delta.parent <- logR(lset)[, 1] - logR(lset)[, 2]
+##	delta.off <- matrix(NA, nrow(lset), 2)
+##	delta.off[, 1] <- logR(lset)[, 1] - logR(lset)[, 3]
+##	delta.off[, 2] <- logR(lset)[, 2] - logR(lset)[, 3]
+##	tmp <- apply(abs(delta.off), 1, which.min)
+##	col1 <- which(tmp == 1)
+##	col2 <- which(tmp == 2)
+##	deltas <- rep(NA, nrow(lset))
+##	delta[col1] <- delta.off[col1, 1]
+##	delta[col2] <- delta.off[col2, 2]
+##
+##
+##	par(mfrow=c(4,1), mar=c(0.5, 4, 0.5, 0.5))
+##	ylim=c(-1.5, 1)
+####	plot(position(lset), logR(lset)[,2], pch=".", xaxt="n", ylim=ylim)
+####	plot(position(lset), logR(lset)[,1], pch=".", xaxt="n", ylim=ylim)
+####	plot(position(lset), delta.parent, pch=".", ylim=ylim)
+####	plot(position(lset), delta.off1, pch=".", ylim=ylim)
+####	plot(position(lset), delta.off2, pch=".", ylim=ylim)
+##	plot(position(lset), logR(lset)[,1], pch=".", ylim=ylim)
+##	plot(position(lset), logR(lset)[,2], pch=".", ylim=ylim)
+##	plot(position(lset), logR(lset)[,3], pch=".", ylim=ylim)
+##	plot(position(lset), delta, pch=".", ylim=ylim)
+##
+##	plot(logR(lset)[,1], delta, pch=".", ylim=c(-2,2), xlim=c(-2,2))
+##	plot(logR(lset)[,2], delta, pch=".", ylim=c(-2,2), xlim=c(-2,2))
+##	cor(logR(lset)[,1], delta, use="complete.obs")
+##	cor(logR(lset)[,2], delta, use="complete.obs")
+##	cor(logR(lset)[,2], logR(lset)[,3], use="complete.obs")
+##	cor(logR(lset)[,1], logR(lset)[,3], use="complete.obs")
+##
 
-		## do the same thing for the parents
-		family.of.offspring <- substr(id, 1,5)
-		parents.of.offspring <- paste(family.of.offspring, c("_02", "_03"), sep="")
-		parent.index <- which(substr(deletion.ranges$id, 1, 8) %in% parents.of.offspring)
-		tmp <- deletion.ranges[parent.index, ]
-		subject.ranges <- IRanges(start(tmp), end(tmp))
-		cnt <- countOverlaps(disjoint.ranges, subject.ranges, minoverlap=2L)
-		parent.ranges <- disjoint.ranges[cnt > 0, ]
-
-		w <- width(off.ranges)
-		cnt <- countOverlaps(off.ranges, parent.ranges, minoverlap=2L)
-		denovo.ranges <- off.ranges[cnt == 0, ]
-		rdList[[i]] <- denovo.ranges
-	}
-	names(rdList) <- offspring.samples
-	## 1. each element in rdList has the ranges for denovo deletions in the offspring
-	## 2. convert rdDlist to a RangedData (e.g., denovo.ranges)
-	id <- rep(names(rdList), sapply(rdList, length))
-	starts <- unlist(lapply(rdList, start))
-	ends <- unlist(lapply(rdList, end))
-	denovo.ir <- IRanges(starts, ends)
-	## 3. do countOverlaps(disjoint.ranges, denovo.ranges, minoverlap=2L)  ##must share start and stop
-	cnt <- countOverlaps(disjoint.ranges, denovo.ir, minoverlap=2L)
-	denovo.ranges <- RangedData(denovo.ir, id=id)
-	## 4. look at frequency.  this tells us nothing about the size of the deletion in the offspring.
-	hist(cnt, breaks=250)
-	## 5. filter intervals that appear in fewer than 10 offspring
-	disjoint.ranges <- disjoint.ranges[cnt > 0, ]  ## makes it run faster
-	## 6. Among the intervals that appear in more than 10 offspring,
-	##    find the size of the deletions and compute the median size
-	##     -- e.g., if a region is shared by 11 offspring, compute the median size of the 11 deletions
-	mm <- matchMatrix(findOverlaps(disjoint.ranges, denovo.ir, minoverlap=2L))
-	query.index <- split(1:nrow(mm), mm[, "query"])  ## one disjoint range can overlap many denovo ranges (from different samples)
-	median.size <- rep(NA, length(query.index))      ##  - splitting on the query range groups all of the denovo events that correspond to each disjoint range
-	denovo.samples <- rep(NA, length(query.index))
-	for(j in seq_along(query.index)){
-		if(j %% 10 == 0) cat(j, " ")
-		matching.index <- mm[query.index[[j]], "subject"]
-		## list of samples with a deletion in this area.
-		tmp <- denovo.ranges[matching.index, ]
-		denovo.samples[j] <- paste(tmp$id, collapse=",")
-		query <- IRanges(start(tmp), end(tmp))
-		tmp2 <- deletion.ranges[deletion.ranges$id %in% tmp$id, ]
-		subject <- IRanges(start(tmp2), end(tmp2))
-		ii <- matchMatrix(findOverlaps(query, subject, minoverlap=2L))[, "subject"]
-		segment.sizes <- width(tmp2)[ii]
-		median.size[j] <- median(segment.sizes)
-	}
-	disjoint.RD <- RangedData(disjoint.ranges, freq=cnt[cnt > 0],##b[cnt > 0],
-				  median.size=median.size,
-				  denovo.samples=denovo.samples)
-	chr <- paste("chr", CHR, sep="")
-	gr <- GRanges(seqnames=Rle(chr, nrow(disjoint.RD)),
-		      ranges=IRanges(start(disjoint.RD),
-		      end(disjoint.RD)),
-		      freq=disjoint.RD$freq,
-		      denovo.samples=disjoint.RD$denovo.samples,
-		      median.size=disjoint.RD$median.size,
-		      nmarkers=width(disjoint.RD))
+	denovo.ranges <- callDenovoAllTrios(deletion.ranges, disjoint.ranges, epsilon=1e3)
+	## ---------------------------------------------------------------------------
+	##
+	## calculate statisitcs from the denovo.ranges for ranking
+	##   - how many offspring is a range denovo
+	##   - what is the median size of the deletion even in the offspring
+	##   - what is the median coverage
+	##   - what is the median proportion of overlap of the offspring deletion with parent deletions in the region (harder -- need disjoint ranges that are in the parents)
+	##
+	## ---------------------------------------------------------------------------
+	## trace(statisticsForRanking, browser)
+	gr <- statisticsForRanking(denovo.ranges, disjoint.ranges)
 	disjointRangesList[[CHR]] <- gr
+	index <- which(gr$freq > 10 & gr$median.coverage > 10)
+	index <- split(index, gr$region[index])
+	index <- sapply(index, function(x) x[1])
+	if(length(index) > 0){
+		bitmap(paste("tmp_chr", CHR, "_%02d.png", sep=""), width=8, height=6, res=300)
+		for(i in seq_along(index)){
+			layout(matrix(1:6, 6,1), heights=c(1, 1, 1, 1, 1, 1, 0.25))
+			par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+			objs <- plotRangeWrapper(i=index[i],  chrSet=lset, Ranges=gr, segmeans=segmean_ranges, FRAME=1e6)
+		}
+		dev.off()
+	}
+	rm(objs); gc()
 }
 save(disjointRangesList, file=file.path(outdir, "disjointRangesList.rda"))
+## Check the 3rd region in chromosome 1, offspring 2, 3:  father has deletion and is homozygous
+## offspring 5 is why we need to take into account the joint distribution...
+q("no")
+@
+
+<<centromereRanges>>=
+load(file.path(outdir, "disjointRangesList.rda"))
+gr <- do.call("c", disjointRangesList)
+
+@
+<<>>=
+##Ranges that are big because they span centromeres
+query.index <- matchMatrix(findOverlaps(gr, centromere.ranges))[, "query"]
+index <- which(gr$freq > 10 & gr$median.coverage > 10)
+index <- split(index, gr$region[index])
+index <- sapply(index, function(x) x[1])
+intersect(index, query.index)
 @
 
 <<exit>>=
@@ -121,6 +145,7 @@ q("no")
 @
 
 <<sizeFreqChr6, fig=TRUE>>=
+
 par(las=1)
 plot(disjoint.RD$median.size/1e3, disjoint.RD$freq, pch=21, cex=0.7, ylab="frequency", xlab="median size (kb)",
      main="Chr 22")
@@ -128,59 +153,19 @@ plot(disjoint.RD$median.size/1e3, disjoint.RD$freq, pch=21, cex=0.7, ylab="frequ
 @
 
 <<>>=
-FRAME <- 2e6
-for(range.index in index){
-	if(TRUE){
-		i <- which(chromosome(bsSet) == CHR)
-		tmp <- paste(elementMetadata(gr)[, "denovo.samples"], collapse=",")
-		denovo.samples <- unique(strsplit(tmp, ",")[[1]])
-		denovo.families <- substr(denovo.samples, 1, 5)
-		all.families <- substr(sampleNames(bsSet), 1, 5)
-		j <- which(all.families %in% denovo.families)
-		chrset <- new("LogRatioSet",
-			      logRRatio=as.matrix(logR(bsSet)[i, j]),
-			      BAF=as.matrix(baf(bsSet)[i, j]),
-			      featureData=featureData(bsSet)[i, ],
-			      phenoData=phenoData(bsSet)[j, ],
-			      annotation=annotation(bsSet))
-		segmean_ranges <- getSegMeans(outdir, CHR=CHR)
-		segmean_ranges <- segmean_ranges[substr(segmean_ranges$id, 1, 5) %in% denovo.families, ]
-	}
-	i <- featuresInRange(chrset, gr[range.index, ], FRAME=FRAME)
-	sns <- strsplit(elementMetadata(gr)[range.index, "denovo.samples"], ",")[[1]]
-	par(ask=TRUE)
-	for(k in seq_along(sns)){
-		offspring.name <- substr(sns[k], 1, 8)
-		offspring.family <- substr(offspring.name, 1, 5)
-		parents <- paste(offspring.family, c("_02", "_03"), sep="")
-		father.name <- parents[2]
-		mother.name <- parents[1]
-		jj <- match(c(father.name, mother.name, offspring.name), substr(sampleNames(chrset), 1, 8))
-		lset <- chrset[i, jj]
-		father.name <- sampleNames(lset)[1]; mother.name <- sampleNames(lset)[2]; offspring.name <- sampleNames(lset)[3]
-		segmentation <- segmean_ranges[segmean_ranges$id %in% c(offspring.name, mother.name, father.name), ]
-		layout(matrix(1:6, 6,1), heights=c(1, 1, 1, 1, 1, 1, 0.25))
-		par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
-		plotRange(father.name, segmentation, lset, range=gr[range.index, ],
-			  THR=log(1.8/2), ylim=c(-1.5, 0.5),
-			  pch=21, col="grey60", cex=0.6, strict=F,
-			  xaxt="n")
-		plotRange(mother.name, segmentation, lset, range=gr[range.index, ],
-			  THR=log(1.8/2), ylim=c(-1.5,0.5),
-			  pch=21, col="grey60", cex=0.6,
-			  xaxt="n")
-		THR <- offspring.rule(lset$MAD[match(offspring.name, sampleNames(lset))])
-		plotRange(offspring.name, segmentation, lset, range=gr[range.index, ],
-			  THR=THR, ylim=c(-1.5, 0.5),
-			  pch=21, col="grey60", cex=0.6,
-			  xaxt="n")
-		at <- pretty(range(position(lset)), 8)
-		axis(1, at=at, labels=at/1e6)
-		mtext(paste("offspring ", k , " of ", length(sns), sep=""), 3, outer=T)
-	}
-}
-
-
+index <- which(gr$freq > 10 & gr$median.coverage > 10)
+index <- split(index, gr$region[index])
+index <- sapply(index, function(x) x[1])
+##trace(plotRangeWrapper, browser)
+segmean_ranges <- getSegMeans(outdir, CHR=1)
+segmean_ranges <- RangedData(IRanges(segmean_ranges$pos.start,
+				     segmean_ranges$pos.end),
+			     id=segmean_ranges$id,
+			     chrom=segmean_ranges$chrom,
+			     num.mark=width(segmean_ranges), ## would be number of markers that were not NAs (I think)
+			     seg.mean=segmean_ranges$seg.mean,
+			     pedId=who(segmean_ranges$id))
+objs <- plotRangeWrapper(i=index[1],  chrSet=bsSet, Ranges=gr, segmeans=segmean_ranges, FRAME=1e6)
 
 library("GenomicFeatures")
 hh <- makeTranscriptDbFromUCSC(genome = "hg18", tablename = "knownGene")
@@ -188,13 +173,9 @@ tmp <- transcripts(hh)
 saveFeatures(tmp, file="tmp.sqlite")
 ##
 tmp <- loadFeatures("tmp.sqlite")
-
-
 tmp <- transcripts(txdb, vals <- list(tx_chrom = "chr22", tx_strand = "+"))
 length(GR)
 unique(strand(GR))
-
-
 gr <- GRanges(
     seqnames = rep("chr5",4),
     ranges = IRanges(start = c(244620, 244670, 245804, 247502),

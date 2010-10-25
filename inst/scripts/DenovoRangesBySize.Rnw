@@ -1,0 +1,84 @@
+\SweaveInput{setup}
+
+<<centromeres>>=
+offspring.rule <- function(MAD) ifelse(1.5*MAD >  0.5, 1.5*MAD, 0.5)
+@
+
+<<loadSegmentation>>=
+rangesList8 <- checkExists("rangesList8", .path=".", .FUN=collectAllRangesOfSize, SIZE=10,
+			   offspring.rule=offspring.rule,
+			   outdir=outdir)
+ranges <- do.call("rbind", rangesList8)
+@
+
+\SweaveInput{FunctionalAnnotation}
+
+<<jugessur>>=
+data(jugessur.ranges)
+jugessur.ranges <- jugessur.ranges[!is.na(jugessur.ranges$chrom), ]
+ranges$inJugessur <- NA
+for(CHR in 1:22){
+	range.index <- which(ranges$chrom==CHR)
+	subj <- jugessur.ranges[jugessur.ranges$chrom == CHR, ]
+	subj.ir <- IRanges(start(subj), end(subj))
+	query <- ranges[range.index, ]
+	query.ir <- IRanges(start(query), end(query))
+	ranges$inJugessur[range.index] <- countOverlaps(query.ir, subj.ir) > 0
+}
+@
+
+<<plotRangesInJugessur>>=
+bsSet <- checkExists("bsSet", .path=outdir, .FUN=load)
+sampleNames(bsSet) <- substr(sampleNames(bsSet), 1, 8)
+open(baf(bsSet))
+open(logR(bsSet))
+minDistanceSet <- checkExists("minDistanceSet", .path=outdir, .FUN=load)
+invisible(open(copyNumber(minDistanceSet)))
+
+ranges.in.jugessur <- ranges[ranges$inJugessur, ]
+mset <- constructTrioSetFromRanges(ranges1=ranges.in.jugessur, minDistanceSet=minDistanceSet,
+				   bsSet=bsSet)
+J <- unique(ranges.in.jugessur$chrom)
+bitmap(paste("inJugessur_chr", CHR, "_%02d.png", sep=""), width=8, height=8, res=500)
+for(j in 1:nrow(ranges.in.jugessur)){
+	mset <- constructTrioSetFromRanges(ranges1=ranges.in.jugessur[j, ],
+					   minDistanceSet=minDistanceSet,
+					   bsSet=bsSet)
+	segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+	segmean_ranges$family <- substr(segmean_ranges$id, 1, 5)
+	segmean_ranges <- segmean_ranges[segmean_ranges$family %in% sampleNames(mset), ]
+	layout(matrix(1:7, 7,1, byrow=TRUE), heights=rep(1,7))
+	par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+	plotSegs(index=j,
+		 ranges1=ranges.in.jugessur,
+		 ranges2=segmean_ranges,
+		 mset=mset)#, FRAME=0.05)
+}
+dev.off()
+@
+
+When we sort penn cnv hits by size, what is the rank of these hits?
+Plot the top penn cnv hits?  Are any of them false positives?
+
+<<penncnv>>=
+penn.joint <- checkExists("penn.joint", .path=outdir, .FUN=readPennCnv,
+			  penndir="/thumper/ctsa/beaty/holger/penncnv/trioDat")
+penn.denovo <- penn.joint[penn.joint$triostate==332, ]
+ranges$inPennJoint <- rep(NA, nrow(ranges))
+for(CHR in 1:22){
+	range.index <- which(ranges$chrom==CHR)
+	penn.index <- which(chromosome(penn.denovo) == CHR)
+	subj <- penn.denovo[penn.index, ]
+	subj.ir <- IRanges(start(subj), end(subj))
+	query <- ranges[range.index, ]
+	query.ir <- IRanges(start(query), end(query))
+	ranges$inPennJoint[range.index] <- countOverlaps(query.ir, subj.ir) > 0
+}
+ranges[!ranges$inPennJoint, ]
+@
+
+<<>>=
+## 105,278 vs 114 in ranges
+penn10 <- penn.joint[penn.joint$nmarkers >= 10 & penn.joint$pedId == "offspring", ]
+@
+

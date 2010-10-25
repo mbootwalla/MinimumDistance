@@ -9,33 +9,11 @@ to submit (must be on a fat node).
 
 %\SweaveInput{InitializeContainer}
 %\SweaveInput{ReadBeadStudio}
-
-<<quitearly>>=
-##q("no")
-@
-
-% \SweaveInput{segmentation}
-
-% \SweaveInput{DNAsource}
-
-%\SweaveInput{Exclusions}
-%
-%\SweaveInput{CallDeletions}
-%
-%\SweaveInput{CallDenovo}
-%
-%\SweaveInput{CommonVariants}
-%
-%\SweaveInput{DenovoFigures}
-
-\SweaveInput{AllChromosomes.Rnw}
-<<>>=
-q("no")
-@
-\SweaveInput{DenovoFigures}
-
-
-
+%\SweaveInput{AllChromosomes.Rnw}
+%\SweaveInput{ConstructMinDistance}
+% evaluate 'segmentation2' code chunk in segmentation.Rnw
+%\SweaveInput{segmentation}
+\SweaveInput{MinDistanceDeletions}
 
 %\SweaveInput{PlotDenovo}
 
