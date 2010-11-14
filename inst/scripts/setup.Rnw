@@ -1,28 +1,7 @@
-Required packages:
-
-<<packages,results=hide>>=
-options(prompt="R> ", continue=" ", width=70)##device=pdf
-library(oligoClasses)
-library(Beaty)
-library(SNPchip)
-library(DNAcopy)
-library(IRanges)
-library(mybase)
-library(ff)
-library(crlmm)
-library(GenomicRanges)
-@
-
 Specify where to store and look for intermediate files.
 
 <<outdir>>=
-outdir <- "/amber1/archive/ctsa/beaty_crlmm/beaty_beadStudio"
-if(!file.exists(outdir)) dir.create(outdir)
-ldPath(outdir)
-ocSamples(100)
-library(Study)
-data(Beaty)
-cdfName <- Beaty[["cdfName"]]
+
 @
 
 

@@ -1,14 +1,15 @@
 \SweaveInput{preamble}
 \begin{document}
 
-\SweaveInput{Setup}
+<<metadata>>=
+data(Beaty)
+cdfName <- Beaty[["cdfName"]]
+@
 
 The segmentation is done by splitting the samples into batches of 600
 and running the jobs on separate nodes.  Uncomment the following lines
 to submit (must be on a fat node).
 
-%\SweaveInput{InitializeContainer}
-%\SweaveInput{ReadBeadStudio}
 %\SweaveInput{AllChromosomes.Rnw}
 %\SweaveInput{ConstructMinDistance}
 % evaluate 'segmentation2' code chunk in segmentation.Rnw

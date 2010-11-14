@@ -10,16 +10,6 @@ Crlmm : Crlmm.Rnw
 	cat ~/bin/cluster.template | perl -pe "s/Rprog/Crlmm.R/" > Crlmm.R.sh
 	qsub -m e -r y -cwd -l fat -l mem_free=40,h_vmem=45G Crlmm.R.sh
 
-segmentation: segmentation.Rnw
-	echo "Stangle(\"segmentation.Rnw\")"| R-devel --no-save --no-restore;	
-	cat ~/bin/cluster.template | perl -pe "s/Rprog/segmentation.R/" > segmentation.R.sh
-	qsub -m e -r y -cwd -l fat -l mem_free=5G,h_vmem=12G segmentation.R.sh
-
-readBS: ReadBeadStudio.Rnw	
-	echo "Stangle(\"ReadBeadStudio.Rnw\")"| R-devel --no-save --no-restore;	
-	cat ~/bin/cluster.template | perl -pe "s/Rprog/ReadBeadStudio.R/" > ReadBeadStudio.R.sh
-	qsub -m e -r y -cwd -l fat -l mem_free=5G,h_vmem=12G ReadBeadStudio.R.sh
-
 MinDistance: MinDistance.Rnw
 	echo "Stangle(\"MinDistance.Rnw\")"| R-devel --no-save --no-restore;	
 	cat ~/bin/cluster.template | perl -pe "s/Rprog/MinDistance.R/" > MinDistance.R.sh
@@ -43,6 +33,3 @@ DenovoRanges: DenovoRangesBySize.Rnw
 
 clean:
 	-rm *.pdf
-	-rm /amber1/scratch/rscharpf/beaty_beadStudio/denovo.rda
-	-rm /amber1/scratch/rscharpf/beaty_beadStudio/deletion.rda
-	-rm /amber1/scratch/rscharpf/beaty_beadStudio/reduced_ranges.rda

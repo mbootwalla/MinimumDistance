@@ -2,267 +2,34 @@
 
 <<>>=
 library(ff)
-##library(snow)
+library(snow)
 library(crlmm)
-##setCluster(2, "SOCK")
+setCluster(4, "SOCK")
 cdfName <- "human610quadv1b"
 data(samplesheet)
 path <- "/thumper/ctsa/beaty/illumina610/Raw_Data/Released_Data/RELEASED_IDATS"
-outdir <- "/amber1/archive/ctsa/beaty_crlmm/v1.9.4"
-stopifnot(file.exists(outdir))
+crlmmVersion <- sessionInfo(package="crlmm")$otherPkgs$crlmm$Version
+outdir <- file.path("/amber1/archive/ctsa/beaty_crlmm", crlmmVersion)
+dir.create(outdir, recursive=TRUE, showWarnings=FALSE)
 ldPath(outdir)
-ocProbesets(15e3)
+ocProbesets(20e3)
 ocSamples(8e3)
+options("ffbatchbytes"=20e6)
 samplesheet$Sample_ID <- samplesheet$CIDR_Name
-
-#readIdatFiles creates a NChannelSet
-#RGtoXY creates a NChannelSeta
-# think it would have to be readIdatFiles with the problem
-##container <- checkExists("container",
-##			 .path=outdir,
-##			 .FUN=crlmm:::genotype.Illumina,
-##			 batch=as.factor(rep(1, nrow(samplesheet)))[1:200],
-##			 arrayNames=samplesheet$filenames[1:200],
-##			 gender=samplesheet$Gender[1:200],
-##			 highDensity=TRUE,
-##			 arrayInfoColNames=list(barcode=NULL, position="Human610.Quadv1_B.Sentrix.Position"),  ### "SentrixPosition"),
-##			 cdfName=cdfName,
-##			 verbose=FALSE, .load.it=FALSE,
-##			 saveDate=FALSE)
 index <- 5500:7599
 container <- checkExists("container",
-			 .path=outdir,
+			 .path=ldPath(),
 			 .FUN=crlmm:::genotype.Illumina,
+			 .load.it=FALSE,
+			 ##genotype.Illumina arguments
 			 batch=as.factor(rep(1, nrow(samplesheet)))[index],
 			 arrayNames=samplesheet$filenames[index],
 			 gender=samplesheet$Gender[index],
 			 highDensity=TRUE,
 			 arrayInfoColNames=list(barcode=NULL, position="Human610.Quadv1_B.Sentrix.Position"),  ### "SentrixPosition"),
 			 cdfName=cdfName,
-			 verbose=FALSE, .load.it=FALSE,
-			 saveDate=FALSE)
-q("no")
-
-		       RG = new("NChannelSet",
-		                 R=initializeBigMatrix(name="R", nr=nprobes, nc=narrays, vmode="integer"),
-		                 G=initializeBigMatrix(name="G", nr=nprobes, nc=narrays, vmode="integer"),
-		                 zero=initializeBigMatrix(name="zero", nr=nprobes, nc=narrays, vmode="integer"),
-				         annotation=headerInfo$Manifest[1],
-				         phenoData=pd, storage.mode="environment")
-
-zero <- R <- G <- matrix(rnorm(100), 10, 10)
-rownames(zero) <- rownames(R) <- rownames(G) <- 1:10
-colnames(zero) <- colnames(R) <- colnames(G) <- letters[1:10]
-pD <- new("AnnotatedDataFrame", data=data.frame(gender=rep(1,10), row.names=letters[1:10]),
-	  varMetadata=data.frame(labelDescription="gender"))
-RG <- new("NChannelSet", R=R,G=G,zero=zero, annotation="illumina", phenoData=pD)
-dts <- rep(1, 10)
-names(dts) <- letters[11:20]
-protocolData(RG)[["ScanDate"]] <- dts
-validObject(RG)
-
-q('no')
-
-
-
-construct.rs = function(sampleSheet=NULL,
-			  arrayNames=NULL,
-			  ids=NULL,
-			  path=".",
-			  arrayInfoColNames=list(barcode="SentrixBarcode_A", position="SentrixPosition_A"),
-			  highDensity=FALSE,
-			  sep="_",
-			  fileExt=list(green="Grn.idat",
-			  red="Red.idat"),
-		      	  cdfName,
-		      	  copynumber=TRUE,
-                          batch,
-                          fns,
-                          saveDate=TRUE,
-       			  stripNorm=TRUE,
-			  useTarget=TRUE,
-		          mixtureSampleSize=10^5,
-                          fitMixture=TRUE,
-		          eps=0.1,
-		          verbose=TRUE,
-		          seed=1,
-		          sns,
-		          probs=rep(1/3, 3),
-		          DF=6,
-		          SNRMin=5,
-		          recallMin=10,
-		          recallRegMin=1000,
-		          gender=NULL,
-		          returnParams=TRUE,
-		          badSNP=0.7) {
-	is.lds = ifelse(isPackageLoaded("ff"), TRUE, FALSE)
-	if(missing(cdfName)) stop("must specify cdfName")
-	if(!isValidCdfName(cdfName)) stop("cdfName not valid.  see validCdfNames")
-        pkgname = getCrlmmAnnotationName(cdfName)
-        pkgname = getCrlmmAnnotationName(cdfName)
-	callSet = construct.Illumina(sampleSheet=sampleSheet, arrayNames=arrayNames,
-			     ids=ids, path=path, arrayInfoColNames=arrayInfoColNames,
-                             highDensity=highDensity, sep=sep, fileExt=fileExt,
-			     cdfName=cdfName, copynumber=copynumber, verbose=verbose, batch=batch,
-                             fns=fns, saveDate=saveDate)
-	return(callSet)
-}
-container <- checkExists("container",
-			 .path=outdir,
-			 .FUN=construct.rs,
-			 batch=as.factor(rep(1, nrow(samplesheet))),
-			 arrayNames=samplesheet$filenames,
-			 gender=samplesheet$Gender,
-			 highDensity=TRUE,
-			 arrayInfoColNames=list(barcode=NULL, position="Human610.Quadv1_B.Sentrix.Position"),  ### "SentrixPosition"),
-			 cdfName=cdfName,
-			 verbose=FALSE)
-step2 <- function(callSet,
-		  sampleSheet=NULL,
-			  arrayNames=NULL,
-			  ids=NULL,
-			  path=".",
-			  arrayInfoColNames=list(barcode="SentrixBarcode_A", position="SentrixPosition_A"),
-			  highDensity=FALSE,
-			  sep="_",
-			  fileExt=list(green="Grn.idat",
-			  red="Red.idat"),
-		      	  cdfName,
-		      	  copynumber=TRUE,
-                          batch,
-                          fns,
-                          saveDate=TRUE,
-       			  stripNorm=TRUE,
-			  useTarget=TRUE,
-		          mixtureSampleSize=10^5,
-                          fitMixture=TRUE,
-		          eps=0.1,
-		          verbose=TRUE,
-		          seed=1,
-		          sns,
-		          probs=rep(1/3, 3),
-		          DF=6,
-		          SNRMin=5,
-		          recallMin=10,
-		          recallRegMin=1000,
-		          gender=NULL,
-		          returnParams=TRUE,
-		          badSNP=0.7) {
-	is.lds = ifelse(isPackageLoaded("ff"), TRUE, FALSE)
-	if(missing(cdfName)) stop("must specify cdfName")
-	if(!isValidCdfName(cdfName)) stop("cdfName not valid.  see validCdfNames")
-        pkgname = getCrlmmAnnotationName(cdfName)
-        if(missing(sns)) sns = sampleNames(callSet)
-	open(callSet)
-	is.snp = isSnp(callSet)
-	snp.index = which(is.snp)
-        narrays = ncol(callSet)
-          sampleBatches = splitIndicesByNode(seq(along=sampleNames(callSet)))
-
-          mixtureParams = initializeBigMatrix("crlmmMixt-", 4, narrays, "double")
-          SNR = initializeBigVector("crlmmSNR-", narrays, "double")
-          SKW = initializeBigVector("crlmmSKW-", narrays, "double")
-
-          ocLapply(sampleBatches, processIDAT, sampleSheet=sampleSheet, arrayNames=arrayNames,
-                 ids=ids, path=path, arrayInfoColNames=arrayInfoColNames, highDensity=highDensity,
-                 sep=sep, fileExt=fileExt, saveDate=saveDate, verbose=verbose, mixtureSampleSize=mixtureSampleSize,
-                 fitMixture=fitMixture, eps=eps, seed=seed, cdfName=cdfName, sns=sns, stripNorm=stripNorm,
-                 useTarget=useTarget, A=A(callSet), B=B(callSet), SKW=SKW, SNR=SNR,
-                 mixtureParams=mixtureParams, is.snp=is.snp, neededPkgs=c("crlmm", pkgname))
-
-          open(SKW)
-          open(SNR)
-          pData(callSet)$SKW = SKW
-          pData(callSet)$SNR = SNR
-          close(SNR)
-          close(SKW)
-	FUN = ifelse(is.lds, "crlmmGT2", "crlmmGT")
-	## genotyping
-	crlmmGTfxn = function(FUN,...){
-		switch(FUN,
-		       crlmmGT2=crlmmGT2(...),
-		       crlmmGT=crlmmGT(...))
-	}
-          open(A(callSet))
-          open(B(callSet))
-          tmpA = initializeBigMatrix(name="A", length(snp.index), narrays)
-          tmpB = initializeBigMatrix(name="B", length(snp.index), narrays)
-          bb = ocProbesets()*length(sns)*8
-	  ffrowapply(tmpA[i1:i2, ] <- A(callSet)[snp.index,][i1:i2, ], X=A(callSet)[snp.index,], BATCHBYTES=bb)
-	  ffrowapply(tmpB[i1:i2, ] <- B(callSet)[snp.index,][i1:i2, ], X=B(callSet)[snp.index,], BATCHBYTES=bb)
-          close(A(callSet))
-          close(B(callSet))
-          close(tmpA)
-          close(tmpB)
-	tmp = crlmmGTfxn(FUN,
-			  A=tmpA,
-			  B=tmpB,
-			  SNR=SNR,
-			  mixtureParams=mixtureParams,
-			  cdfName=cdfName,
-			  row.names=NULL,
-			  col.names=sampleNames(callSet),
-			  probs=probs,
-			  DF=DF,
-			  SNRMin=SNRMin,
-			  recallMin=recallMin,
-			  recallRegMin=recallRegMin,
-			  gender=gender,
-			  verbose=verbose,
-			  returnParams=returnParams,
-			  badSNP=badSNP)
-	if(verbose) message("Genotyping finished.  Updating container with genotype calls and confidence scores.")
-		bb = ocProbesets()*ncol(callSet)*8
-		open(tmp[["calls"]])
-		open(tmp[["confs"]])
-		ffrowapply(snpCall(callSet)[snp.index,][i1:i2, ] <- tmp[["calls"]][i1:i2, ], X=tmp[["calls"]], BATCHBYTES=bb)
-		ffrowapply(snpCallProbability(callSet)[snp.index,][i1:i2, ] <- tmp[["confs"]][i1:i2, ], X=tmp[["confs"]], BATCHBYTES=bb)
-#		close(tmp[["calls"]])
-#		close(tmp[["confs"]])
-#                open(tmpA); open(tmpB)
-#                delete(tmpA); delete(tmpB);
-                delete(tmp[["calls"]]); delete(tmp[["confs"]])
-                rm(tmpA, tmpB)
-		callSet$gender = tmp$gender
-        rm(tmp)
-	close(callSet)
-	return(callSet)
-}
-callSet <- checkExists("callSet",
-		       .path=outdir,
-		       .FUN=step2,
-		       callSet=container,
-		       highDensity=TRUE,
-		       cdfName=cdfName,
-		       arrayNames=samplesheet$filenames,
-		       arrayInfoColNames=list(barcode=NULL, position="Human610.Quadv1_B.Sentrix.Position"),  ### "SentrixPosition"),
-		       verbose=TRUE)
-q("no")
-
-
-
-q("no")
-
-container <- checkExists("container",
-			 .path=outdir,
-			 .FUN=crlmm:::genotype.Illumina,
-			 batch=as.factor(rep(1, nrow(samplesheet))),
-			 arrayNames=samplesheet$filenames,
-			 gender=samplesheet$Gender,
-			 highDensity=TRUE,
-			 arrayInfoColNames=list(barcode=NULL, position="Human610.Quadv1_B.Sentrix.Position"),  ### "SentrixPosition"),
-			 cdfName=cdfName,
-			 verbose=FALSE)
-reading /thumper/ctsa/beaty/illumina610/Raw_Data/Released_Data/RELEASED_IDATS/4281840055/4281840055_R02C01 	_Grn.idat 	_Red.idat
-reading /thumper/ctsa/beaty/illumina610/Raw_Data/Released_Data/RELEASED_IDATS/4439521254/4439521254_R02C01 	_Grn.idat 	_Red.idat
-reading /thumper/ctsa/beaty/illumina610/Raw_Data/Released_Data/RELEASED_IDATS/4439521254/4439521254_R01C02 	_Grn.idat 	_Red.idat
-reading /thumper/ctsa/beaty/illumina610/Raw_Data/Released_Data/RELEASED_IDATS/4439521254/4439521254_R01C01 	_Grn.idat 	_Red.idat
-Loading chip annotation information.
-Error in validObject(.Object) :
-  invalid class "NChannelSet" object: sampleNames differ between phenoData and protocolData
-Calls: checkExists ... callNextMethod -> eval -> eval -> .nextMethod -> validObject
-Execution halted
-
+			 verbose=TRUE,
+			 saveDate=TRUE)
 q("no")
 @
 

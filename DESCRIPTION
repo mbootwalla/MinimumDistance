@@ -15,6 +15,7 @@ collate: AllClasses.R
 	 methods-MultiSet.R
 	 methods-GRanges.R
 	 functions.R
+	 utils.R	 
 	 plot-functions.R
 	 tdt-functions.R
 	 phenodata-functions.R

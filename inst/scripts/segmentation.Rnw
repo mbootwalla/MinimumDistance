@@ -1,31 +1,3 @@
-<<segmentation, eval=FALSE>>=
-library(oligoClasses)
-NN <- 1000
-##CHR <- 1
-iter <- 1
-sampleBatch <- splitIndicesByLength(1:7599, NN)
-for(CHR in 17:22){
-	for(KK in 1:length(sampleBatch)){
-		iter <- iter+1
-		sink("temp")
-		cat("runSegmentation <- TRUE \n")
-		cat("sourceSubmitter <- FALSE \n")
-		cat("batch <- ", KK, "\n")
-		cat("NN <- ", NN, "\n")
-		cat("CHR <- ", CHR, "\n")
-		sink()
-		fn <- paste("tmp_", iter, ".R", sep="")
-		if(file.exists(fn)) unlink(fn)
-		system(paste("cat temp runSegmentation.R >", fn))
-		system(paste('cat ~/bin/cluster.template | perl -pe "s/Rprog/tmp_', iter, '.R/" > tmp_', iter, '.R.sh', sep=""))
-		system(paste("qsub -m e -r y -cwd -l mem_free=10G,h_vmem=16G tmp_", iter, ".R.sh", sep=""))
-		##	system(paste("clusterMcmc 5G", fn))
-		Sys.sleep(45)
-	}
-	Sys.sleep(60*60*2.5)
-}
-@
-
 <<segmentation2,eval=FALSE>>=
 minDistanceSet <- checkExists("minDistanceSet", .path=ldPath(), .FUN=load)
 BATCHSIZE <- 200
@@ -50,6 +22,8 @@ for(CHR in 20:22){
 	Sys.sleep(60*2)##3 minutes
 }
 @
+
+
 
 For making figures of the denovo deletions based on the minimum distance.
 <<figures>>=
