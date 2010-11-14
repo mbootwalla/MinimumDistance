@@ -273,3 +273,414 @@ plotImage <- function(denovoSet, indices, query, minoverlap){
 	mtext(paste("chr", query$chrom), cex=1.5, side=1)
 }
 
+plotRange <- function(sampleName,    ## names of samples to plot
+		      segmentation,  ## the segmentation for the trio
+		      lset,          ## LogRatioSet or something similar
+		      add.cytoband=TRUE,
+		      range,
+		      ylim,
+		      THR, strict=FALSE, ...){
+	stopifnot(length(sampleName) == 1)
+	stopifnot(length(range) == 1)
+	j <- match(sampleName, sampleNames(lset))
+	cn <- copyNumber(lset)[, j]
+	if(!missing(ylim)){
+		##ylim <- list(...)[["ylim"]]
+		cn[cn < ylim[1]] <- ylim[1]
+		cn[cn > ylim[2]] <- ylim[2]
+		segmentation$seg.mean[segmentation$seg.mean < ylim[1]] <- ylim[1]
+		segmentation$seg.mean[segmentation$seg.mean > ylim[2]] <- ylim[2]
+	} else ylim <- c(-2,1)
+	x <- position(lset)
+	plot(x, cn, ylim=ylim, ...)
+	abline(h=THR, col="blue", lty=2)
+	abline(v=c(start(range), end(range)), lty=2)
+
+	segs <- segmentation[substr(segmentation$id, 1, 8) %in% sampleName, ]
+	segments(segs, strict=strict, lwd=2)
+	legend("bottomleft", legend=paste("MAD:", round(lset$MAD[j], 3)), bg="white")
+	legend("bottomright", legend=who(sampleName),  bty="n", cex=0.8)
+
+	b <- baf(lset)[, j]
+	plot(x, b, ylim=c(0,1), ...)
+	abline(v=c(start(range), end(range)), lty=2)
+	legend("bottomright", legend=who(sampleName),  bty="n", cex=0.8)
+}
+
+plotRange2 <- function(sampleName,    ## names of samples to plot
+		      segmentation,  ## the segmentation for the trio
+		      lset,          ## LogRatioSet or something similar
+		      add.cytoband=TRUE,
+		      range,
+		      ylim,
+		      THR, strict=FALSE, ...){
+	stopifnot(length(sampleName) == 1)
+	stopifnot(length(range) == 1)
+	j <- match(sampleName, sampleNames(lset))
+	cn <- copyNumber(lset)[, j]
+	if(!missing(ylim)){
+		##ylim <- list(...)[["ylim"]]
+		cn[cn < ylim[1]] <- ylim[1]
+		cn[cn > ylim[2]] <- ylim[2]
+		segmentation$seg.mean[segmentation$seg.mean < ylim[1]] <- ylim[1]
+		segmentation$seg.mean[segmentation$seg.mean > ylim[2]] <- ylim[2]
+	} else ylim <- c(-2,1)
+	x <- position(lset)
+	plot(x, cn, ylim=ylim, ...)
+	abline(h=THR, col="blue", lty=2)
+	abline(v=c(start(range), end(range)), lty=2)
+
+	segs <- segmentation[segmentation$id %in% sampleName, ]
+	segments(segs, strict=strict, lwd=2)
+	legend("bottomleft", legend=paste("MAD:", round(lset$MAD[j], 3)), bg="white")
+	legend("bottomright", legend=who(sampleName),  bty="n", cex=0.8)
+	legend("bottomright", legend=who(sampleName),  bty="n", cex=0.8)
+}
+
+plotRange4 <- function(ranges, range.index, minDistanceSet, bsSet, outdir){
+	mset <- constructTrioSetFromRanges(ranges, minDistanceSet, bsSet)
+	CHR <- unique(chromosome(mset))
+	ranges.md <- getRanges(outdir,
+			       pattern=paste("md.segs.chr", CHR, "_batch", sep=""),
+			       name="md.segs", CHR=CHR)
+	segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+	segmean_ranges$family <- substr(segmean_ranges$id, 1, 5)
+	segmean_ranges <- segmean_ranges[segmean_ranges$family %in% sampleNames(mset), ]
+	plotSegs(index=range.index,
+		 ranges1=ranges,
+		 ranges.md=ranges.md,
+		 ranges2=segmean_ranges,
+		 mset=mset)
+}
+
+plotRangeWrapper <- function(i, chrSet, Ranges, segmeans, FRAME, K){
+	range.index <- i
+	CHR <- chromosome(Ranges)[range.index]
+##	if(exists("chrset")){
+	if(length(unique(chromosome(chrSet))) > 1){
+		load.it <- TRUE
+	} else{
+		load.it <- ifelse(unique(chromosome(chrSet)) != CHR, TRUE, FALSE)
+	}
+	tmp <- paste(Ranges$denovo.samples[range.index], collapse=",")
+	denovo.samples <- unique(strsplit(tmp, ",")[[1]])
+	denovo.families <- substr(denovo.samples, 1, 5)
+	if(load.it){
+		marker.index <- which(chromosome(chrSet) == CHR)
+		all.families <- substr(sampleNames(chrSet), 1, 5)
+		j <- which(all.families %in% denovo.families)
+		chrSet <- new("LogRatioSet",
+			      logRRatio=as.matrix(logR(chrSet)[marker.index, j]),
+			      BAF=as.matrix(baf(chrSet)[marker.index, j]),
+			      featureData=featureData(chrSet)[marker.index, ],
+			      phenoData=phenoData(chrSet)[j, ],
+			      annotation=annotation(chrSet))
+	}
+	if(missing(segmeans)){
+		segmeans <- getSegMeans(outdir, CHR=CHR)
+	}
+	segmeans <- segmeans[substr(segmeans$id, 1, 5) %in% denovo.families, ]
+	i <- featuresInRange(chrSet, Ranges[range.index, ], FRAME=FRAME)
+	sns <- strsplit(elementMetadata(Ranges)[range.index, "denovo.samples"], ",")[[1]]
+##	par(ask=TRUE)
+	if(missing(K)) K <- seq_along(sns)
+	for(k in K){
+		offspring.name <- sns[k]
+##		offspring.name <- substr(sns[k], 1, 8)
+		offspring.family <- substr(offspring.name, 1, 5)
+		parents <- paste(offspring.family, c("_02", "_03"), sep="")
+		father.name <- parents[2]
+		mother.name <- parents[1]
+		jj <- match(c(father.name, mother.name, offspring.name), substr(sampleNames(chrSet), 1, 8))
+		lset <- chrSet[i, jj]
+		father.name <- sampleNames(lset)[1]; mother.name <- sampleNames(lset)[2]; offspring.name <- sampleNames(lset)[3]
+		segmentation <- segmean_ranges[segmean_ranges$id %in% c(offspring.name, mother.name, father.name), ]
+
+		plotRange(father.name, segmentation, lset, range=Ranges[range.index, ],
+			  THR=log(1.8/2), ylim=c(-1.5, 0.5),
+			  pch=21, col="grey60", cex=0.6, strict=F,
+			  xaxt="n")
+		plotRange(mother.name, segmentation, lset, range=Ranges[range.index, ],
+			  THR=log(1.8/2), ylim=c(-1.5,0.5),
+			  pch=21, col="grey60", cex=0.6,
+			  xaxt="n")
+		THR <- offspring.rule(lset$MAD[match(offspring.name, sampleNames(lset))])
+		plotRange(offspring.name, segmentation, lset, range=Ranges[range.index, ],
+			  THR=THR, ylim=c(-1.5, 0.5),
+			  pch=21, col="grey60", cex=0.6,
+			  xaxt="n")
+		at <- pretty(range(position(lset)), 8)
+		axis(1, at=at, labels=at/1e6)
+		mtext(paste("Chr: ", chromosome(Ranges)[range.index], ", offspring ", k , " of ", length(sns), sep=""), 3, outer=T)
+	}
+	return(list(chrSet=chrSet, segmeans=segmeans))
+}
+
+plotRangeWrapper2 <- function(i, chrSet, Ranges, segmeans, FRAME, K,
+			      minDistanceSet, distance.ranges){
+	sampleNames(chrSet) <- substr(sampleNames(chrSet), 1, 8)
+	range.index <- i[[1]]
+	rm(i)
+	CHR <- chromosome(Ranges)[range.index]
+##	if(exists("chrset")){
+	if(length(unique(chromosome(chrSet))) > 1){
+		stop("length(unique(chromosome)) > 1")
+		load.it <- TRUE
+	} else{
+		load.it <- ifelse(unique(chromosome(chrSet)) != CHR, TRUE, FALSE)
+	}
+	tmp <- paste(Ranges$denovo.samples[range.index], collapse=",")
+	denovo.samples <- unique(strsplit(tmp, ",")[[1]])
+	denovo.families <- substr(denovo.samples, 1, 5)
+##	if(load.it){
+##		marker.index <- which(chromosome(chrSet) == CHR)
+##		all.families <- substr(sampleNames(chrSet), 1, 5)
+##		j <- which(all.families %in% denovo.families)
+##		chrSet <- new("LogRatioSet",
+##			      logRRatio=as.matrix(logR(chrSet)[marker.index, j]),
+##			      BAF=as.matrix(baf(chrSet)[marker.index, j]),
+##			      featureData=featureData(chrSet)[marker.index, ],
+##			      phenoData=phenoData(chrSet)[j, ],
+##			      annotation=annotation(chrSet))
+##	}
+	if(missing(segmeans)){
+		segmeans <- getSegMeans(outdir, CHR=CHR)
+	}
+	segmeans <- segmeans[substr(segmeans$id, 1, 5) %in% denovo.families, ]
+	i <- featuresInRange(chrSet, Ranges[range.index, ], FRAME=FRAME)
+	sns <- strsplit(elementMetadata(Ranges)[range.index, "denovo.samples"], ",")[[1]]
+##	par(ask=TRUE)
+	if(missing(K)) K <- seq_along(sns)
+	for(k in K){
+		offspring.name <- substr(sns[k], 1, 8)
+##		offspring.name <- substr(sns[k], 1, 8)
+		offspring.family <- substr(offspring.name, 1, 5)
+		parents <- paste(offspring.family, c("_02", "_03"), sep="")
+		father.name <- parents[2]
+		mother.name <- parents[1]
+		jj <- match(c(father.name, mother.name, offspring.name), substr(sampleNames(chrSet), 1, 8))
+		lset <- chrSet[i, jj]
+		iii <- match(featureNames(lset), featureNames(minDistanceSet))
+		jjj <- match(offspring.name, sampleNames(minDistanceSet))
+		mset <- minDistanceSet[iii, jjj]##copyNumber(minDistanceSet)[iii, jjj]
+		father.name <- sampleNames(lset)[1]; mother.name <- sampleNames(lset)[2]; offspring.name <- sampleNames(lset)[3]
+		segmentation <- segmean_ranges[substr(segmean_ranges$id, 1, 8) %in% c(offspring.name, mother.name, father.name), ]
+		plotRange(father.name, segmentation, lset, range=Ranges[range.index, ],
+			  THR=log(1.8/2), ylim=c(-1.5, 0.5),
+			  pch=21, col="grey60", cex=0.6, strict=F,
+			  xaxt="n")
+		plotRange(mother.name, segmentation, lset, range=Ranges[range.index, ],
+			  THR=log(1.8/2), ylim=c(-1.5,0.5),
+			  pch=21, col="grey60", cex=0.6,
+			  xaxt="n")
+		offspring.rule2 <- function(MAD) ifelse(-1.5*MAD < log(1.5/2), -1.5*MAD, log(1.5/2))
+		THR <- offspring.rule2(lset$MAD[match(offspring.name, sampleNames(lset))])
+		plotRange(offspring.name, segmentation, lset, range=Ranges[range.index, ],
+			  THR=THR, ylim=c(-1.5, 0.5),
+			  pch=21, col="grey60", cex=0.6,
+			  xaxt="n")
+		plotRange2(offspring.name, distance.ranges, mset, range=Ranges[range.index, ],
+			   THR=THR, ylim=c(-0.5, 1.5),
+			   pch=21, col="grey60", cex=0.6,
+			   xaxt="n")
+		at <- pretty(range(position(lset)), 8)
+		axis(1, at=at, labels=at/1e6)
+		mtext(paste("Chr: ", chromosome(Ranges)[range.index], ", offspring ", k , " of ", length(sns), sep=""), 3, outer=T)
+	}
+	##return(list(chrSet=chrSet, segmeans=segmeans))
+	NULL
+}
+
+
+plotSegs <- function(index, ranges1, ranges.md, ranges2, mset, FRAME, strict=FALSE, ylim=c(-1.5, 0.5), ...){
+	require(SNPchip)
+	data(chromosomeAnnotation)
+	ranges2$id <- substr(ranges2$id, 1, 8)
+	ranges.md <- ranges.md[ranges.md$id == ranges1$id[index], ]
+	range.index <- index[[1]]
+	ranges1$family <- substr(ranges1$id, 1, 5)
+	CHR <- ranges1$chrom[index]
+	chrAnn <- chromosomeAnnotation[CHR, ]
+	this.range <- ranges1[index, ]
+	ranges1 <- ranges1[ranges1$id %in% this.range$id, ]
+	ranges2 <- ranges2[ranges2$family %in% this.range$family, ]
+	ranges2$seg.mean[ranges2$seg.mean < ylim[1]] <- ylim[1]
+	ranges2$seg.mean[ranges2$seg.mean > ylim[2]] <- ylim[2]
+	## goal is to have the feature cover approx 5% of the plot
+	if(missing(FRAME)){
+		w <- width(this.range)
+		FRAME <- w/0.05  * 1/2
+	}
+	i <- featuresInRange(mset, this.range, FRAME=FRAME)
+	family.name <- this.range$id
+	j <- match(this.range$family, sampleNames(mset))
+	lset <- mset[i, j]
+	ranges.F <- ranges2[grep("_03", ranges2$id), ]
+	ranges.M <- ranges2[grep("_02", ranges2$id), ]
+	ranges.O <- ranges2[grep("_01", ranges2$id), ]
+	xx <- c(chrAnn[1:2], chrAnn[2:1])
+	yy <- c(-1.2, -1.2, 0.4, 0.4)
+	yyc <- c(0.1, 0.1, 0.9, 0.9)
+	x <- position(lset)
+	y <- logR.F(lset)
+	y[y < ylim[1]] <- ylim[1]
+	y[y > ylim[2]] <- ylim[2]
+	##FATHER
+	plot(x, y, pch=21, col="blue", cex=0.6, xaxt="n", ylim=ylim)
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	segments(ranges.F, strict=strict)
+	polygon(xx, yy, col="bisque")
+	plot(x, baf.F(lset), pch=21, col="red", cex=0.6, xaxt="n", ylim=c(0,1))
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	polygon(xx, yyc, col="bisque")
+	##MOTHER
+	y <- logR.M(lset)
+	y[y < ylim[1]] <- ylim[1]
+	y[y > ylim[2]] <- ylim[2]
+	plot(x, y, pch=21, col="blue", cex=0.6, xaxt="n", ylim=ylim)
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	segments(ranges.M, strict=strict)
+	polygon(xx, yy, col="bisque")
+	plot(x, baf.M(lset), pch=21, col="red", cex=0.6, xaxt="n", ylim=c(0,1))
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	polygon(xx, yyc, col="bisque")
+	##OFFSPRING
+	y <- logR.O(lset)
+	y[y < ylim[1]] <- ylim[1]
+	y[y > ylim[2]] <- ylim[2]
+	plot(x, y, pch=21, col="blue", cex=0.6, xaxt="n", ylim=ylim)
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	segments(ranges.O, strict=strict)
+	legend("topleft", legend=paste("MAD:", round(lset$MAD,3)), bty="n")
+	polygon(xx, yy, col="bisque")
+	plot(x, baf.O(lset), pch=21, col="red", cex=0.6, xaxt="n", ylim=c(0,1))
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	polygon(xx, yyc, col="bisque")
+	yym <- c(-0.4, -0.4, 0.9, 0.9)
+	y <- mindist(lset)
+	y[y < -0.5] <- -0.5
+	y[y > 1] <- 1
+	plot(x, y, pch=21, col="grey50", cex=0.6, xaxt="n", ylim=c(-0.5,1))
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	segments(ranges.md, strict=strict)
+	polygon(xx, yym, col="bisque")
+	at <- pretty(range(position(lset)), 8)
+	axis(1, at=at, labels=at/1e6)
+	mtext(paste("Family ", substr(this.range$id, 1,5), "; Chr: ", CHR, sep=""), 3, outer=T)
+}
+
+plotSegs2 <- function(index, ranges1, ranges.md, ranges2,
+		      mset, FRAME, strict=FALSE, ylim=c(-1.5, 0.5), ...){
+	require(SNPchip)
+	data(chromosomeAnnotation)
+	ranges2$id <- substr(ranges2$id, 1, 8)
+	ranges.md <- ranges.md[ranges.md$id == paste(sampleNames(mset), "_01", sep=""), ]
+	##ranges.md <- ranges.md[ranges.md$id == ranges1$id[index], ]
+	range.index <- index[[1]]
+	ranges1$family <- substr(ranges1$id, 1, 5)
+	CHR <- ranges1$chrom[index]
+	chrAnn <- chromosomeAnnotation[CHR, ]
+	this.range <- ranges1[index, ]
+	##ranges1 <- ranges1[ranges1$id %in% this.range$id, ]
+	##ranges2 <- ranges2[ranges2$family %in% substr(sampleNames(mset), 1, 5), ]
+	ranges2$seg.mean[ranges2$seg.mean < ylim[1]] <- ylim[1]
+	ranges2$seg.mean[ranges2$seg.mean > ylim[2]] <- ylim[2]
+	## goal is to have the feature cover approx 5% of the plot
+	if(missing(FRAME)){
+		w <- width(this.range)
+		FRAME <- w/0.05  * 1/2
+	}
+	i <- featuresInRange(mset, this.range, FRAME=FRAME)
+	##family.name <- this.range$id
+	family.name <- substr(sampleNames(mset), 1, 5)
+	##j <- match(family.name, sampleNames(mset))
+	lset <- mset[i, ]
+	ranges.F <- ranges2[grep("_03", ranges2$id), ]
+	ranges.M <- ranges2[grep("_02", ranges2$id), ]
+	ranges.O <- ranges2[grep("_01", ranges2$id), ]
+	xx <- c(chrAnn[1:2], chrAnn[2:1])
+	yy <- c(-1.2, -1.2, 0.4, 0.4)
+	yyc <- c(0.1, 0.1, 0.9, 0.9)
+	x <- position(lset)
+	y <- logR.F(lset)
+	y[y < ylim[1]] <- ylim[1]
+	y[y > ylim[2]] <- ylim[2]
+	##FATHER
+	plot(x, y, pch=21, col="blue", cex=0.6, xaxt="n", ylim=ylim)
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	segments(ranges.F, strict=strict)
+	polygon(xx, yy, col="bisque")
+	plot(x, baf.F(lset), pch=21, col="red", cex=0.6, xaxt="n", ylim=c(0,1))
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	polygon(xx, yyc, col="bisque")
+	##MOTHER
+	y <- logR.M(lset)
+	y[y < ylim[1]] <- ylim[1]
+	y[y > ylim[2]] <- ylim[2]
+	plot(x, y, pch=21, col="blue", cex=0.6, xaxt="n", ylim=ylim)
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	segments(ranges.M, strict=strict)
+	polygon(xx, yy, col="bisque")
+	plot(x, baf.M(lset), pch=21, col="red", cex=0.6, xaxt="n", ylim=c(0,1))
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	polygon(xx, yyc, col="bisque")
+	##OFFSPRING
+	y <- logR.O(lset)
+	y[y < ylim[1]] <- ylim[1]
+	y[y > ylim[2]] <- ylim[2]
+	plot(x, y, pch=21, col="blue", cex=0.6, xaxt="n", ylim=ylim)
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	segments(ranges.O, strict=strict)
+	polygon(xx, yy, col="bisque")
+	plot(x, baf.O(lset), pch=21, col="red", cex=0.6, xaxt="n", ylim=c(0,1))
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	polygon(xx, yyc, col="bisque")
+	legend("topleft", legend=paste("MAD:", round(lset$MAD,3)), bty="n")
+	yym <- c(-0.4, -0.4, 0.9, 0.9)
+	y <- mindist(lset)
+	y[y < -0.5] <- -0.5
+	y[y > 1] <- 1
+	plot(x, y, pch=21, col="grey50", cex=0.6, xaxt="n", ylim=c(-0.5,1))
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	segments(ranges.md, strict=strict)
+	polygon(xx, yym, col="bisque")
+	at <- pretty(range(position(lset)), 8)
+	axis(1, at=at, labels=at/1e6)
+	mtext(paste("Family ", substr(this.range$id, 1,5), "; Chr: ", CHR, sep=""), 3, outer=T)
+}
+
+plotRange3 <- function(sampleName,    ## names of samples to plot
+		      segmentation,  ## the segmentation for the trio
+		      lset,          ## LogRatioSet or something similar
+		      add.cytoband=TRUE,
+		      range,
+		      ylim,
+		      THR, strict=FALSE, ...){
+	stopifnot(length(sampleName) == 1)
+	stopifnot(length(range) == 1)
+	j <- match(sampleName, sampleNames(lset))
+	cn <- copyNumber(lset)[, j]
+	if(!missing(ylim)){
+		##ylim <- list(...)[["ylim"]]
+		cn[cn < ylim[1]] <- ylim[1]
+		cn[cn > ylim[2]] <- ylim[2]
+		segmentation$seg.mean[segmentation$seg.mean < ylim[1]] <- ylim[1]
+		segmentation$seg.mean[segmentation$seg.mean > ylim[2]] <- ylim[2]
+	} else ylim <- c(-2,1)
+	x <- position(lset)
+	plot(x, cn, ylim=ylim, ...)
+	abline(h=THR, col="blue", lty=2)
+	abline(v=c(start(range), end(range)), lty=2)
+
+	segs <- segmentation[substr(segmentation$id, 1, 8) %in% sampleName, ]
+	segments(segs, strict=strict, lwd=2)
+	legend("bottomleft", legend=paste("MAD:", round(lset$MAD[j], 3)), bg="white")
+	legend("bottomright", legend=who(sampleName),  bty="n", cex=0.8)
+
+	b <- baf(lset)[, j]
+	plot(x, b, ylim=c(0,1), ...)
+	abline(v=c(start(range), end(range)), lty=2)
+	legend("bottomright", legend=who(sampleName),  bty="n", cex=0.8)
+}
+
+
