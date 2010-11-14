@@ -1,7 +1,7 @@
 \SweaveInput{preamble}
 \begin{document}
 
-\SweaveInput{setup}
+\SweaveInput{Setup}
 
 The segmentation is done by splitting the samples into batches of 600
 and running the jobs on separate nodes.  Uncomment the following lines

@@ -1,16 +1,433 @@
-\SweaveInput{setup}
-
-<<centromeres>>=
-offspring.rule <- function(MAD) ifelse(1.5*MAD >  0.5, 1.5*MAD, 0.5)
+% Among the top hits, are there any overlaps with other ranges?
+%
+% Among the Jugessur ranges, are there any other overlaps?
+%
+% We're missing a few obvious hits because of the threshold.
+%
+% Should we try penncnv's tool for calculing p-values of the denovo regions
+%
+% Adding functional annotation to plots
+%
+<<>>=
+##refGene <- getRefGene(filename="~/Data/Downloads/hg18_refGene.txt")
 @
 
-<<loadSegmentation>>=
-rangesList8 <- checkExists("rangesList8", .path=".", .FUN=collectAllRangesOfSize, SIZE=10,
-			   offspring.rule=offspring.rule,
-			   outdir=outdir)
-ranges <- do.call("rbind", rangesList8)
+\SweaveInput{Setup}
+
+<<rangesForMinDistance>>=
+minDistanceSet <- checkExists("minDistanceSet", .path=outdir, .FUN=load)
+featureNames(minDistanceSet) <- rownames(fData(minDistanceSet))
+open(copyNumber(minDistanceSet))
+bsSet <- checkExists("bsSet", .path=outdir, .FUN=load)
+sampleNames(bsSet) <- substr(sampleNames(bsSet), 1, 8)
+open(baf(bsSet))
+open(logR(bsSet))
 @
 
+For each range, look for other trios that might overlap.  Look in a
+window of +/- FRAME.SHIFT of the original hit.
+
+Plot the number of subjects with overlap vs size.
+
+<<deletion.ranges, eval=FALSE>>=
+deletion.ranges <- checkExists("deletion.ranges", .path=outdir, .FUN=collectAllRangesOfSize,
+			       SIZE=5,
+			       bsSet=bsSet,
+			       minDistanceSet=minDistanceSet,
+			       outdir=outdir,
+			       MIN=1, MAX=4, lambda=0.1)
+FRAME.SHIFT <- 200e3
+MIN.SIZE <- 10  ## require at least 5 markers in the other trios
+ranges.md <- deletion.ranges
+deletion.ranges <- deletion.ranges[deletion.ranges$is.deletion, ]
+deletion.ranges <- deletion.ranges[order(deletion.ranges$num.mark, decreasing=T), ]
+deletion.ranges <- deletion.ranges[deletion.ranges$num.mark >= MIN.SIZE, ]
+deletion.ranges <- deletion.ranges[order(deletion.ranges$chrom), ]
+deletion.ranges$others <- NA
+chrom <- unique(deletion.ranges$chrom)
+for(i in seq_along(chrom)){
+	CHR <- chrom[i]
+	cat(CHR, "\n")
+	chr.range <- deletion.ranges[deletion.ranges$chrom == CHR, ]
+	segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+	ranges2 <- deletion.ranges[deletion.ranges$chrom == CHR, ]
+	##Look for all ranges that have a denovo event in the region
+	query.ir <- IRanges(start(chr.range) - FRAME.SHIFT,
+			    end(chr.range) + FRAME.SHIFT)
+	matching.subjects <- list()
+	for(j in 1:nrow(chr.range)){
+		## subjects -- all subjects except for the index case
+		ranges3 <- ranges2[ranges2$id != chr.range$id[j], ]
+		subj.ir <- IRanges(start(ranges3), end(ranges3))
+		tmp <- matchMatrix(findOverlaps(query.ir[j, ], subj.ir))
+		if(nrow(tmp) == 0) {
+			matching.subjects[[j]] <- NA
+		} else{
+			matching.subjects[[j]] <- unique(ranges3$id[tmp[, 2]])
+		}
+	}
+	tmp <- unlist(lapply(matching.subjects, function(x) paste(x, collapse=", ")))
+	index <- which(deletion.ranges$chrom==CHR)
+	deletion.ranges$others[index] <- tmp
+}
+##tmp <- unlist(lapply(matching.subjects, function(x) paste(x, collapse=", ")))
+##tmp[tmp=="NA"] <- NA
+matching.subjects <- deletion.ranges$others
+ms <- lapply(matching.subjects, function(x) strsplit(x, ", ")[[1]])
+##n.overlap <- sapply(matching.subjects, length)
+n.overlap <- sapply(ms, length)
+n.overlap[is.na(tmp)] <- 0
+##deletion.ranges$others <- tmp
+deletion.ranges$n.overlap <- n.overlap
+save(deletion.ranges, file="deletion.ranges.rda")
+@
+
+<<figForR03grant>>=
+load("deletion.ranges.rda")
+library(RColorBrewer)
+cols <- brewer.pal(8, "Set3")[2]
+pdf("denovoSizes.pdf", width=8, height=6)
+par(las=1)
+hist(log(width(deletion.ranges)), breaks=50, xaxt="n", main="", xlab="size", col="lightblue")
+axis(1, at=log(c(5000, 10e3, 50e3, 100e3, 500e3,##500kb
+	1000e3, ##1MB
+	5000e3, ##5MB
+	1e7)),
+     labels=c("5 kb", "10 kb", "50 kb", "100 kb", "500 kb",
+     "1 Mb", "5 Mb", "10 Mb"), cex.axis=0.8) ##10MB
+dev.off()
+@
+
+<<ingoSuggest>>=
+load("deletion.ranges.rda")
+##plot the genomic position vs sample index for the frequently deleted ranges.
+## try chr 22 first
+## high frequency, but maybe not huge
+CHR <- deletion.ranges$chrom[deletion.ranges$n.overlap >= 15 & deletion.ranges$num.mark > 25]
+## huge, but maybe not high frequency
+CHR <- c(CHR, deletion.ranges$chrom[deletion.ranges$n.overlap >= 1 & deletion.ranges$num.mark > 250])
+CHR <- unique(CHR)[order(unique(CHR))]
+
+tmp <- deletion.ranges[deletion.ranges$n.overlap >= 1 & deletion.ranges$num.mark > 250, ]
+##trace(plotCytobandWithRanges, browser)
+pdf("chromosomeRanges%02d.pdf", width=8, height=8, onefile=FALSE)
+par(las=1, mar=c(0.5, 6, 0.5 , 0.5), oma=c(2, 0.5, 4, 1))
+layout(matrix(1:2, 2, 1), heights=c(1, 0.2))
+for(i in seq_along(CHR)){
+	j <- CHR[i]
+##	trace(plotCytobandWithRanges, browser)
+	if(j==5){
+		coords <- plotCytobandWithRanges(deletion.ranges, CHR=j, FRAME=1e6, xlim=c(68*1e6, 72*1e6))
+	} else{
+		coords <- plotCytobandWithRanges(deletion.ranges, CHR=j, FRAME=1e6)
+	}
+	labels <- pretty(coords$xlim/1e6, n=8)
+	axis(3, at=labels*1e6, labels=labels, cex.axis=0.7)
+	plotCytoband(j, label.cytoband=FALSE, cytoband.ycoords=c(0.5, 1.2))
+	v <- coords$v
+	abline(v=v, col="blue", lty=2)
+	mtext(paste("Chr ", j), side=3,outer=TRUE, line=2)
+}
+dev.off()
+@
+
+<<chr16plots>>=
+load("deletion.ranges.rda")
+
+source("../../R/functions.R")
+CHR <- 16
+res <- filterCommonRegion(deletion.ranges, 16)
+dels <- res[[1]]
+pos <- res[[2]]
+##deletions16 <- deletion.ranges[deletion.ranges$chrom == CHR, ]
+offspring.id <- split(1:nrow(dels), dels$id)
+pdf(paste("chr", CHR, "_%02d.pdf", sep=""), onefile=FALSE)
+for(i in seq_along(offspring.id)){
+	##trace(constructTrioSetFromRanges, browser)
+	index <- which(dels$id == names(offspring.id)[i])
+	mset <- constructTrioSetFromRanges(dels[index, ], minDistanceSet, bsSet, xlim=range(pos))
+	CHR <- unique(chromosome(mset))
+	ranges.md <- getRanges(outdir,
+			       pattern=paste("md.segs.chr", CHR, "_batch", sep=""),
+			       name="md.segs", CHR=CHR)
+	segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+	segmean_ranges2 <- segmean_ranges
+	segmean_ranges2$family <- substr(segmean_ranges2$id, 1, 5)
+	segmean_ranges2 <- segmean_ranges2[segmean_ranges2$family %in% sampleNames(mset), ]
+	##layout(matrix(1:8, 8,1, byrow=TRUE), heights=rep(1,8))
+	layout(matrix(1:7, 7,1, byrow=TRUE), heights=rep(1,7))
+	par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+	plotSegs(index=index,
+		 ranges1=dels,
+		 ranges.md=ranges.md,
+		 ranges2=segmean_ranges2,
+		 mset=mset)
+}
+dev.off()
+
+CHR <- 22
+res <- filterCommonRegion(deletion.ranges, 16)
+dels <- res[[1]]
+pos <- res[[2]]
+##deletions16 <- deletion.ranges[deletion.ranges$chrom == CHR, ]
+offspring.id <- split(1:nrow(dels), dels$id)
+pdf(paste("chr", CHR, "_%02d.pdf", sep=""), onefile=FALSE)
+for(i in seq_along(offspring.id)){
+	##trace(constructTrioSetFromRanges, browser)
+	index <- which(dels$id == names(offspring.id)[i])
+	mset <- constructTrioSetFromRanges(dels[index, ], minDistanceSet, bsSet, xlim=range(pos))
+	CHR <- unique(chromosome(mset))
+	ranges.md <- getRanges(outdir,
+			       pattern=paste("md.segs.chr", CHR, "_batch", sep=""),
+			       name="md.segs", CHR=CHR)
+	segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+	segmean_ranges2 <- segmean_ranges
+	segmean_ranges2$family <- substr(segmean_ranges2$id, 1, 5)
+	segmean_ranges2 <- segmean_ranges2[segmean_ranges2$family %in% sampleNames(mset), ]
+	##layout(matrix(1:8, 8,1, byrow=TRUE), heights=rep(1,8))
+	layout(matrix(1:7, 7,1, byrow=TRUE), heights=rep(1,7))
+	par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+	plotSegs(index=index[1],
+		 ranges1=dels,
+		 ranges.md=ranges.md,
+		 ranges2=segmean_ranges2,
+		 mset=mset)
+}
+dev.off()
+
+@
+
+<<>>=
+w <- width(deletion.ranges)
+plot(deletion.ranges$n.overlap, width(deletion.ranges)/1e6, pch=".")
+@
+
+
+
+
+
+
+
+<<>>=
+stop("here")
+load("deletion.ranges.rda")
+tmp <- deletion.ranges$others
+tmp <- tmp[!is.na(tmp)]
+tmp2 <- list()
+for(i in seq_along(tmp)){
+	tmp2[[i]] <- strsplit(tmp[[i]], ", ")[[1]]
+}
+## 209 unique samples
+unique.samples <- unique(unlist(tmp2))
+
+## what about at the top of the list
+plot(deletion.ranges$num.mark, log="y")
+deletion.ranges2 <- deletion.ranges[deletion.ranges$num.mark > 100, ]
+tmp <- deletion.ranges2$others
+tmp <- tmp[!is.na(tmp)]
+tmp2 <- list()
+for(i in seq_along(tmp)){
+	tmp2[[i]] <- strsplit(tmp[[i]], ", ")[[1]]
+}
+## 209 unique samples
+unique.samples <- unique(unlist(tmp2))
+
+tmp2 <- sapply(tmp, function(x) sapply(x, function(x) strsplit(x, ",")[[1]]))
+
+pdf("sizeVfreq%02d.pdf", onefile=FALSE)
+w <- width(deletion.ranges)
+par(las=1)
+x <- deletion.ranges$n.overlap
+x <- jitter(x, amount=0.1)
+x[x > 15] <- 15
+index <- which(w >= 1e6 & x > 0.5)
+plot(x[-index], w[-index], pch=".", xlab="# overlap", ylab="size", cex=2,
+     xaxt="n", log="y", yaxt="n",
+     ylim=c(2300, 8.5e6))
+axis(2, at=c(5000, 10e3, 50e3, 100e3, 500e3,##500kb
+	1000e3, ##1MB
+	5000e3, ##5MB
+	1e7),
+     labels=c("5kb", "10kb", "50kb", "100kb", "500kb",
+     "1Mb", "5Mb", "10Mb")) ##10MB
+axis(1, at=15, labels="15+")
+axis(1, at=1:14, labels=1:14)
+axis(1, at=0, labels="unique", col.axis="blue")
+##unique.in.offspring <- w[x < 1]
+xx <- deletion.ranges$n.overlap
+xx[xx > 15] <- 15
+w.split <- split(w, xx)
+Qs <- matrix(NA, length(w.split), 2)
+colnames(Qs) <- c("0.5", "0.9")
+Qs[, 1] <- sapply(w.split, function(x) quantile(x, 0.5))
+Qs[, 2] <- sapply(w.split, function(x) quantile(x, 0.9))
+for(i in seq_along(w.split)){
+	graphics:::segments(x0=i-0.3-1, x1=i+0.3-1, y0=Qs[i, 1], y1=Qs[i, 1], col="grey70")
+	##graphics:::segments(x0=i-0.3-1, x1=i+0.3-1, y0=Qs[i, 2], y1=Qs[i, 2], col="red", lwd=2)
+}
+chrom <- deletion.ranges$chrom
+for(i in seq_along(index)){
+	k <- index[i]
+	text(x[k], w[k], labels=chrom[k], col="blue", cex=0.7)
+}
+
+
+i <- which(deletion.ranges$n.overlap == 0)
+y2 <- width(deletion.ranges)[i]
+x2 <- jitter(rep(0, length(i)), amount=0.2)
+index <- which(y2 >= 1e6)
+coverage <- deletion.ranges$num.mark[i]
+plot(coverage[-index], y2[-index], pch=21, ylim=c(2300, 8.5e6), cex=0.7, ##xlim=c(-1, 1),
+     yaxt="n", log="y",
+     ylab="size",
+     xlab="coverage",
+     xlim=c(0,2000))
+legend("topright", bty="n", legend="unique hits")
+axis(2, at=c(5000, 10e3, 50e3, 100e3, 500e3,##500kb
+	1000e3, ##1MB
+	5000e3, ##5MB
+	1e7),
+     labels=c("5kb", "10kb", "50kb", "100kb", "500kb",
+     "1Mb", "5Mb", "10Mb")) ##10MB
+for(i in seq_along(index)){
+	k <- index[i]
+	text(coverage[k], y2[k], labels=chrom[k], col="blue", cex=0.7)
+}
+
+
+i <- which(deletion.ranges$n.overlap >= 15)
+y3 <- width(deletion.ranges)[i]
+x3 <- deletion.ranges$n.overlap[i]
+##x3 <- jitter(rep(0, length(i)), amount=0.2)
+coverage <- deletion.ranges$num.mark[i]
+index <- which(coverage >= 100)
+chrom <- chrom[i]
+plot(x3[-index], y3[-index], pch=21, ylim=c(2300, 1e6), cex=0.7, ##xlim=c(-1, 1),
+     yaxt="n", log="y",
+     ylab="size",
+     xlab="# overlap")
+axis(2, at=c(5000, 10e3, 50e3, 100e3, 500e3,##500kb
+	1000e3), ##1MB
+     labels=c("5kb", "10kb", "50kb", "100kb", "500kb",
+     "1Mb"))
+for(i in seq_along(index)){
+	k <- index[i]
+	text(x3[k], y3[k], labels=chrom[k], col="blue", cex=0.7)
+}
+legend("bottomright", legend="100+ markers", text.col="blue", bty="n")
+legend("bottomleft", legend="probably 1 or 2 regions (?)", text.col="blue", bty="n")
+dev.off()
+
+
+
+
+
+
+
+
+par(las=1)
+x <- deletion.ranges$n.overlap
+x.factor <- rep(0,length(x))
+x.factor[x > 0 & x <=5] <- 1
+x.factor[x > 5 & x <=10] <- 2
+x.factor[x > 10 ] <- 3
+x.factorj <- jitter(x.factor, amount=0.1)
+plot(x.factorj, w, pch=".", xlab="# overlap", ylab="size", cex=2, xaxt="n", log="y", yaxt="n", xlim=c(-0.5, 3.5))
+axis(2, at=c(5000, 10e3, 50e3, 100e3, 500e3,##500kb
+	1000e3, ##1MB
+	5000e3, ##5MB
+	1e7),
+     labels=c("5kb", "10kb", "50kb", "100kb", "500kb",
+     "1Mb", "5Mb", "10Mb")) ##10MB
+axis(1, at=0:3, labels=c("unique", "1-5", "6-10", "10+"))
+##xx <- deletion.ranges$n.overlap
+##xx[xx > 15] <- 15
+w.split <- split(w, x.factor)
+Qs <- matrix(NA, length(w.split), 2)
+colnames(Qs) <- c("0.5", "0.9")
+Qs[, 1] <- sapply(w.split, function(x) quantile(x, 0.5))
+Qs[, 2] <- sapply(w.split, function(x) quantile(x, 0.9))
+for(i in seq_along(w.split)){
+	graphics:::segments(x0=i-0.3-1, x1=i+0.3-1, y0=Qs[i, 1], y1=Qs[i, 1], col="blue", lwd=2)
+	##graphics:::segments(x0=i-0.3-1, x1=i+0.3-1, y0=Qs[i, 2], y1=Qs[i, 2], col="red", lwd=2)
+}
+abline(h=1e6, col="red", lty=2, lwd=2)
+
+
+par(las=1)
+w <- width(deltion.ranges)
+chrom <- deletion.ranges$chrom[w > 1e6]
+x.factor[x > 0 & x <=5] <- 1
+x.factor[x > 5 & x <=10] <- 2
+x.factor[x > 10 ] <- 3
+x.factor <- x.factor[w > 1e6]
+x.factorj <- jitter(x.factor, amount=0.2)
+ww <- w[w > 1e6]
+plot(x.factorj, ww, pch=".", xlab="# overlap", ylab="size", cex=2, xaxt="n", log="y", yaxt="n", xlim=c(-0.5, 3.5),
+     type="n")
+axis(2, at=(1:8)*1e6, labels=paste(1:8, "Mb"))
+axis(1, at=0:3, labels=c("unique", "1-5", "6-10", "10+"))
+for(i in seq_along(x.factorj)){
+	text(x.factorj[i], ww[i], labels=chrom[i], col="blue", cex=1.2)
+}
+abline(v=c(0.5, 1.5, 2.5), col="grey70", lty=2)
+dev.off()
+@
+
+
+
+
+<<smallRanges>>=
+deletion.small <- deletion.ranges[deletion.ranges$num.mark < 25, ]
+##end(deletion.small)[5] <- 245e6
+##start(deletion.small)[1] <- 1
+
+## we may want to force the median of mindist to be zero for each chromosome....
+## See RangedData with 1 row and 7 value columns across 1 space
+##        space                 ranges |          id     chrom
+##  <character>              <IRanges> | <character> <integer>
+##1           1 [195297644, 195501794] |    19221_01         1
+##   num.mark  seg.mean      pHet is.deletion noCentromere.overlap
+##  <integer> <numeric> <numeric>   <logical>            <logical>
+##1        22    0.3848         0        TRUE                 TRUE
+##
+## False positive
+## Family 11028, CHR 2, ~41MB
+## Family 19221, CHR 2, 55.5MB Again might help to median center the distance
+## Family 16262, CHR 3, 90.5MB Parents slightly up, but nothing going on
+##
+##        12194, CHR 2, 51.7 -- would have missed by segmenting the individuals separately
+##
+mset <- constructTrioSetFromRanges(deletion.small[5, ], minDistanceSet, bsSet)
+
+par(ask=T)
+for(i in 5:20){
+	if(i == 10) cat("\n")
+	mset <- constructTrioSetFromRanges(deletion.small[i, ], minDistanceSet, bsSet)
+	CHR <- unique(chromosome(mset))
+	ranges.md <- getRanges(outdir,
+			       pattern=paste("md.segs.chr", CHR, "_batch", sep=""),
+			       name="md.segs", CHR=CHR)
+	segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+	segmean_ranges2 <- segmean_ranges
+	segmean_ranges2$family <- substr(segmean_ranges2$id, 1, 5)
+	segmean_ranges2 <- segmean_ranges2[segmean_ranges2$family %in% sampleNames(mset), ]
+	##layout(matrix(1:8, 8,1, byrow=TRUE), heights=rep(1,8))
+	layout(matrix(1:7, 7,1, byrow=TRUE), heights=rep(1,7))
+	par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+	plotSegs(index=i,
+		 ranges1=deletion.small,
+		 ranges.md=ranges.md,
+		 ranges2=segmean_ranges2,
+		 mset=mset)
+}
+@
+
+make the cutoff for calling denovo a function of coverage.  With a
+minimum at 0.2.  Perhaps something like 5xMAD for regions with 10
+markers
+
+\SweaveInput{Top100}
 \SweaveInput{FunctionalAnnotation}
 
 <<jugessur>>=
@@ -28,44 +445,134 @@ for(CHR in 1:22){
 @
 
 <<plotRangesInJugessur>>=
-bsSet <- checkExists("bsSet", .path=outdir, .FUN=load)
-sampleNames(bsSet) <- substr(sampleNames(bsSet), 1, 8)
-open(baf(bsSet))
-open(logR(bsSet))
-minDistanceSet <- checkExists("minDistanceSet", .path=outdir, .FUN=load)
-invisible(open(copyNumber(minDistanceSet)))
-
 ranges.in.jugessur <- ranges[ranges$inJugessur, ]
-mset <- constructTrioSetFromRanges(ranges1=ranges.in.jugessur, minDistanceSet=minDistanceSet,
-				   bsSet=bsSet)
-J <- unique(ranges.in.jugessur$chrom)
-bitmap(paste("inJugessur_chr", CHR, "_%02d.png", sep=""), width=8, height=8, res=500)
+bitmap(paste("inJugessur%02d.png", sep=""), width=8, height=8, res=500)
 for(j in 1:nrow(ranges.in.jugessur)){
 	mset <- constructTrioSetFromRanges(ranges1=ranges.in.jugessur[j, ],
 					   minDistanceSet=minDistanceSet,
 					   bsSet=bsSet)
+	CHR <- ranges.in.jugessur$chrom[j]
 	segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+	ranges.md <- getRanges(outdir,
+			       pattern=paste("md.segs.chr", CHR, "_batch", sep=""),
+			       name="md.segs", CHR=CHR)
 	segmean_ranges$family <- substr(segmean_ranges$id, 1, 5)
 	segmean_ranges <- segmean_ranges[segmean_ranges$family %in% sampleNames(mset), ]
 	layout(matrix(1:7, 7,1, byrow=TRUE), heights=rep(1,7))
 	par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+##	trace(plotSegs, browser)
 	plotSegs(index=j,
 		 ranges1=ranges.in.jugessur,
+		 ranges.md=ranges.md,
 		 ranges2=segmean_ranges,
 		 mset=mset)#, FRAME=0.05)
 }
 dev.off()
 @
 
-When we sort penn cnv hits by size, what is the rank of these hits?
-Plot the top penn cnv hits?  Are any of them false positives?
+Would need to match each row in ranges by id and chromosome to the
+penn.cnv hits.
 
-<<penncnv>>=
+<<penncnv, eval=FALSE>>=
 penn.joint <- checkExists("penn.joint", .path=outdir, .FUN=readPennCnv,
 			  penndir="/thumper/ctsa/beaty/holger/penncnv/trioDat")
+penn.joint <- do.call("c", penn.joint)
+##triostates <- penn.joint$triostate
+##
+##index2=which(penn.joint$triostate == 332)
+##index=grep("332", penn.joint$triostate)
+##index3 <- index[!index %in% index2]
+
+penn.denovo <- penn.joint[penn.joint$triostate==332 | penn.joint$triostate==331, ]
+penn.ids <- unique(penn.denovo$id)
+ids2 <- sampleNames(bsSet)
+ids.excluded <- penn.ids[!penn.ids %in% ids2]
+penn.denovo <- penn.denovo[!penn.denovo$id %in% ids.excluded, ]
+
+##penn.denovo <- penn.joint[c(grep("332", penn.joint$triostate), grep("331", penn.joint$triostate)), ]
+penn.denovo10 <- penn.denovo[penn.denovo$nmarkers >= 10, ]
+##penn.denovo5 <- penn.denovo[penn.denovo$nmarkers >= 5, ]
+##penn.denovo10 <- penn.denovo10[!penn.denovo10$id %in% ids.excluded, ]
+##penn.denovo5 <- penn.denovo[!penn.denovo10$id %in% ids.excluded, ]
+
+load("deletion.ranges.rda")
+deletion.ranges <- deletion.ranges[order(deletion.ranges$chrom), ]
+subject.rd <- RangedData(IRanges(start(penn.denovo10),
+				 end(penn.denovo10)),
+			 chrom=chromosome(penn.denovo10),
+			 id=penn.denovo10$id,
+			 num.mark=penn.denovo10$nmarkers)
+chrom <- unique(deletion.ranges$chrom)
+is.overlap <- list()
+for(i in seq_along(chrom)){
+	CHR <- chrom[i]
+	query.rd <- deletion.ranges[deletion.ranges$chrom == CHR, ]
+	query.ir <- IRanges(start(query.rd), end(query.rd))
+	subj.rd <- subject.rd[subject.rd$chrom==CHR, ]
+	subj.ir <- IRanges(start(subj.rd), end(subj.rd))
+	is.overlap[[i]] <- countOverlaps(query.ir, subj.ir) > 0
+}
+deletion.ranges$overlaps.with.penn <- unlist(is.overlap)
+index <- which(!deletion.ranges$overlaps.with.penn)
+
+layout(matrix(1:7, 7,1, byrow=TRUE), heights=rep(1,7))
+par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+for(j in seq_along(index)){
+	i <- index[j]
+	mset <- constructTrioSetFromRanges(ranges1=deletion.ranges[i, ],
+					   minDistanceSet=minDistanceSet,
+					   bsSet=bsSet)
+	##CHR <- ranges.in.jugessur$chrom[j]
+	CHR <- deletion.ranges$chrom[i]
+	segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+	ranges.md <- getRanges(outdir,
+			       pattern=paste("md.segs.chr", CHR, "_batch", sep=""),
+			       name="md.segs", CHR=CHR)
+	segmean_ranges$family <- substr(segmean_ranges$id, 1, 5)
+	segmean_ranges <- segmean_ranges[segmean_ranges$family %in% sampleNames(mset), ]
+	layout(matrix(1:7, 7,1, byrow=TRUE), heights=rep(1,7))
+	par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+##	trace(plotSegs, browser)
+	plotSegs(index=i,
+		 ranges1=deletion.ranges,
+		 ranges.md=ranges.md,
+		 ranges2=segmean_ranges,
+		 mset=mset)#, FRAME=0.05)
+}
+deletion.ranges <- deletion.ranges[order(deletion.ranges$chrom), ]
+query.rd <- RangedData(IRanges(start(penn.denovo10),
+			       end(penn.denovo10)),
+		       chrom=chromosome(penn.denovo10),
+		       id=penn.denovo10$id,
+		       num.mark=penn.denovo10$nmarkers)
+query.rd <- query.rd[order(query.rd$chrom), ]
+chrom <- unique(query.rd$chrom)
+is.overlap <- list()
+for(i in seq_along(chrom)){
+	CHR <- chrom[i]
+	subj.rd <- deletion.ranges[deletion.ranges$chrom == CHR, ]
+	subj.ir <- IRanges(start(subj.rd), end(subj.rd))
+	query.rd1 <- query.rd[query.rd$chrom==CHR, ]
+	query.ir <- IRanges(start(query.rd1), end(query.rd1))
+	is.overlap[[i]] <- countOverlaps(query.ir, subj.ir) > 0
+}
+query.rd$overlaps.with.md <- unlist(is.overlap)
+index <- which(!deletion.ranges$overlaps.with.penn)
+
+
+
+
+
+
+
+
+
+
+
+table(penn.joint$triostate)
 penn.denovo <- penn.joint[penn.joint$triostate==332, ]
 ranges$inPennJoint <- rep(NA, nrow(ranges))
-for(CHR in 1:22){
+##for(CHR in 1:22){
 	range.index <- which(ranges$chrom==CHR)
 	penn.index <- which(chromosome(penn.denovo) == CHR)
 	subj <- penn.denovo[penn.index, ]
@@ -74,11 +581,140 @@ for(CHR in 1:22){
 	query.ir <- IRanges(start(query), end(query))
 	ranges$inPennJoint[range.index] <- countOverlaps(query.ir, subj.ir) > 0
 }
-ranges[!ranges$inPennJoint, ]
+range.notin.penn <- ranges[!ranges$inPennJoint, ]
 @
+
+<<rangeNotInPenn>>=
+mset <- constructTrioSetFromRanges(ranges1=range.notin.penn,
+				   minDistanceSet=minDistanceSet,
+				   bsSet=bsSet)
+CHR <- range.notin.penn$chrom
+segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+ranges.md <- getRanges(outdir,
+		       pattern=paste("md.segs.chr", CHR, "_batch", sep=""),
+		       name="md.segs", CHR=CHR)
+segmean_ranges$family <- substr(segmean_ranges$id, 1, 5)
+segmean_ranges <- segmean_ranges[segmean_ranges$family %in% sampleNames(mset), ]
+layout(matrix(1:7, 7,1, byrow=TRUE), heights=rep(1,7))
+par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+plotSegs(index=1,
+	 ranges1=range.notin.penn,
+	 ranges.md=ranges.md,
+R> colnames(ranges)
+[1] "id"                   "chrom"
+[3] "num.mark"             "seg.mean"
+[5] "pedId"                "is.deletion"
+[7] "noCentromere.overlap" "inJugessur"
+[9] "inPennJoint"
+R> colnames(penn.denovo)
+[1] "nmarkers"  "id"        "triostate" "pedId"  	 ranges2=segmean_ranges,
+	 mset=mset)#, FRAME=0.05)
+@
+
+When we sort penn cnv hits by size, what is the rank of these hits?
+Plot the top penn cnv hits?  Are any of them false positives?
 
 <<>>=
-## 105,278 vs 114 in ranges
-penn10 <- penn.joint[penn.joint$nmarkers >= 10 & penn.joint$pedId == "offspring", ]
+## 50,593 vs 114 in ranges
+penn.joint <- checkExists("penn.joint", .path=outdir, .FUN=readPennCnv,
+			  penndir="/thumper/ctsa/beaty/holger/penncnv/trioDat")
+penn.denovo <- penn.joint[penn.joint$triostate==332, ]
+penn.denovo <- penn.denovo[penn.denovo$nmarkers >= 50 & penn.denovo$pedId == "offspring", ]
+penn.denovo <- penn.denovo[penn.denovo$id %in% sampleNames(bsSet), ]
+set.seed(123)
+penn.denovo <- penn.denovo[sample(1:length(penn.denovo), 100),]
+penn.rd <- RangedData(IRanges(start(penn.denovo), end(penn.denovo)),
+		      id=penn.denovo$id,
+		      chrom=chromosome(penn.denovo),
+		      num.mark=penn.denovo$nmarkers,
+		      pedId=penn.denovo$pedId)
+## 1: my segmentation looks wrong on plot 2
+## 2: could be false positive in penn
+## 4: my threshold looks to conservative  -- should find this. Maybe 0.25 as cutoff
+## 5: FP
+## Family 19225, chr. 22 19.1 MB - 19.8 MB.  We need to find this.
+## Family 15046, chr. 6:  denovo often driven by b-allele frequency.  this seems reasonably only if parents are heterozygous.
+## Family 17055, chr. 11:  good example of what our approach would miss when we do segmentation on log R
+##                       -- is it real?  could be.  both parents are heterozygous.  logR shows no change
+## Family 15046, Chr. 8: False negative with our method (again, hard to see without baf)
+
+## Family 20147, Chr. 14: 21.6 - 22. We should find this.  threshold 0.25.  Can we use lower threshold when mad of distance is small?
+##                                   why would there be a lot of bafs near 0.5 if truly hemizygous?
+##
+## Family 17005, Chr. 2. FP
+bitmap("pennExamples%02d.png", res=500, width=8, height=8)
+for(j in 1:50){
+	cat(".")
+	mset <- constructTrioSetFromRanges(ranges1=penn.rd[j, ],
+					   minDistanceSet=minDistanceSet,
+					   bsSet=bsSet)
+	CHR <- penn.rd$chrom[j]
+	segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+	ranges.md <- getRanges(outdir,
+			       pattern=paste("md.segs.chr", CHR, "_batch", sep=""),
+			       name="md.segs", CHR=CHR)
+	segmean_ranges$family <- substr(segmean_ranges$id, 1, 5)
+	segmean_ranges <- segmean_ranges[segmean_ranges$family %in% sampleNames(mset), ]
+	layout(matrix(1:7, 7,1, byrow=TRUE), heights=rep(1,7))
+	par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+	plotSegs(index=j,
+		 ranges1=penn.rd,
+		 ranges.md=ranges.md,
+		 ranges2=segmean_ranges,
+		 mset=mset)#, FRAME=0.05)
+}
+dev.off()
 @
 
+
+<<eval=FALSE>>=
+family <- "19225"; CHR <- 22
+region.start <- 17.2e6; region.end <- 19.8e6
+penn.joint <- checkExists("penn.joint", .path=outdir, .FUN=readPennCnv, penndir="/thumper/ctsa/beaty/holger/penncnv/jointDat")
+penn.joint <- do.call("c", penn.joint)
+penn.denovo <- penn.joint[penn.joint$triostate==332, ]
+penn.denovo <- penn.denovo[penn.denovo$id=="19225_01" & chromosome(penn.denovo) == 22, ]
+penn.denovo <- RangedData(IRanges(start(penn.denovo),
+				  end(penn.denovo)),
+			  id=penn.denovo$id,
+			  chrom=chromosome(penn.denovo),
+			  num.mark=penn.denovo$nmarkers)
+mset <- constructTrioSetFromRanges(penn.denovo, minDistanceSet, bsSet)
+layout(matrix(1:8, 8,1, byrow=TRUE), heights=rep(1,8))
+par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+plotRange4(penn.denovo, range.index=1, minDistanceSet, bsSet, outdir=outdir)
+baf.m <- baf.M(mset)
+baf.f <- baf.F(mset)
+baf.o <- baf.O(mset)
+## information from baf
+par(mfrow=c(3,1), las=1)
+plot(baf.m)
+baf.p <- as.matrix(cbind(baf.m, baf.f))
+delta <- as.numeric(baf.o)-baf.p
+delta[is.na(delta)] <- 0
+min.delta <- rowMin(delta)
+x <- jitter(rep(1, sum(min.delta>-0.6)), amount=0.1)
+min.delta[min.delta > -0.6] <- x
+plot(min.delta)
+
+## add genes
+gene.coords <- refGene[refGene$chrom == 22, ]
+gene.coords <- gene.coords[end(gene.coords) >= min(position(mset)) & start(gene.coords) <= max(position(mset)), ]
+gene.pos <- gene.coords[gene.coords$strand=="+", ]
+gene.pos <- gene.pos[order(start(gene.pos)), ]
+gene.pos$seg.mean <- rep(seq(0.1, 0.9, 0.01), ceiling(nrow(gene.pos)/9))[1:nrow(gene.pos)]
+##plot(position(mset), rep(0, length(position(mset))), ylim=c(0,1), type="n", xlab="", ylab="", yaxt="n", xaxt="n",
+##     bty="n")
+##segments(gene.pos, lwd=1, col="blue", strict=T)
+## collapse
+disjoint.ranges <- disjointRanges(gene.pos)
+counts <- countOverlaps(disjoint.ranges, IRanges(start(gene.pos), end(gene.pos)), minoverlap=2L)
+xx <- rowMeans(cbind(start(disjoint.ranges), end(disjoint.ranges)))
+xx <- c(xx, rev(xx))
+yy <- c(rep(0, length(disjoint.ranges)), rev(counts))
+plot(position(mset), rep(0, length(position(mset))), type="n", xlab="", ylab="", ##yaxt="n",
+     xaxt="n",
+     bty="n", ylim=range(counts))
+polygon(xx, yy, col="purple", border="purple")
+##regions <- c(0, cumsum(tmp2 > 0))
+@

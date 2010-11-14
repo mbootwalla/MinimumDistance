@@ -3365,6 +3365,22 @@ freqOfDisjointRange <- function(ranges){
 	return(gr)
 }
 
+plotRange4 <- function(ranges, range.index, minDistanceSet, bsSet, outdir){
+	mset <- constructTrioSetFromRanges(ranges, minDistanceSet, bsSet)
+	CHR <- unique(chromosome(mset))
+	ranges.md <- getRanges(outdir,
+			       pattern=paste("md.segs.chr", CHR, "_batch", sep=""),
+			       name="md.segs", CHR=CHR)
+	segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+	segmean_ranges$family <- substr(segmean_ranges$id, 1, 5)
+	segmean_ranges <- segmean_ranges[segmean_ranges$family %in% sampleNames(mset), ]
+	plotSegs(index=range.index,
+		 ranges1=ranges,
+		 ranges.md=ranges.md,
+		 ranges2=segmean_ranges,
+		 mset=mset)
+}
+
 plotRangeWrapper <- function(i, chrSet, Ranges, segmeans, FRAME, K){
 	range.index <- i
 	CHR <- chromosome(Ranges)[range.index]
@@ -3503,14 +3519,13 @@ plotRangeWrapper2 <- function(i, chrSet, Ranges, segmeans, FRAME, K,
 	NULL
 }
 
-plotSegs <- function(index, ranges1, ranges2, mset, FRAME, strict=FALSE, ylim=c(-1.5, 0.5), ...){
+plotSegs <- function(index, ranges1, ranges.md, ranges2, mset, FRAME, strict=FALSE, ylim=c(-1.5, 0.5), ...){
 	require(SNPchip)
 	data(chromosomeAnnotation)
 	ranges2$id <- substr(ranges2$id, 1, 8)
-
+	ranges.md <- ranges.md[ranges.md$id == ranges1$id[index], ]
 	range.index <- index[[1]]
 	ranges1$family <- substr(ranges1$id, 1, 5)
-
 	CHR <- ranges1$chrom[index]
 	chrAnn <- chromosomeAnnotation[CHR, ]
 	this.range <- ranges1[index, ]
@@ -3518,41 +3533,34 @@ plotSegs <- function(index, ranges1, ranges2, mset, FRAME, strict=FALSE, ylim=c(
 	ranges2 <- ranges2[ranges2$family %in% this.range$family, ]
 	ranges2$seg.mean[ranges2$seg.mean < ylim[1]] <- ylim[1]
 	ranges2$seg.mean[ranges2$seg.mean > ylim[2]] <- ylim[2]
-
 	## goal is to have the feature cover approx 5% of the plot
 	if(missing(FRAME)){
 		w <- width(this.range)
 		FRAME <- w/0.05  * 1/2
 	}
 	i <- featuresInRange(mset, this.range, FRAME=FRAME)
-
 	family.name <- this.range$id
 	j <- match(this.range$family, sampleNames(mset))
 	lset <- mset[i, j]
-
 	ranges.F <- ranges2[grep("_03", ranges2$id), ]
 	ranges.M <- ranges2[grep("_02", ranges2$id), ]
 	ranges.O <- ranges2[grep("_01", ranges2$id), ]
-
 	xx <- c(chrAnn[1:2], chrAnn[2:1])
 	yy <- c(-1.2, -1.2, 0.4, 0.4)
-
 	yyc <- c(0.1, 0.1, 0.9, 0.9)
-
 	x <- position(lset)
 	y <- logR.F(lset)
 	y[y < ylim[1]] <- ylim[1]
 	y[y > ylim[2]] <- ylim[2]
+	##FATHER
 	plot(x, y, pch=21, col="blue", cex=0.6, xaxt="n", ylim=ylim)
 	abline(v=c(start(this.range), end(this.range)), lty=2)
 	segments(ranges.F, strict=strict)
 	polygon(xx, yy, col="bisque")
-
-
 	plot(x, baf.F(lset), pch=21, col="red", cex=0.6, xaxt="n", ylim=c(0,1))
 	abline(v=c(start(this.range), end(this.range)), lty=2)
 	polygon(xx, yyc, col="bisque")
-
+	##MOTHER
 	y <- logR.M(lset)
 	y[y < ylim[1]] <- ylim[1]
 	y[y > ylim[2]] <- ylim[2]
@@ -3560,11 +3568,90 @@ plotSegs <- function(index, ranges1, ranges2, mset, FRAME, strict=FALSE, ylim=c(
 	abline(v=c(start(this.range), end(this.range)), lty=2)
 	segments(ranges.M, strict=strict)
 	polygon(xx, yy, col="bisque")
-
 	plot(x, baf.M(lset), pch=21, col="red", cex=0.6, xaxt="n", ylim=c(0,1))
 	abline(v=c(start(this.range), end(this.range)), lty=2)
 	polygon(xx, yyc, col="bisque")
+	##OFFSPRING
+	y <- logR.O(lset)
+	y[y < ylim[1]] <- ylim[1]
+	y[y > ylim[2]] <- ylim[2]
+	plot(x, y, pch=21, col="blue", cex=0.6, xaxt="n", ylim=ylim)
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	segments(ranges.O, strict=strict)
+	legend("topleft", legend=paste("MAD:", round(lset$MAD,3)), bty="n")
+	polygon(xx, yy, col="bisque")
+	plot(x, baf.O(lset), pch=21, col="red", cex=0.6, xaxt="n", ylim=c(0,1))
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	polygon(xx, yyc, col="bisque")
+	yym <- c(-0.4, -0.4, 0.9, 0.9)
+	y <- mindist(lset)
+	y[y < -0.5] <- -0.5
+	y[y > 1] <- 1
+	plot(x, y, pch=21, col="grey50", cex=0.6, xaxt="n", ylim=c(-0.5,1))
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	segments(ranges.md, strict=strict)
+	polygon(xx, yym, col="bisque")
+	at <- pretty(range(position(lset)), 8)
+	axis(1, at=at, labels=at/1e6)
+	mtext(paste("Family ", substr(this.range$id, 1,5), "; Chr: ", CHR, sep=""), 3, outer=T)
+}
 
+plotSegs2 <- function(index, ranges1, ranges.md, ranges2,
+		      mset, FRAME, strict=FALSE, ylim=c(-1.5, 0.5), ...){
+	require(SNPchip)
+	data(chromosomeAnnotation)
+	ranges2$id <- substr(ranges2$id, 1, 8)
+	ranges.md <- ranges.md[ranges.md$id == paste(sampleNames(mset), "_01", sep=""), ]
+	##ranges.md <- ranges.md[ranges.md$id == ranges1$id[index], ]
+	range.index <- index[[1]]
+	ranges1$family <- substr(ranges1$id, 1, 5)
+	CHR <- ranges1$chrom[index]
+	chrAnn <- chromosomeAnnotation[CHR, ]
+	this.range <- ranges1[index, ]
+	##ranges1 <- ranges1[ranges1$id %in% this.range$id, ]
+	##ranges2 <- ranges2[ranges2$family %in% substr(sampleNames(mset), 1, 5), ]
+	ranges2$seg.mean[ranges2$seg.mean < ylim[1]] <- ylim[1]
+	ranges2$seg.mean[ranges2$seg.mean > ylim[2]] <- ylim[2]
+	## goal is to have the feature cover approx 5% of the plot
+	if(missing(FRAME)){
+		w <- width(this.range)
+		FRAME <- w/0.05  * 1/2
+	}
+	i <- featuresInRange(mset, this.range, FRAME=FRAME)
+	##family.name <- this.range$id
+	family.name <- substr(sampleNames(mset), 1, 5)
+	##j <- match(family.name, sampleNames(mset))
+	lset <- mset[i, ]
+	ranges.F <- ranges2[grep("_03", ranges2$id), ]
+	ranges.M <- ranges2[grep("_02", ranges2$id), ]
+	ranges.O <- ranges2[grep("_01", ranges2$id), ]
+	xx <- c(chrAnn[1:2], chrAnn[2:1])
+	yy <- c(-1.2, -1.2, 0.4, 0.4)
+	yyc <- c(0.1, 0.1, 0.9, 0.9)
+	x <- position(lset)
+	y <- logR.F(lset)
+	y[y < ylim[1]] <- ylim[1]
+	y[y > ylim[2]] <- ylim[2]
+	##FATHER
+	plot(x, y, pch=21, col="blue", cex=0.6, xaxt="n", ylim=ylim)
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	segments(ranges.F, strict=strict)
+	polygon(xx, yy, col="bisque")
+	plot(x, baf.F(lset), pch=21, col="red", cex=0.6, xaxt="n", ylim=c(0,1))
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	polygon(xx, yyc, col="bisque")
+	##MOTHER
+	y <- logR.M(lset)
+	y[y < ylim[1]] <- ylim[1]
+	y[y > ylim[2]] <- ylim[2]
+	plot(x, y, pch=21, col="blue", cex=0.6, xaxt="n", ylim=ylim)
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	segments(ranges.M, strict=strict)
+	polygon(xx, yy, col="bisque")
+	plot(x, baf.M(lset), pch=21, col="red", cex=0.6, xaxt="n", ylim=c(0,1))
+	abline(v=c(start(this.range), end(this.range)), lty=2)
+	polygon(xx, yyc, col="bisque")
+	##OFFSPRING
 	y <- logR.O(lset)
 	y[y < ylim[1]] <- ylim[1]
 	y[y > ylim[2]] <- ylim[2]
@@ -3572,22 +3659,18 @@ plotSegs <- function(index, ranges1, ranges2, mset, FRAME, strict=FALSE, ylim=c(
 	abline(v=c(start(this.range), end(this.range)), lty=2)
 	segments(ranges.O, strict=strict)
 	polygon(xx, yy, col="bisque")
-
 	plot(x, baf.O(lset), pch=21, col="red", cex=0.6, xaxt="n", ylim=c(0,1))
 	abline(v=c(start(this.range), end(this.range)), lty=2)
 	polygon(xx, yyc, col="bisque")
-	legend("topleft", legend=paste("MAD:", round(lset$mad,2)), bty="n")
-
+	legend("topleft", legend=paste("MAD:", round(lset$MAD,3)), bty="n")
 	yym <- c(-0.4, -0.4, 0.9, 0.9)
-
 	y <- mindist(lset)
 	y[y < -0.5] <- -0.5
 	y[y > 1] <- 1
 	plot(x, y, pch=21, col="grey50", cex=0.6, xaxt="n", ylim=c(-0.5,1))
 	abline(v=c(start(this.range), end(this.range)), lty=2)
-	segments(ranges1, strict=strict)
+	segments(ranges.md, strict=strict)
 	polygon(xx, yym, col="bisque")
-
 	at <- pretty(range(position(lset)), 8)
 	axis(1, at=at, labels=at/1e6)
 	mtext(paste("Family ", substr(this.range$id, 1,5), "; Chr: ", CHR, sep=""), 3, outer=T)
@@ -3802,7 +3885,7 @@ readPennCnv <- function(penndir){
 	rdList
 }
 
-constructTrioSet <- function(minDistanceSet, minDistanceSet, bsSet, CHR){
+constructTrioSet <- function(minDistanceSet, bsSet, CHR){
 	J <- match(sampleNames(minDistanceSet), sampleNames(bsSet))
 	I <- which(chromosome(minDistanceSet) == CHR)
 	stopifnot(identical(featureNames(minDistanceSet)[I], featureNames(bsSet)[I]))
@@ -3846,10 +3929,11 @@ constructTrioSetFromRanges <- function(ranges1, ## top hit ranges
 				       ##ranges2, ## entire segmentation
 				       minDistanceSet,
 				       bsSet,
-				       FRAME){
+				       FRAME,
+				       xlim,
+				       id){
 	require(SNPchip)
 	data(chromosomeAnnotation)
-	J <- ranges$chrom
 	## marker indices
 	marker.index <- list()
 	for(i in 1:nrow(ranges1)){
@@ -3861,23 +3945,30 @@ constructTrioSetFromRanges <- function(ranges1, ## top hit ranges
 ##		ranges2$seg.mean[ranges2$seg.mean < ylim[1]] <- ylim[1]
 ##		ranges2$seg.mean[ranges2$seg.mean > ylim[2]] <- ylim[2]
 		## goal is to have the feature cover approx 5% of the plot
-		if(missing(FRAME)){
-			w <- width(this.range)
-			FRAME <- w/0.05  * 1/2
+		if(missing(xlim)){
+			if(missing(FRAME)){
+				w <- width(this.range)
+				FRAME <- w/0.05  * 1/2
+			}
+			marker.index[[i]] <- featuresInRange(minDistanceSet, this.range, FRAME=FRAME)
+		} else {
+			marker.index[[i]] <- which(position(minDistanceSet) >= min(xlim) & position(minDistanceSet) <= max(xlim) & chromosome(minDistanceSet)==CHR)
 		}
-		marker.index[[i]] <- featuresInRange(minDistanceSet, this.range, FRAME=FRAME)
 	}
 ##	ls <- sapply(marker.index, length)
 ##	regions <- rep(1:length(ls), ls)
 	marker.index <- unique(unlist(marker.index))
 	marker.index <- marker.index[order(marker.index)]
 	## sample indices
-	sample.index <- list()
-	for(i in 1:nrow(ranges1)){
-		sample.index[[i]] <- grep(substr(ranges1$id[i], 1, 5), sampleNames(bsSet))
+	if(missing(id)){
+		sample.index <- list()
+		for(i in 1:nrow(ranges1)){
+			sample.index[[i]] <- grep(substr(ranges1$id[i], 1, 5), sampleNames(bsSet))
+		}
+		sample.index <- unique(unlist(sample.index))
+	} else {
+		sample.index <- match(id, sampleNames(bsSet))
 	}
-	sample.index <- unique(unlist(sample.index))
-
 	J <- sample.index
 	I <- marker.index
 
@@ -3885,12 +3976,15 @@ constructTrioSetFromRanges <- function(ranges1, ## top hit ranges
 	##I <- which(chromosome(minDistanceSet) == CHR)
 	stopifnot(identical(featureNames(minDistanceSet)[I], featureNames(bsSet)[I]))
 	##sample.names <- substr(sampleNames(minDistanceSet), 1, 5)
-	sample.names <- unique(substr(ranges1$id, 1, 5))
+	if(missing(id)){
+		sample.names <- unique(substr(ranges1$id, 1, 5))
+	} else sample.names <- substr(id, 1, 5)
 	father.names <- paste(sample.names, "03", sep="_")
 	mother.names <- paste(sample.names, "02", sep="_")
 	father.index <- match(father.names, sampleNames(bsSet))
 	mother.index <- match(mother.names, sampleNames(bsSet))
-	offspr.index <- match(unique(ranges1$id), sampleNames(bsSet))
+	offspr.index <- match(paste(sample.names, "01", sep="_"), sampleNames(bsSet))
+	##offspr.index <- match(unique(ranges1$id), sampleNames(bsSet))
 	##offspr.index <- match(sampleNames(minDistanceSet),sampleNames(bsSet))
 
 	logR.F <- as.matrix(logR(bsSet)[I, father.index])
@@ -3904,7 +3998,7 @@ constructTrioSetFromRanges <- function(ranges1, ## top hit ranges
 	phenoD <- phenoData(bsSet)[offspr.index, ]
 	sampleNames(phenoD) <- sample.names
 
-	offspr.index <- match(unique(ranges1$id), sampleNames(minDistanceSet))
+	offspr.index <- match(paste(sample.names, "01", sep="_"), sampleNames(minDistanceSet))
 	mindist <- as.matrix(copyNumber(minDistanceSet)[I, offspr.index])
 	colnames(mindist) <- sample.names
 	##mads <- apply(mindist, 2, mad, na.rm=TRUE)
@@ -3926,33 +4020,178 @@ constructTrioSetFromRanges <- function(ranges1, ## top hit ranges
 	return(mset)
 }
 
-collectAllRangesOfSize <- function(SIZE, offspring.rule, outdir){
-	bsSet <- checkExists("bsSet", .path=outdir, .FUN=load)
-	sampleNames(bsSet) <- substr(sampleNames(bsSet), 1, 8)
-	open(baf(bsSet))
-	open(logR(bsSet))
-	rangesList8 <- list()
-
+collectAllRangesOfSize <- function(SIZE, bsSet, minDistanceSet,
+				   ##offspring.rule,
+				   outdir, MIN=1, MAX=4, lambda=0.1){
+##	bsSet <- checkExists("bsSet", .path=outdir, .FUN=load)
+##	sampleNames(bsSet) <- substr(sampleNames(bsSet), 1, 8)
+##	open(baf(bsSet))
+##	open(logR(bsSet))
 	library(SNPchip)
 	data(chromosomeAnnotation)
 	centromere.ranges <- GRanges(seqnames=Rle(paste("chr", 1:22, sep=""), rep(1,22)),
 				     ranges=IRanges(chromosomeAnnotation[1:22, "centromereStart"],
 				     chromosomeAnnotation[1:22, "centromereEnd"]))
-
-	minDistanceSet <- checkExists("minDistanceSet", .path=outdir, .FUN=load)
-	invisible(open(copyNumber(minDistanceSet)))
-
+##	minDistanceSet <- checkExists("minDistanceSet", .path=outdir, .FUN=load)
+##	invisible(open(copyNumber(minDistanceSet)))
+	stopifnot(identical(featureNames(bsSet), featureNames(minDistanceSet)))
+	deletion.ranges <- vector("list", 22)
 	for(CHR in 1:22){
+		cat(CHR, "\n")
 		ranges <- getRanges(outdir, pattern=paste("md.segs.chr", CHR, "_batch", sep=""),
 				    name="md.segs", CHR=CHR)
-		mset <- constructTrioSet(minDistanceSet, bsSet, CHR)
-		ranges$is.deletion <- callDeletion2(ranges, mset, offspring.rule)
-		ranges$noCentromere.overlap <- !(overlapsCentromere(ranges, centromere.ranges, CHR))
-		ranges <- ranges[order(start(ranges), end(ranges)), ]
-		deletion.index <- which(ranges$is.deletion & ranges$noCentromere.overlap & ranges$num.mark >= 10)
-		if(length(deletion.index) < 1) next()
-		rangesList8[[CHR]] <- ranges[deletion.index, ]
-		rm(mset, ranges);gc()
+		ranges2 <- ranges[ranges$seg.mean > 0 & ranges$num.mark >= SIZE, ]
+		index <- match(ranges2$id, sampleNames(minDistanceSet))
+		mads <- minDistanceSet$Mad[index]
+
+		x <- ranges2$num.mark
+##		f <- function(x, lambda, MIN, MAX){
+		p <- lambda*exp(-lambda*x)
+		##rescale p to have range [1, 4]
+		MIN <- 1; MAX <- 4
+		b <- 1/(MAX - MIN)
+		a <- MIN * b
+		numberMads <- ((p-min(p))/(max(p)-min(p)) + a)/b
+##		numberMads
+##		}
+##		thr <- offspring.rule(mads)
+##		thr[thr < 0.2] <- 0.2
+##		thr <- p.rescaled * mads
+		thr <- numberMads * mads
+		thr[thr < 0.2] <- 0.2
+		ranges2$is.deletion <- ifelse(ranges2$seg.mean >= thr, TRUE, FALSE)
+		deletion.RD <- ranges2[ranges2$is.deletion, ]
+		deletion.ir <- IRanges(start(deletion.RD), end(deletion.RD))
+		fD <- fData(minDistanceSet)[chromosome(minDistanceSet) == CHR, ]
+		fd.ir <- IRanges(fD$position-12, fD$position+12)
+		tmp <- matchMatrix(findOverlaps(deletion.ir, fd.ir))
+		sample.index <- match(deletion.RD$id, sampleNames(bsSet))
+		index.list <- split(tmp[, "subject"], tmp[, "query"])
+		fns.list <- lapply(index.list, function(i, fns) fns[i], fns=rownames(fD))
+		chrom.index <- which(chromosome(bsSet) == CHR)
+		B <- as.matrix(baf(bsSet)[chrom.index[unique(as.integer(unlist(index.list)))], sample.index])
+		pHet <- rep(NA, length(sample.index))
+		for(i in seq_along(index.list)){
+			ii <- match(fns.list[[i]], rownames(B))
+			b <- B[ii, i]
+			pHet[i] <- mean(b > 0.2 & b < 0.8, na.rm=TRUE)
+		}
+		deletion.RD$pHet <- pHet
+		deletion.RD$noCentromere.overlap <- !(overlapsCentromere(deletion.RD, centromere.ranges, CHR))
+		deletion.RD <- deletion.RD[order(start(deletion.RD)), ]
+		##ranges <- ranges[order(start(ranges), end(ranges)), ]
+		deletion.RD$is.deletion <- deletion.RD$pHet < 0.05 & deletion.RD$is.deletion & deletion.RD$noCentromere.overlap
+		deletion.ranges[[CHR]] <- deletion.RD
+		rm(ranges, ranges2, deletion.RD, B, deletion.ir);gc()
 	}
-	return(rangesList8)
+	tmp <- do.call("c", deletion.ranges)
+	deletion.ranges <- RangedData(IRanges(start(tmp), end(tmp)),
+				      id=tmp$id,
+				      chrom=tmp$chrom,
+				      num.mark=tmp$num.mark,
+				      seg.mean=tmp$seg.mean,
+				      pHet=tmp$pHet,
+				      is.deletion=tmp$is.deletion,
+				      noCentromere.overlap=tmp$noCentromere.overlap)
+	return(deletion.ranges)
+}
+
+getRefGene <- function(filename="~/Data/Downloads/hg18_refGene.txt"){
+	##tmp <- read.delim("~/Downloads/hg18_refGene.txt", nrows=5, header=FALSE)
+	##colnames(tmp) <- c("V1", "NM", "chrom", "strand", "start", "end",
+	##		   paste("V", 7:12, sep=""), "gene_name", paste("V", 14:16, sep=""))
+	colClasses <- c("integer", "character", "character", "factor",
+			"integer", "integer",
+			"integer", "integer",
+			"integer",
+			"character", "character",
+			"integer", rep("character", 4))
+	tmp <- read.delim(filename, header=FALSE,
+			  colClasses=colClasses)
+	tmp <- tmp[, c(2:6, 13)]
+	colnames(tmp) <- c("NM", "chrom", "strand", "start", "end", "gene_name")
+	chrom <- sapply(tmp$chrom, function(x) strsplit(x, "chr")[[1]][2])
+	tmp$chrom <- chromosome2integer(chrom)
+	tmp <- tmp[!is.na(tmp$chrom), ]
+	refGene <- RangedData(IRanges(tmp$start, tmp$end),
+			      chrom=tmp$chrom,
+			      strand=tmp$strand,
+			      NM=tmp$NM,
+			      gene_name=tmp$gene_name)
+	refGene
+}
+
+
+filterCommonRegion <- function(deletion.ranges, CHR, FRAME=1e6){
+	deletion.22 <- deletion.ranges[deletion.ranges$chrom == CHR, ]
+	nn <- deletion.22$n.overlap
+	index <- which(deletion.22$n.overlap == max(nn))
+	##samples.22 <- strsplit(deletion.22$others[index], ", ")[[1]]
+	samples.22 <- unique(as.character(sapply(deletion.22$others[index], function(x) strsplit(x, ", ")[[1]])))
+	index.case <- deletion.22$id[index]
+	samples.22 <- unique(c(index.case, samples.22))
+	samples.22 <- samples.22[samples.22 != "NA"]
+	deletion.22 <- deletion.22[deletion.22$id %in% samples.22, ]
+##	deletion.22 <- deletion.22[!is.na(deletion.22$others), ]
+	others <- unique(unlist(sapply(deletion.22$others, function(x) strsplit(x, ", ")[[1]])))
+	others <- others[others != "NA"]
+	##index <- which(deletion.ranges$
+	deletion.22 <- deletion.22[deletion.22$id %in% others, ]
+	##deletion.22 <- deletion.22[deletion.22$others != "NA", ]
+	samples.22 <- unique(deletion.22$id)
+	## if samples has just one overlap, see if its within 200kb of the sample with most overlap
+	position.22 <- c(min(start(deletion.22)), max(end(deletion.22)))
+	return(list(deletion.22, position.22))
+}
+
+plotCytobandWithRanges <- function(deletion.ranges, CHR, xlim, FRAME=1e6, ...){
+	deletion.22 <- deletion.ranges[deletion.ranges$chrom == CHR, ]
+	nn <- deletion.22$n.overlap
+	index <- which(deletion.22$n.overlap == max(nn))
+	##samples.22 <- strsplit(deletion.22$others[index], ", ")[[1]]
+	samples.22 <- unique(as.character(sapply(deletion.22$others[index], function(x) strsplit(x, ", ")[[1]])))
+	index.case <- deletion.22$id[index]
+	samples.22 <- unique(c(index.case, samples.22))
+	samples.22 <- samples.22[samples.22 != "NA"]
+	deletion.22 <- deletion.22[deletion.22$id %in% samples.22, ]
+##	deletion.22 <- deletion.22[!is.na(deletion.22$others), ]
+	others <- unique(unlist(sapply(deletion.22$others, function(x) strsplit(x, ", ")[[1]])))
+	others <- others[others != "NA"]
+	##index <- which(deletion.ranges$
+	deletion.22 <- deletion.22[deletion.22$id %in% others, ]
+	##deletion.22 <- deletion.22[deletion.22$others != "NA", ]
+	samples.22 <- unique(deletion.22$id)
+	## if samples has just one overlap, see if its within 200kb of the sample with most overlap
+	position.22 <- c(min(start(deletion.22)), max(end(deletion.22)))
+	if(missing(xlim)){
+		xlim <- c(min(position.22) -FRAME,
+			  max(position.22) +FRAME)
+	}
+##	cyto.coords <-
+##	plotCytoband(CHR, label.cytoband=FALSE, cytoband.ycoords=c(0, 0.1), xlim=xlim,
+##		     ylim=c(0,length(samples.22)+0.5))
+	plot(0:1, 0:1, xlim=xlim,ylim=c(0.5, length(samples.22)+0.5),
+	     type="n", xlab="", ylab="", yaxt="n", xaxt="n")
+	ii <- seq(0.15, 1, by=(1-0.15)/length(samples.22))
+	h <- 0.3
+	for(i in seq_along(samples.22)){
+		this.range <- deletion.22[deletion.22$id == samples.22[i], ]
+		## for each row of this subject, draw a polygon.
+		for(j in 1:nrow(this.range)){
+			x <- c(start(this.range)[j],end(this.range)[j])
+			xx <- c(x, rev(x))
+			y <- c(i-h, i-h, i+h, i+h)
+			polygon(xx, y, col="grey60")
+##			text(max(xx), mean(y), labels=paste("n =", this.range$num.mark[j]), col="blue")
+			if(nrow(this.range) == 1)
+				text(xlim[2], mean(y), labels=this.range$num.mark[j], col="grey30", cex=0.6, adj=1)
+		}
+		if(nrow(this.range) > 1){
+			text(xlim[2], mean(y), labels=median(this.range$num.mark), adj=1, cex=0.6, col="grey30")
+		}
+	}
+	axis(2, at=seq_along(samples.22), labels=samples.22, cex.axis=0.6, adj=0)
+##	abline(v=position.22, col="blue", lwd=2, lty=2)
+	text(0, mean(position.22), paste(diff(position.22)/1e3, "kb"))
+	return(list(xlim=xlim, v=position.22))
 }

@@ -5,6 +5,11 @@ Beaty : Beaty.Rnw
 	cat ~/bin/cluster.template | perl -pe "s/Rprog/Beaty.R/" > Beaty.R.sh
 	qsub -m e -r y -cwd -l fat -l mem_free=30G,h_vmem=35G Beaty.R.sh
 
+Crlmm : Crlmm.Rnw
+	echo "Stangle(\"Crlmm.Rnw\")"| R-devel --no-save --no-restore;	
+	cat ~/bin/cluster.template | perl -pe "s/Rprog/Crlmm.R/" > Crlmm.R.sh
+	qsub -m e -r y -cwd -l fat -l mem_free=40,h_vmem=45G Crlmm.R.sh
+
 segmentation: segmentation.Rnw
 	echo "Stangle(\"segmentation.Rnw\")"| R-devel --no-save --no-restore;	
 	cat ~/bin/cluster.template | perl -pe "s/Rprog/segmentation.R/" > segmentation.R.sh

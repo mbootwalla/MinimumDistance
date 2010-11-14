@@ -1,0 +1,3 @@
+<<snpnames>>=
+snps <- read.csv("../extdata/snp_names_in_jugessur.csv",)
+@
