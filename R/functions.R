@@ -11,9 +11,7 @@ who <- function(x){
 	return(y)
 }
 
-indexSegment <- function(object, brks){
-	which(position(object) >= as.integer(brks[, "start"]) & position(object) <= as.integer(brks[, "end"]))
-}
+
 
 isInformative <- function(object){
 	whoisit <- sapply(object[[1]]$familyMember, who)
