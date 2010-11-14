@@ -11,8 +11,6 @@ who <- function(x){
 	return(y)
 }
 
-
-
 isInformative <- function(object){
 	whoisit <- sapply(object[[1]]$familyMember, who)
 	father <- which(whoisit == "father")
@@ -34,45 +32,7 @@ isInformative <- function(object){
 	informative
 }
 
-offspringHeterozygous <- function(object, isInf){
-	whoisit <- sapply(object[[1]]$familyMember, who)
-##	father <- which(whoisit == "father")
-##	mother <- which(whoisit == "mother")
-	offspring <- which(whoisit == "offspring")
-	heterozygous <- calls(object)[, offspring] == 2
-	heterozygous[is.na(heterozygous)] <- FALSE
-	return(heterozygous)
-}
 
-##the probability of observing genotypes consistent with biparental inheritance when in truth the alleles were inherited from only one parent is 0.5
-##the probability of observing genotypes consistent with biparental inheritance when in truth the alleles were inherited from both parents is 0.999
-##the probability of observing genotypes not consistent with biparental inheritance when in truth the alleles were inherited from both parents is 1-0.999 -- this corresponds to the genotyping error
-##(we could potentially have genotyping error estimated from the crlmm confidence score)
-##emission.genotypes <- function(object,
-##			       prGtError=c(0.001, 0.1), isInf, isHet){##, prBPI, isInf, isHet){
-##	if(length(prBPI) != 2) stop("must specific Pr(BPI | hidden state) -- two values.")
-##
-##	##two states
-##	## - by default, states have equal probability
-##	e <- matrix(0, nrow(object), 2)
-##
-##	## hidden state: biparental inheritance
-##	e[isInf & !isHet, 1] <- prGtError[1]  ##probability of genotyping error given truth is biparental
-##	e[isInf & isHet, 1] <- 1-prGtError[1]
-##
-##	## hidden state: nonbiparental inheritance
-##	e[isInf & !isHet, 2] <- 1-prGtError[2] ## child observed homozygous, true state is biparental
-##	e[isInf & isHet, 2] <-  prGtError[2]  ##if true state is BPI, the parents are informative and child is observed heterozygous it must be a genotyping error
-##
-##	e[!isInf, ] <- 0
-####	e[!isInf, 1] <- priorProbBiparental
-####	e[!isInf & !isHet, ] <- 0  #child is homozygous.  parental genotypes not informative.  Give equal probability to both states a priori
-####	e[!isInf & isHet, 1] <- 1-prGtError[1]  #child is heterozygous and parental genotypes not informative. Give a prior probability of 1-the genotyping error for normal state
-####	e[!isInf & isHet, 2] <- prGtError[2]  #child is heterozygous -- must be a genotyping error if inheritance is not biparental
-##
-##	colnames(e) <- c("Pr(observed | BPI)", "Pr(observed | not BPI)")
-##	return(e)
-##}
 crlmmIlluminaRS2 <- function(sampleSheet=NULL,
 			    arrayNames=NULL,
 			    batch,
