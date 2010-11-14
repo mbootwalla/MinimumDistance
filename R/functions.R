@@ -32,128 +32,6 @@ isInformative <- function(object){
 	informative
 }
 
-
-crlmmIlluminaRS2 <- function(sampleSheet=NULL,
-			    arrayNames=NULL,
-			    batch,
-			    ids=NULL,
-			    path=".",
-			    arrayInfoColNames=list(barcode="SentrixBarcode_A", position="SentrixPosition_A"),
-			    highDensity=FALSE,
-			    sep="_",
-			    fileExt=list(green="Grn.idat", red="Red.idat"),
-			    stripNorm=TRUE,
-			    useTarget=TRUE,
-			    row.names=TRUE,
-			    col.names=TRUE,
-			    probs=c(1/3, 1/3, 1/3), DF=6, SNRMin=5, gender=NULL,
-			    seed=1, save.ab=FALSE, snpFile, cnFile,
-			    mixtureSampleSize=10^5, eps=0.1, verbose=TRUE,
-			    cdfName, sns, recallMin=10, recallRegMin=1000,
-			    returnParams=FALSE, badSNP=.7,
-			    copynumber=FALSE,
-			    load.it=TRUE) {
-	if(missing(cdfName)) stop("must specify cdfName")
-	if(!isValidCdfName(cdfName)) stop("cdfName not valid.  see validCdfNames")
-	if(missing(sns)) sns <- basename(arrayNames)
-	if(missing(batch)){
-		warning("The batch variable is not specified. The scan date of the array will be used as a surrogate for batch.  The batch variable does not affect the preprocessing or genotyping, but is important for copy number estimation.")
-	} else {
-		if(length(batch) != length(sns))
-			stop("batch variable must be the same length as the filenames")
-	}
-	batches <- splitIndicesByLength(seq(along=arrayNames), ocSamples())
-	k <- 1
-	for(j in batches){
-		if(verbose) message("Batch ", k, " of ", length(batches))
-		RG <- readIdatFiles(sampleSheet=sampleSheet[j, ],
-				     arrayNames=arrayNames[j],
-				     ids=ids,
-				     path=path,
-				     arrayInfoColNames=arrayInfoColNames,
-				     highDensity=highDensity,
-				     sep=sep,
-				     fileExt=fileExt,
-				     saveDate=TRUE)
-		RG <- RGtoXY(RG, chipType=cdfName)
-		protocolData <- protocolData(RG)
-		res <- preprocessInfinium2(RG,
-					   mixtureSampleSize=mixtureSampleSize,
-					   fitMixture=TRUE,
-					   verbose=verbose,
-					   seed=seed,
-					   eps=eps,
-					   cdfName=cdfName,
-					   sns=sns[j],
-					   stripNorm=stripNorm,
-					   useTarget=useTarget)
-		rm(RG); gc()
-		## MR: number of rows should be number of SNPs + number of nonpolymorphic markers.
-		##  Here, I'm just using the # of rows returned from the above function
-		if(k == 1){
-			if(verbose) message("Initializing container for alleleA, alleleB, call, callProbability")
-			load.obj <- loadObject("callSet", load.it)
-			if(!load.obj){
-				callSet <- new("SnpSuperSet",
-					       alleleA=initializeBigMatrix(name="A", nr=nrow(res[[1]]), nc=length(sns)),
-					       alleleB=initializeBigMatrix(name="B", nr=nrow(res[[1]]), nc=length(sns)),
-					       call=initializeBigMatrix(name="call", nr=nrow(res[[1]]), nc=length(sns)),
-					       callProbability=initializeBigMatrix(name="callPr", nr=nrow(res[[1]]), nc=length(sns)),
-					       annotation=cdfName)
-				sampleNames(callSet) <- sns
-				save(callSet, file=file.path(ldPath(), "callSet.rda"))
-			} else load(file.path(ldPath(), "callSet.rda"))
-			phenoData(callSet) <- getPhenoData(sampleSheet=sampleSheet,
-							   arrayNames=sns,
-							   arrayInfoColNames=arrayInfoColNames)
-			pD <- data.frame(matrix(NA, length(sns), 1), row.names=sns)
-			colnames(pD) <- "ScanDate"
-			protocolData(callSet) <- new("AnnotatedDataFrame", data=pD)
-			pData(protocolData(callSet))[j, ] <- pData(protocolData)
-			featureNames(callSet) <- res[["gns"]]
-			pData(callSet)$SNR <- initializeBigVector("crlmmSNR-", length(sns), "double")
-			pData(callSet)$SKW <- initializeBigVector("crlmmSKW-", length(sns), "double")
-			pData(callSet)$gender <- rep(NA, length(sns))
-			mixtureParams <- initializeBigMatrix("crlmmMixt-", nr=4, nc=ncol(callSet), vmode="double")
-			save(mixtureParams, file=file.path(ldPath(), "mixtureParams.rda"))
-			if(missing(batch)){
-				protocolData(callSet)$batch <- rep(NA, length(sns))
-			} else{
-				protocolData(callSet)$batch <- batch
-			}
-			featureData(callSet) <- addFeatureAnnotation(callSet)
-			open(mixtureParams)
-			open(callSet$SNR)
-			open(callSet$SKW)
-		}
-		if(k > 1 & nrow(res[[1]]) != nrow(callSet)){
-			##RS: I don't understand why the IDATS for the
-			##same platform potentially have different lengths
-			res[["A"]] <- res[["A"]][res$gns %in% featureNames(callSet), ]
-			res[["B"]] <- res[["B"]][res$gns %in% featureNames(callSet), ]
-		}
-		if(missing(batch)){
-			protocolData(callSet)$batch[j] <- as.numeric(as.factor(protocolData$ScanDate))
-		}
-		## MR: we need to define a snp.index vs np.index
-		snp.index <- match(res$gns, featureNames(callSet))
-		A(callSet)[snp.index, j] <- res[["A"]]
-		B(callSet)[snp.index, j] <- res[["B"]]
-		pData(callSet)$SKW[j] <- res$SKW
-		pData(callSet)$SNR[j] <- res$SNR
-		mixtureParams[, j] <- res$mixtureParams
-		rm(res); gc()
-		k <- k+1
-	}
-	return(callSet)
-}
-
-
-getFamilyId <- function(samplesheet){
-	familyId <- sapply(samplesheet[, 4], function(x) strsplit(x, "_")[[1]][[1]])
-}
-
-
 setMethod("addSampleSheet", "SnpSuperSet", function(object){
 	data(samplesheet)
 	samplesheet <- get("samplesheet")
@@ -168,15 +46,10 @@ setMethod("addSampleSheet", "SnpSuperSet", function(object){
 	return(pD)
 })
 
-
 addSampleSheetAnnotation <- function(object, samplesheet){
 	if("familyId" %in% varLabels(object)) return()
 	pD <- pData(object[[1]])
 	pd2 <- samplesheet[match(sampleNames(object), samplesheet$sampleNames), ]
-	##The trio information is in the sample name:
-	##excludeIndex <- grep("CIDR", pd2[, 4])
-	##crlmmSetList <- crlmmSetList[, -excludeIndex]
-
 	familyId <- sapply(pd2[, 4], function(x) strsplit(x, "_")[[1]][[1]])
 	familyMember <- sapply(pd2[, 4], function(x) strsplit(x, "_")[[1]][[2]])
 	##table(familyMember, pd2[, "Gender"])
@@ -187,146 +60,19 @@ addSampleSheetAnnotation <- function(object, samplesheet){
 	colnames(pd2)[34:35] <- c("familyId", "familyMember")
 	pD <- new("AnnotatedDataFrame", data=pd2, varMetadata=data.frame(labelDescription=colnames(pd2)))
 	return(pD)
-##	phenoData(crlmmSetList[[1]]) <- pD
 	pData(crlmmSetList[[1]])[, "familyId"] <- as.character(pData(crlmmSetList[[1]])[, "familyId"])
 	pData(crlmmSetList[[1]])[, "familyMember"] <- as.character(pData(crlmmSetList[[1]])[, "familyMember"])
 }
 
 scaleSnr <- function(snr, min.scale, max.scale){
 	tmp <- (snr-min(snr))/(max(snr)-min(snr))  ## 0 -> 1
-	##max.scale <- 1
-	##min.scale <- 0
 	b <- 1/(max.scale-min.scale)
 	a <- min.scale*b
 	bg.scale <- (tmp + a)/b
 	return(bg.scale)
 }
 
-sourceCrlmm <- function(){
-	library(genefilter); library(affyio)
-	.crlmmPkgEnv <- new.env()
-	source("~/madman/Rpacks/crlmm/R/AllClasses.R")
-	source("~/madman/Rpacks/crlmm/R/AllGenerics.R")
-	source("~/madman/Rpacks/crlmm/R/cnrma-functions.R")
-	source("~/madman/Rpacks/crlmm/R/crlmm-functions.R")
-	source("~/madman/Rpacks/crlmm/R/crlmm-illumina.R")
-	source("~/madman/Rpacks/crlmm/R/utils.R")
-	source("~/madman/Rpacks/crlmm/R/methods-ABset.R")
-	source("~/madman/Rpacks/crlmm/R/methods-eSet.R")
-	source("~/madman/Rpacks/crlmm/R/methods-CopyNumberSet.R")
-	source("~/madman/Rpacks/crlmm/R/methods-CrlmmSet.R")
-	source("~/madman/Rpacks/crlmm/R/methods-SnpCallSetPlus.R")
-}
 
-pennCnv2matrix <- function(object, CHR, cdfName, platform){
-	stopifnot(isValidCdfName(cdfName, platform))
-	pkgname <- paste(cdfName, "Crlmm", sep="")
-	path <- system.file("extdata", package=pkgname)
-	loader("cnProbes.rda", pkgname=pkgname, envir=.crlmmPkgEnv)
-	cnProbes <- get("cnProbes", envir=.crlmmPkgEnv)
-	loader("snpProbes.rda", pkgname=pkgname, envir=.crlmmPkgEnv)
-	snpProbes <- get("snpProbes", envir=.crlmmPkgEnv)
-	snpProbes <- snpProbes[snpProbes$chr == CHR, ]
-	cnProbes <- cnProbes[cnProbes$chr==CHR, ]
-	probes <- rbind(snpProbes, cnProbes)
-	probes <- probes[order(probes$position), ]
-
-	state <- object$TrioState
-	stateIndex <- NA
-	familyMember <- unique(object$FamilyMember)
-	if(length(familyMember) > 1) stop("should just be one sample")
-	stateIndex <- switch(familyMember,
-			     father=1,
-			     mother=2,
-			     offspring=3,
-			     NA)
-	if(is.na(stateIndex)) stop("FamilyMember label is not father, mother, or offspring")
-	cn.state <- paste("s", substr(state, stateIndex, stateIndex), sep="")
-	getCnState <- function(x){
-		switch(x,
-		       s1=0,
-		       s2=1,
-		       s3=2,
-		       s4=2,
-		       s5=3,
-		       s6=4,
-		       NA)
-	}
-	copynumber <- sapply(cn.state, getCnState)
-	if(any(is.na(copynumber))) warning("one or more of the assigned copy number states is missing")
-
-	len <- object$LengthCNV
-	len <- as.integer(sapply(len, function(x) paste(unlist(strsplit(x,",")), collapse="")))
-	nsnps <- object$NumberSNPs
-	x <- rep(as.integer(2), nrow(probes))
-	for(i in 1:nrow(object)){
-		cond <- probes$position >= object$StartPosition[i] & probes$position <= object$EndPosition[i]
-		x[cond] <- as.integer(copynumber[i])
-	}
-	names(x) <- rownames(probes)
-	return(x)
-}
-
-
-
-
-
-
-
-
-posteriorNonpolymorphic <- function(plateIndex, envir, priorProb, cnStates=0:6){
-	p <- plateIndex
-	CHR <- envir[["chrom"]]
-	if(missing(priorProb)) priorProb <- rep(1/length(cnStates), length(cnStates)) ##uniform
-	plate <- envir[["plate"]]
-	uplate <- envir[["plate"]]
-	NP <- envir[["NP"]][, plate==uplate[p]]
-	nuT <- envir[["nuT"]][, p]
-	phiT <- envir[["phiT"]][, p]
-	sig2T <- envir[["sig2T"]][, p]
-	##Assuming background variance for np probes is the same on the log-scale
-	emit <- array(NA, dim=c(nrow(NP), ncol(NP), length(cnStates)))##SNPs x sample x 'truth'
-	lT <- log2(NP)
-	sds <- sqrt(sig2T)
-	counter <- 1##state counter
-	for(CT in cnStates){
-		cat(".")
-		if(CHR == 23) browser()
-		means <- suppressWarnings(log2(nuT + CT*phiT))
-		emit[, , counter] <- dnorm(lT, mean=means, sd=sds)
-		counter <- counter+1
-	}
-	for(j in seq(along=cnStates)){
-		emit[, , j] <- priorProb[j]*emit[, , j]
-	}
-	homDel <- emit[, , 1]
-	hemDel <- emit[, , 2]
-	norm <- emit[, , 3]
-	amp <- emit[, , 4]
-	amp4 <- emit[, , 5]
-	amp5 <- emit[, , 6]
-	amp6 <- emit[, , 7]
-	total <- homDel+hemDel+norm+amp+amp4+amp5+amp6
-	weights <- array(NA, dim=c(nrow(NP), ncol(NP), length(cnStates)))
-	weights[, , 1] <- homDel/total
-	weights[, , 2] <- hemDel/total
-	weights[, , 3] <- norm/total
-	weights[, , 4] <- amp/total
-	weights[, , 5] <- amp4/total
-	weights[, , 6] <- amp5/total
-	weights[, , 7] <- amp6/total
-	##posterior mode
-	posteriorMode <- apply(weights, c(1, 2), function(x) order(x, decreasing=TRUE)[1])
-	posteriorMode <- posteriorMode-1
-	##sns <- envir[["sns"]]
-	##colnames(posteriorMode) <- sns
-	##envir[["np.posteriorMode"]] <- posteriorMode
-	##envir[["np.weights"]] <- weights
-	posteriorMeans <- 0*homDel/total + 1*hemDel/total + 2*norm/total + 3*amp/total + 4*amp4/total + 5*amp5/total + 6*amp6/total
-	##colnames(posteriorMeans) <- sns
-	##envir[["np.posteriorMeans"]] <- posteriorMeans
-	return(posteriorMode)
-}
 
 posteriorWrapper <- function(envir){
 	snp.PM <- matrix(NA, length(envir[["snps"]]), length(envir[["sns"]]))
