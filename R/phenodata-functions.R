@@ -118,3 +118,11 @@ getTriosIndex <- function(object){
 	trios.index <- trios.index[sapply(trios.index, length) >= 3]
 	return(trios.index)
 }
+
+isParent <- function(sample.name, object){
+	sample.name <- as.character(sample.name)
+	stopifnot("pedId" %in% varLabels(object))
+	index <- match(sample.name, sampleNames(object))
+	nm <- object$pedId[index]
+	nm == "father" | nm == "mother"
+}

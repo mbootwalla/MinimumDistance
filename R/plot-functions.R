@@ -219,3 +219,57 @@ myPlot <- function(rD, row, cnSet, surround, ylim=c(0.2,6), ...){
 	plot(xx, minConf, pch=21, col=grey(0.6), cex=0.8, xaxt="n", ylim=c(0.5, 1))
 	axis(1, at=pretty(xx), labels=pretty(xx/1e6), outer=TRUE)
 }
+
+plotImage <- function(denovoSet, indices, query, minoverlap){
+	require(SNPchip)
+	chrom <- query$chrom
+        pathto <- system.file("hg18", package = "SNPchip")
+        cytoband <- read.table(file.path(pathto, "cytoBand.txt"),
+			       as.is = TRUE)
+        colnames(cytoband) <- c("chrom", "start", "end", "name",
+				"gieStain")
+	data(chromosomeAnnotation)
+	marker.index <- indices[[1]]
+	col.index <- indices[[2]]
+	M <- copyNumber(denovoSet)[marker.index, col.index]
+	x <- position(denovoSet)[marker.index]
+	xlim <- range(x)
+	##image of region
+	col.image <- c("white", "black")
+	centromere.coords <- chromosomeAnnotation[query$chrom, ]
+	layout(mat=matrix(c(1, 1,
+	       2, 3,
+	       4, 4), ncol=2, byrow=TRUE), heights=c(0.1, 0.8, 0.1), widths=c(0.02, 0.95))
+	hist(x, freq=TRUE, breaks=length(x)/2, xlim=xlim, xaxs="i", main="", xaxt="n")
+	rug(x, side=3, col="light blue")
+	sns <- substr(colnames(M), 1, 8)
+	ylim=c(-5, ncol(M)+5)
+	label.cols <- grey(seq(0, by=1/ncol(denovoSet)))
+	label.cols <- label.cols[col.index]
+	label.matrix <- matrix(col.index, nrow=1, byrow=FALSE)
+	image(0, 1:ncol(M), z=label.matrix, col=label.cols, ylim=ylim, ylab="", yaxt="n", xaxt="n")
+	image(x, 1:ncol(M), M, col=col.image, ylab="", xlim=xlim, xaxs="i",
+	      xlab="Mb", yaxt="n", bg="lightblue",
+	      xaxt="n", ylim=ylim)
+	abline(v=c(start(query), end(query)), col="blue", lty=2)
+	##axis(3, at=x, labels=FALSE)
+	## how to draw a second vertical bar that shows the union?
+	if(ncol(M) > 50){
+		axis(2, at=pretty(1:ncol(M)), labels=pretty(1:ncol(M)), cex.axis=0.8)
+	} else {
+		axis(2, at=1:ncol(M), labels=sns, cex.axis=0.6)
+	}
+	axis(1, at=pretty(xlim), labels=pretty(xlim)/1e6)
+	## show what minoverlap looks like
+	xx <- c(mean(x), mean(x)+minoverlap)
+	graphics:::segments(x0=xx[1], x1=xx[2], y0=-3, y1=-3, col="blue")
+	graphics:::segments(x0=xx[1], x1=xx[1], y0=-4, y1=-2, col="blue")
+	graphics:::segments(x0=xx[2], x1=xx[2], y0=-4, y1=-2, col="blue")
+	text(x=xx[2]+minoverlap, y=-3, labels=paste(minoverlap/1e3, "kb"), cex=0.7, adj=0)
+	invisible(plotCytoband(query$chrom, label.cytoband=FALSE, cytoband.ycoords=c(0.75, 1.25)))
+	graphics:::segments(x0=xlim[1], x1=xlim[2], y0=0.5, y1=0.5, col="blue")
+	graphics:::segments(x0=xlim[1], x1=xlim[1], y0=0.45, y1=0.55, col="blue")
+	graphics:::segments(x0=xlim[2], x1=xlim[2], y0=0.45, y1=0.55, col="blue")
+	mtext(paste("chr", query$chrom), cex=1.5, side=1)
+}
+
