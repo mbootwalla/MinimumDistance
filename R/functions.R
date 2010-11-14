@@ -11,52 +11,6 @@ who <- function(x){
 	return(y)
 }
 
-calculateInheritanceMode <- function(object){
-	object2 <- object
-	object <- object[snpIndex(object), ]
-	A <- array(1:27, dim=c(3,3,3),
-		   dimnames=list(father=c("AA", "AB", "BB"),
-		   mother=c("AA", "AB", "BB"),
-		   child=c("AA", "AB", "BB")))
-	missingCalls <- rowSums(is.na(calls(object))) > 0 | rowSums(calls(object) == 4) > 0
-	f <- function(x, i, j, k)  x[i, j, k]
-	if(any(missingCalls)){
-		calls(object)[missingCalls] <- 1
-	}
-	whoisit <- sapply(object[[1]]$familyMember, who)
-	fatherGt <- calls(object)[, which(whoisit=="father")]
-	motherGt <- calls(object)[, which(whoisit=="mother")]
-	offspringGt <- calls(object)[, which(whoisit=="offspring")]
-
-	type <- mapply("f",
-		       i=fatherGt,
-		       j=motherGt,
-		       k=offspringGt,
-		       MoreArgs=list(x=A))
-
-	if(any(missingCalls)){
-		type[missingCalls] <- 101
-	}
-	type[type %in% c(1, 4, 13, 2, 11, 5, 14, 23, 17, 26, 15, 24, 27)] <- 101 ##"NI"
-	type[type %in% c(10, 18)] <- 102 ##"MI-S"
-	type[type %in% c(19, 9)] <- 103 ##"MI-D"
-	type[type %in% c(22, 25, 3, 6)] <- 104 ##"UPI-M"
-	type[type %in% c(7, 20, 8, 21)] <- 105 ##"UPI-P"
-	type[type %in% c(16, 12)] <- 106 ##"BPI"
-	type[type == 101] <- 1
-	type[type == 102] <- 2
-	type[type == 103] <- 3
-	type[type == 104] <- 4
-	type[type == 105] <- 5
-	type[type == 106] <- 6
-	type <- as.integer(type)
-
-	##Code for copy number probes
-	typeAll <- rep(999, nrow(object2))
-	typeAll[snpIndex(object2)] <- type
-	return(typeAll)
-}
-
 indexSegment <- function(object, brks){
 	which(position(object) >= as.integer(brks[, "start"]) & position(object) <= as.integer(brks[, "end"]))
 }
