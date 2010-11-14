@@ -11,15 +11,6 @@ who <- function(x){
 	return(y)
 }
 
-##isInformative <- function(inheritance)  inheritance != "1" & !is.na(inheritance)
-isMendelian <- function(inheritance){
-	x <- inheritance
-	y <- rep(NA, length(x))
-	y[x == 6] <- TRUE
-	y[x != 6] <- FALSE
-	y
-}
-
 calculateInheritanceMode <- function(object){
 	object2 <- object
 	object <- object[snpIndex(object), ]

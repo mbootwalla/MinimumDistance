@@ -17,7 +17,6 @@ Specify where to store and look for intermediate files.
 
 <<outdir>>=
 outdir <- "/amber1/archive/ctsa/beaty_crlmm/beaty_beadStudio"
-##outdir <- "/amber1/scratch/rscharpf/beaty_beadStudio"
 if(!file.exists(outdir)) dir.create(outdir)
 ldPath(outdir)
 ocSamples(100)
@@ -26,10 +25,4 @@ data(Beaty)
 cdfName <- Beaty[["cdfName"]]
 @
 
-Load the object containing the log R ratios for the entire dataset.
-
-<<lrSet>>=
-##lrSet <- checkExists("lrSet", outdir, getLrSet)
-##lrSet$pedId <- who(sampleNames(lrSet))
-@
 
