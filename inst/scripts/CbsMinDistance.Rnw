@@ -1,0 +1,29 @@
+<<pkgs>>=
+library(Beaty)
+library(BeatyExperimentData)
+data(minDistanceSet)
+@
+
+<<submitJob>>=
+BATCHSIZE <- 200
+NN <- length(splitIndicesByLength(1:ncol(minDistanceSet), BATCHSIZE))
+for(CHR in 1:22){
+	for(BATCH in 1:NN){
+		sink("tempMD")
+		cat("BATCH <- ", BATCH, "\n")
+		cat("BATCHSIZE <- ", BATCHSIZE, "\n")
+		cat("CHR <- ", CHR, "\n")
+		sink()
+		fn <- paste("mds_c", CHR, "_", BATCH, ".R", sep="")
+		if(file.exists(fn)) unlink(fn)
+		system(paste("cat tempMD RunMinDistanceSegmentation.R >", fn))
+		system(paste('cat ~/bin/cluster.template | perl -pe "s/Rprog/mds_c', CHR, "_", BATCH, '.R/" > mds_c', CHR, "_", BATCH, '.R.sh', sep=""))
+		system(paste("qsub -m e -r y -cwd -l mem_free=10G,h_vmem=16G mds_c", CHR, "_", BATCH, ".R.sh", sep=""))
+		Sys.sleep(60*1) ## keeps multiple jobs from trying to load minDistanceSet simultaneously
+		if(BATCH %% 4 == 0) Sys.sleep(60*10)
+	}
+	Sys.sleep(60*20)
+	##Sys.sleep(60*60*3)##3 minutes
+}
+unlink("tempMD")
+@

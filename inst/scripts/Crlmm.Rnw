@@ -1,15 +1,13 @@
-\SweaveInput{Setup}
-
 <<>>=
+library(Beaty)
 library(ff)
-library(snow)
-library(crlmm)
-setCluster(4, "SOCK")
+##library(snow)
+##setCluster(4, "SOCK")
 cdfName <- "human610quadv1b"
 data(samplesheet)
 path <- "/thumper/ctsa/beaty/illumina610/Raw_Data/Released_Data/RELEASED_IDATS"
-crlmmVersion <- sessionInfo(package="crlmm")$otherPkgs$crlmm$Version
-outdir <- file.path("/amber1/archive/ctsa/beaty_crlmm", crlmmVersion)
+##crlmmVersion <- sessionInfo(package="crlmm")$otherPkgs$crlmm$Version
+outdir <- crlmmdir()
 dir.create(outdir, recursive=TRUE, showWarnings=FALSE)
 ldPath(outdir)
 ocProbesets(20e3)
@@ -19,7 +17,7 @@ samplesheet$Sample_ID <- samplesheet$CIDR_Name
 index <- 5500:7599
 container <- checkExists("container",
 			 .path=ldPath(),
-			 .FUN=crlmm:::genotype.Illumina,
+			 .FUN=genotype.Illumina,
 			 .load.it=FALSE,
 			 ##genotype.Illumina arguments
 			 batch=as.factor(rep(1, nrow(samplesheet)))[index],
