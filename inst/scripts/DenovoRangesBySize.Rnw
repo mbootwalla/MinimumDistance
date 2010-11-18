@@ -1,25 +1,12 @@
-% Among the top hits, are there any overlaps with other ranges?
-%
-% Among the Jugessur ranges, are there any other overlaps?
-%
-% We're missing a few obvious hits because of the threshold.
-%
-% Should we try penncnv's tool for calculing p-values of the denovo regions
-%
-% Adding functional annotation to plots
-%
 <<>>=
-##refGene <- getRefGene(filename="~/Data/Downloads/hg18_refGene.txt")
+library(Beaty)
+data(bsSet)
+data(minDistanceSet)
+data(minDistanceRanges)
 @
 
-\SweaveInput{Setup}
-
 <<rangesForMinDistance>>=
-minDistanceSet <- checkExists("minDistanceSet", .path=outdir, .FUN=load)
-featureNames(minDistanceSet) <- rownames(fData(minDistanceSet))
 open(copyNumber(minDistanceSet))
-bsSet <- checkExists("bsSet", .path=outdir, .FUN=load)
-sampleNames(bsSet) <- substr(sampleNames(bsSet), 1, 8)
 open(baf(bsSet))
 open(logR(bsSet))
 @

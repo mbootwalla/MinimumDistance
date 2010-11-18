@@ -2,13 +2,16 @@
 library(Beaty)
 library(BeatyExperimentData)
 data(minDistanceSet)
+ldPath(beadstudiodir())
 @
 
 <<submitJob>>=
 BATCHSIZE <- 200
 NN <- length(splitIndicesByLength(1:ncol(minDistanceSet), BATCHSIZE))
 for(CHR in 1:22){
+	if(CHR < 9) next()
 	for(BATCH in 1:NN){
+		if(CHR == 9 & BATCH < 3) next()
 		sink("tempMD")
 		cat("BATCH <- ", BATCH, "\n")
 		cat("BATCHSIZE <- ", BATCHSIZE, "\n")
@@ -20,10 +23,34 @@ for(CHR in 1:22){
 		system(paste('cat ~/bin/cluster.template | perl -pe "s/Rprog/mds_c', CHR, "_", BATCH, '.R/" > mds_c', CHR, "_", BATCH, '.R.sh', sep=""))
 		system(paste("qsub -m e -r y -cwd -l mem_free=10G,h_vmem=16G mds_c", CHR, "_", BATCH, ".R.sh", sep=""))
 		Sys.sleep(60*1) ## keeps multiple jobs from trying to load minDistanceSet simultaneously
-		if(BATCH %% 4 == 0) Sys.sleep(60*10)
+		##if(BATCH %% 5 == 0) Sys.sleep(60*10)
 	}
-	Sys.sleep(60*20)
+	Sys.sleep(60*30)
 	##Sys.sleep(60*60*3)##3 minutes
 }
 unlink("tempMD")
+unlink(list.files(pattern="mds_"))
 @
+
+<<constructRangedData>>=
+rangesList <- vector("list", 22)
+for(i in 1:22){
+	rangesList[[i]] <- getRanges(ldPath(), pattern=paste("md.segs_chr", i, "_", sep=""), CHR=i, name="md.segs")
+	space(rangesList[[i]]) <- i
+}
+tmp <- do.call("c", rangesList)
+minDistanceRanges <- RangedData(IRanges(start(tmp), end(tmp)),
+				id=tmp$id,
+				chrom=tmp$chrom,
+				num.mark=tmp$num.mark,
+				seg.mean=tmp$seg.mean)
+save(minDistanceRanges, file="~/projects2/BeatyExperimentData/data/minDistanceRanges.rda")
+@
+
+
+
+
+
+
+
+
