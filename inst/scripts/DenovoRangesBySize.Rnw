@@ -17,12 +17,15 @@ window of +/- FRAME.SHIFT of the original hit.
 Plot the number of subjects with overlap vs size.
 
 <<deletion.ranges, eval=FALSE>>=
-deletion.ranges <- checkExists("deletion.ranges", .path=outdir, .FUN=collectAllRangesOfSize,
-			       SIZE=5,
-			       bsSet=bsSet,
-			       minDistanceSet=minDistanceSet,
-			       outdir=outdir,
-			       MIN=1, MAX=4, lambda=0.1)
+trace(collectAllRangesOfSize, browser)
+deletionRanges <- collectAllRangesOfSize(SIZE=5,
+					 bsSet=bsSet,
+					 minDistanceSet=minDistanceSet,
+					 MIN=1, MAX=4,
+					 lambda=0.1)
+deletionRanges <- deletionRanges[!noCentromere.overlap, ]
+##homozygous (?) sum(deletionRanges$pHet > 0.05 & deletionRanges$seg.mean > 0.5)
+deletionRanges <- deletionRanges[deletionRanges$pHet < 0.05 | deletionRanges$seg.mean > 0.5, ]
 FRAME.SHIFT <- 200e3
 MIN.SIZE <- 10  ## require at least 5 markers in the other trios
 ranges.md <- deletion.ranges

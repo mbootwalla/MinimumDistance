@@ -402,68 +402,58 @@ constructTrioSetFromRanges <- function(ranges1, ## top hit ranges
 }
 
 collectAllRangesOfSize <- function(SIZE, bsSet, minDistanceSet,
-				   ##offspring.rule,
 				   outdir, MIN=1, MAX=4, lambda=0.1){
 	library(SNPchip)
 	data(chromosomeAnnotation)
 	centromere.ranges <- GRanges(seqnames=Rle(paste("chr", 1:22, sep=""), rep(1,22)),
 				     ranges=IRanges(chromosomeAnnotation[1:22, "centromereStart"],
 				     chromosomeAnnotation[1:22, "centromereEnd"]))
-	stopifnot(identical(featureNames(bsSet), featureNames(minDistanceSet)))
-	deletion.ranges <- vector("list", 22)
+	ranges2 <- minDistanceRanges[minDistanceRanges$seg.mean > 0 & minDistanceRanges$num.mark >= SIZE, ]
+	index <- match(ranges2$id, sampleNames(minDistanceSet))
+	open(minDistanceSet$MAD)
+	mads <- minDistanceSet$MAD[index]
+	x <- ranges2$num.mark
+	p <- lambda*exp(-lambda*x)
+	MIN <- 1; MAX <- 4
+	b <- 1/(MAX - MIN)
+	a <- MIN * b
+	numberMads <- ((p-min(p))/(max(p)-min(p)) + a)/b
+	thr <- numberMads * mads
+	thr[thr < 0.2] <- 0.2
+	ranges2$is.deletion <- ifelse(ranges2$seg.mean >= thr, TRUE, FALSE)
+	deletion.RD <- ranges2[ranges2$is.deletion, ]
+	deletion.RD$pHet <- NA
+	deletion.RD$noCentromere.overlap <- NA
+	deletion.ir <- IRanges(start(deletion.RD), end(deletion.RD))
 	for(CHR in 1:22){
-		cat(CHR, "\n")
-		ranges <- getRanges(outdir, pattern=paste("md.segs.chr", CHR, "_batch", sep=""),
-				    name="md.segs", CHR=CHR)
-		ranges2 <- ranges[ranges$seg.mean > 0 & ranges$num.mark >= SIZE, ]
-		index <- match(ranges2$id, sampleNames(minDistanceSet))
-		mads <- minDistanceSet$Mad[index]
+		cat("Chr ", CHR, "\n")
+		i1 <- which(chromosome(bsSet) == CHR)
+		i2 <- which(deletion.RD$chrom == CHR)
 
-		x <- ranges2$num.mark
-##		f <- function(x, lambda, MIN, MAX){
-		p <- lambda*exp(-lambda*x)
-		##rescale p to have range [1, 4]
-		MIN <- 1; MAX <- 4
-		b <- 1/(MAX - MIN)
-		a <- MIN * b
-		numberMads <- ((p-min(p))/(max(p)-min(p)) + a)/b
-		thr <- numberMads * mads
-		thr[thr < 0.2] <- 0.2
-		ranges2$is.deletion <- ifelse(ranges2$seg.mean >= thr, TRUE, FALSE)
-		deletion.RD <- ranges2[ranges2$is.deletion, ]
-		deletion.ir <- IRanges(start(deletion.RD), end(deletion.RD))
-		fD <- fData(minDistanceSet)[chromosome(minDistanceSet) == CHR, ]
+		fD <- fData(bsSet)[i1, ]
 		fd.ir <- IRanges(fD$position-12, fD$position+12)
-		tmp <- matchMatrix(findOverlaps(deletion.ir, fd.ir))
-		sample.index <- match(deletion.RD$id, sampleNames(bsSet))
+
+		##for each range, get the indices of probes for which it overlaps
+		tmp <- matchMatrix(findOverlaps(deletion.ir[i2, ], fd.ir))
+
+		## split the indices for the matching probes by the range
 		index.list <- split(tmp[, "subject"], tmp[, "query"])
 		fns.list <- lapply(index.list, function(i, fns) fns[i], fns=rownames(fD))
-		chrom.index <- which(chromosome(bsSet) == CHR)
-		B <- as.matrix(baf(bsSet)[chrom.index[unique(as.integer(unlist(index.list)))], sample.index])
+
+		marker.index <- i1[unique(as.integer(unlist(index.list)))]
+		sample.index <- match(deletion.RD$id[i2], sampleNames(bsSet))
+		B <- as.matrix(baf(bsSet)[marker.index, sample.index])
 		pHet <- rep(NA, length(sample.index))
 		for(i in seq_along(index.list)){
 			ii <- match(fns.list[[i]], rownames(B))
 			b <- B[ii, i]
 			pHet[i] <- mean(b > 0.2 & b < 0.8, na.rm=TRUE)
 		}
-		deletion.RD$pHet <- pHet
-		deletion.RD$noCentromere.overlap <- !(overlapsCentromere(deletion.RD, centromere.ranges, CHR))
-		deletion.RD <- deletion.RD[order(start(deletion.RD)), ]
-		##ranges <- ranges[order(start(ranges), end(ranges)), ]
-		deletion.RD$is.deletion <- deletion.RD$pHet < 0.05 & deletion.RD$is.deletion & deletion.RD$noCentromere.overlap
-		deletion.ranges[[CHR]] <- deletion.RD
-		rm(ranges, ranges2, deletion.RD, B, deletion.ir);gc()
+		deletion.RD$pHet[i2] <- pHet
+		deletion.RD$noCentromere.overlap[i2] <- !(overlapsCentromere(deletion.RD[i2, ], centromere.ranges, CHR))
 	}
-	tmp <- do.call("c", deletion.ranges)
-	deletion.ranges <- RangedData(IRanges(start(tmp), end(tmp)),
-				      id=tmp$id,
-				      chrom=tmp$chrom,
-				      num.mark=tmp$num.mark,
-				      seg.mean=tmp$seg.mean,
-				      pHet=tmp$pHet,
-				      is.deletion=tmp$is.deletion,
-				      noCentromere.overlap=tmp$noCentromere.overlap)
-	return(deletion.ranges)
+	deletion.RD <- deletion.RD[order(deletion.RD$chrom, start(deletion.RD)), ]
+	return(deletion.RD)
 }
 
 getRefGene <- function(filename="~/Data/Downloads/hg18_refGene.txt"){
