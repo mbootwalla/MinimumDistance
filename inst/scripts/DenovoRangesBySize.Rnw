@@ -17,15 +17,40 @@ window of +/- FRAME.SHIFT of the original hit.
 Plot the number of subjects with overlap vs size.
 
 <<deletion.ranges, eval=FALSE>>=
-trace(collectAllRangesOfSize, browser)
-deletionRanges <- collectAllRangesOfSize(SIZE=5,
+deletion.ranges <- collectAllRangesOfSize(SIZE=5,
 					 bsSet=bsSet,
 					 minDistanceSet=minDistanceSet,
 					 MIN=1, MAX=4,
 					 lambda=0.1)
-deletionRanges <- deletionRanges[!noCentromere.overlap, ]
-##homozygous (?) sum(deletionRanges$pHet > 0.05 & deletionRanges$seg.mean > 0.5)
-deletionRanges <- deletionRanges[deletionRanges$pHet < 0.05 | deletionRanges$seg.mean > 0.5, ]
+deletion.ranges <- deletion.ranges[deletion.ranges$noCentromere.overlap, ]
+##homozygous (?) sum(deletion.ranges$pHet > 0.05 & deletion.ranges$seg.mean > 0.5)
+deletion.ranges <- deletion.ranges[deletion.ranges$pHet < 0.05 | ( deletion.ranges$seg.mean > 1 & deletion.ranges$num.mark > 15), ]
+index <- which(deletion.ranges$pHet > 0.05 & deletion.ranges$seg.mean > 1)
+par(las=1, mar=c(0.5, 6, 0.5 , 0.5), oma=c(2, 0.5, 4, 1))
+layout(matrix(1:2, 2, 1), heights=c(1, 0.2))
+featureData(minDistanceSet) <- featureData(bsSet)
+for(i in index[1:10]){
+	mset <- constructTrioSetFromRanges(deletion.ranges[i, ], minDistanceSet,
+					   bsSet, FRAME=1e6)
+	CHR <- unique(chromosome(mset))
+        ranges.md <- minDistanceRanges[minDistanceRanges$chrom == CHR, ]
+	if(exists("cbs.segs")){
+		if(CHR != unique(cbs.segs$chrom))
+			load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
+	}
+	familyid <- family(cbs.segs)
+	cbs.segs2 <- cbs.segs[familyid %in% sampleNames(mset), ]
+	layout(matrix(1:7, 7,1, byrow=TRUE), heights=rep(1,7))
+	par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+	plotSegs(index=i,
+		 ranges1=deletion.ranges,
+		 ranges.md=ranges.md,
+		 ranges2=cbs.segs2,
+		 mset=mset)
+}
+@
+
+<<>>=
 FRAME.SHIFT <- 200e3
 MIN.SIZE <- 10  ## require at least 5 markers in the other trios
 ranges.md <- deletion.ranges
@@ -37,9 +62,10 @@ deletion.ranges$others <- NA
 chrom <- unique(deletion.ranges$chrom)
 for(i in seq_along(chrom)){
 	CHR <- chrom[i]
-	cat(CHR, "\n")
+	cat("Chr ", CHR, "\n")
 	chr.range <- deletion.ranges[deletion.ranges$chrom == CHR, ]
-	segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+	##segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+	load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
 	ranges2 <- deletion.ranges[deletion.ranges$chrom == CHR, ]
 	##Look for all ranges that have a denovo event in the region
 	query.ir <- IRanges(start(chr.range) - FRAME.SHIFT,
@@ -60,16 +86,14 @@ for(i in seq_along(chrom)){
 	index <- which(deletion.ranges$chrom==CHR)
 	deletion.ranges$others[index] <- tmp
 }
-##tmp <- unlist(lapply(matching.subjects, function(x) paste(x, collapse=", ")))
-##tmp[tmp=="NA"] <- NA
 matching.subjects <- deletion.ranges$others
 ms <- lapply(matching.subjects, function(x) strsplit(x, ", ")[[1]])
 ##n.overlap <- sapply(matching.subjects, length)
 n.overlap <- sapply(ms, length)
-n.overlap[is.na(tmp)] <- 0
+n.overlap[is.na(ms) | ms == "NA"] <- 0
 ##deletion.ranges$others <- tmp
 deletion.ranges$n.overlap <- n.overlap
-save(deletion.ranges, file="deletion.ranges.rda")
+save(deletion.ranges, file="~/projects2/BeatyExperimentData/data/deletion.ranges.rda")
 @
 
 <<figForR03grant>>=
@@ -89,26 +113,21 @@ dev.off()
 @
 
 <<ingoSuggest>>=
-load("deletion.ranges.rda")
-##plot the genomic position vs sample index for the frequently deleted ranges.
-## try chr 22 first
-## high frequency, but maybe not huge
+data("deletion.ranges")
 CHR <- deletion.ranges$chrom[deletion.ranges$n.overlap >= 15 & deletion.ranges$num.mark > 25]
-## huge, but maybe not high frequency
 CHR <- c(CHR, deletion.ranges$chrom[deletion.ranges$n.overlap >= 1 & deletion.ranges$num.mark > 250])
 CHR <- unique(CHR)[order(unique(CHR))]
-
-tmp <- deletion.ranges[deletion.ranges$n.overlap >= 1 & deletion.ranges$num.mark > 250, ]
-##trace(plotCytobandWithRanges, browser)
-pdf("chromosomeRanges%02d.pdf", width=8, height=8, onefile=FALSE)
+pdf("chromosomeRanges_v2%02d.pdf", width=8, height=8, onefile=FALSE)
 par(las=1, mar=c(0.5, 6, 0.5 , 0.5), oma=c(2, 0.5, 4, 1))
 layout(matrix(1:2, 2, 1), heights=c(1, 0.2))
 for(i in seq_along(CHR)){
 	j <- CHR[i]
+	cat("Chr ", j, "\n")
 ##	trace(plotCytobandWithRanges, browser)
 	if(j==5){
 		coords <- plotCytobandWithRanges(deletion.ranges, CHR=j, FRAME=1e6, xlim=c(68*1e6, 72*1e6))
 	} else{
+##		trace(plotCytobandWithRanges, browser)
 		coords <- plotCytobandWithRanges(deletion.ranges, CHR=j, FRAME=1e6)
 	}
 	labels <- pretty(coords$xlim/1e6, n=8)

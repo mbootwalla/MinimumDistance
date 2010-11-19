@@ -44,8 +44,9 @@ minDistanceRanges <- RangedData(IRanges(start(tmp), end(tmp)),
 				chrom=tmp$chrom,
 				num.mark=tmp$num.mark,
 				seg.mean=tmp$seg.mean)
-save(minDistanceRanges, file="~/projects2/BeatyExperimentData/data/minDistanceRanges.rda")
 @
+
+
 
 
 

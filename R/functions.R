@@ -321,11 +321,6 @@ constructTrioSetFromRanges <- function(ranges1, ## top hit ranges
 		CHR <- ranges1$chrom[i]
 		chrAnn <- chromosomeAnnotation[CHR, ]
 		this.range <- ranges1[i, ]
-##		ranges1 <- ranges1[ranges1$id %in% this.range$id, ]
-##		ranges2 <- ranges2[ranges2$family %in% this.range$family, ]
-##		ranges2$seg.mean[ranges2$seg.mean < ylim[1]] <- ylim[1]
-##		ranges2$seg.mean[ranges2$seg.mean > ylim[2]] <- ylim[2]
-		## goal is to have the feature cover approx 5% of the plot
 		if(missing(xlim)){
 			if(missing(FRAME)){
 				w <- width(this.range)
@@ -336,11 +331,8 @@ constructTrioSetFromRanges <- function(ranges1, ## top hit ranges
 			marker.index[[i]] <- which(position(minDistanceSet) >= min(xlim) & position(minDistanceSet) <= max(xlim) & chromosome(minDistanceSet)==CHR)
 		}
 	}
-##	ls <- sapply(marker.index, length)
-##	regions <- rep(1:length(ls), ls)
 	marker.index <- unique(unlist(marker.index))
 	marker.index <- marker.index[order(marker.index)]
-	## sample indices
 	if(missing(id)){
 		sample.index <- list()
 		for(i in 1:nrow(ranges1)){
@@ -352,11 +344,7 @@ constructTrioSetFromRanges <- function(ranges1, ## top hit ranges
 	}
 	J <- sample.index
 	I <- marker.index
-
-	##J <- match(sampleNames(minDistanceSet), sampleNames(bsSet))
-	##I <- which(chromosome(minDistanceSet) == CHR)
 	stopifnot(identical(featureNames(minDistanceSet)[I], featureNames(bsSet)[I]))
-	##sample.names <- substr(sampleNames(minDistanceSet), 1, 5)
 	if(missing(id)){
 		sample.names <- unique(substr(ranges1$id, 1, 5))
 	} else sample.names <- substr(id, 1, 5)
@@ -365,9 +353,6 @@ constructTrioSetFromRanges <- function(ranges1, ## top hit ranges
 	father.index <- match(father.names, sampleNames(bsSet))
 	mother.index <- match(mother.names, sampleNames(bsSet))
 	offspr.index <- match(paste(sample.names, "01", sep="_"), sampleNames(bsSet))
-	##offspr.index <- match(unique(ranges1$id), sampleNames(bsSet))
-	##offspr.index <- match(sampleNames(minDistanceSet),sampleNames(bsSet))
-
 	logR.F <- as.matrix(logR(bsSet)[I, father.index])
 	logR.M <- as.matrix(logR(bsSet)[I, mother.index])
 	logR.O <- as.matrix(logR(bsSet)[I, offspr.index])
@@ -378,11 +363,9 @@ constructTrioSetFromRanges <- function(ranges1, ## top hit ranges
 	colnames(baf.F) <- colnames(baf.M) <- colnames(baf.O) <- sample.names
 	phenoD <- phenoData(bsSet)[offspr.index, ]
 	sampleNames(phenoD) <- sample.names
-
 	offspr.index <- match(paste(sample.names, "01", sep="_"), sampleNames(minDistanceSet))
 	mindist <- as.matrix(copyNumber(minDistanceSet)[I, offspr.index])
 	colnames(mindist) <- sample.names
-	##mads <- apply(mindist, 2, mad, na.rm=TRUE)
 	mset <- new("MultiSet",
 		    mindist=mindist,
 		    logR.F=logR.F,
@@ -393,11 +376,9 @@ constructTrioSetFromRanges <- function(ranges1, ## top hit ranges
 		    baf.O=baf.O,
 		    phenoData=phenoD,
 		    featureData=featureData(bsSet)[I, ])
-	index <- match(sampleNames(mset), sampleNames(bsSet))
+	index <- match(ranges1$id, sampleNames(bsSet))
 	mset$mad <- bsSet$MAD[index]
-	##mset$mad <- mads
 	rm(logR.F, logR.M, logR.O, baf.F, baf.M, baf.O, mindist); gc()
-	##mset$mad <- mads
 	return(mset)
 }
 
@@ -501,54 +482,3 @@ filterCommonRegion <- function(deletion.ranges, CHR, FRAME=1e6){
 	return(list(deletion.22, position.22))
 }
 
-plotCytobandWithRanges <- function(deletion.ranges, CHR, xlim, FRAME=1e6, ...){
-	deletion.22 <- deletion.ranges[deletion.ranges$chrom == CHR, ]
-	nn <- deletion.22$n.overlap
-	index <- which(deletion.22$n.overlap == max(nn))
-	##samples.22 <- strsplit(deletion.22$others[index], ", ")[[1]]
-	samples.22 <- unique(as.character(sapply(deletion.22$others[index], function(x) strsplit(x, ", ")[[1]])))
-	index.case <- deletion.22$id[index]
-	samples.22 <- unique(c(index.case, samples.22))
-	samples.22 <- samples.22[samples.22 != "NA"]
-	deletion.22 <- deletion.22[deletion.22$id %in% samples.22, ]
-##	deletion.22 <- deletion.22[!is.na(deletion.22$others), ]
-	others <- unique(unlist(sapply(deletion.22$others, function(x) strsplit(x, ", ")[[1]])))
-	others <- others[others != "NA"]
-	##index <- which(deletion.ranges$
-	deletion.22 <- deletion.22[deletion.22$id %in% others, ]
-	##deletion.22 <- deletion.22[deletion.22$others != "NA", ]
-	samples.22 <- unique(deletion.22$id)
-	## if samples has just one overlap, see if its within 200kb of the sample with most overlap
-	position.22 <- c(min(start(deletion.22)), max(end(deletion.22)))
-	if(missing(xlim)){
-		xlim <- c(min(position.22) -FRAME,
-			  max(position.22) +FRAME)
-	}
-##	cyto.coords <-
-##	plotCytoband(CHR, label.cytoband=FALSE, cytoband.ycoords=c(0, 0.1), xlim=xlim,
-##		     ylim=c(0,length(samples.22)+0.5))
-	plot(0:1, 0:1, xlim=xlim,ylim=c(0.5, length(samples.22)+0.5),
-	     type="n", xlab="", ylab="", yaxt="n", xaxt="n")
-	ii <- seq(0.15, 1, by=(1-0.15)/length(samples.22))
-	h <- 0.3
-	for(i in seq_along(samples.22)){
-		this.range <- deletion.22[deletion.22$id == samples.22[i], ]
-		## for each row of this subject, draw a polygon.
-		for(j in 1:nrow(this.range)){
-			x <- c(start(this.range)[j],end(this.range)[j])
-			xx <- c(x, rev(x))
-			y <- c(i-h, i-h, i+h, i+h)
-			polygon(xx, y, col="grey60")
-##			text(max(xx), mean(y), labels=paste("n =", this.range$num.mark[j]), col="blue")
-			if(nrow(this.range) == 1)
-				text(xlim[2], mean(y), labels=this.range$num.mark[j], col="grey30", cex=0.6, adj=1)
-		}
-		if(nrow(this.range) > 1){
-			text(xlim[2], mean(y), labels=median(this.range$num.mark), adj=1, cex=0.6, col="grey30")
-		}
-	}
-	axis(2, at=seq_along(samples.22), labels=samples.22, cex.axis=0.6, adj=0)
-##	abline(v=position.22, col="blue", lwd=2, lty=2)
-	text(0, mean(position.22), paste(diff(position.22)/1e3, "kb"))
-	return(list(xlim=xlim, v=position.22))
-}

@@ -14,6 +14,7 @@ collate: AllClasses.R
 	 methods-CNSet.R
 	 methods-MultiSet.R
 	 methods-GRanges.R
+	 methods-RangedData.R
 	 functions.R
 	 utils.R	 
 	 plot-functions.R

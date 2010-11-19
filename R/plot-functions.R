@@ -491,7 +491,6 @@ plotRangeWrapper2 <- function(i, chrSet, Ranges, segmeans, FRAME, K,
 	NULL
 }
 
-
 plotSegs <- function(index, ranges1, ranges.md, ranges2, mset, FRAME, strict=FALSE, ylim=c(-1.5, 0.5), ...){
 	require(SNPchip)
 	data(chromosomeAnnotation)
@@ -503,7 +502,7 @@ plotSegs <- function(index, ranges1, ranges.md, ranges2, mset, FRAME, strict=FAL
 	chrAnn <- chromosomeAnnotation[CHR, ]
 	this.range <- ranges1[index, ]
 	ranges1 <- ranges1[ranges1$id %in% this.range$id, ]
-	ranges2 <- ranges2[ranges2$family %in% this.range$family, ]
+	ranges2 <- ranges2[family(ranges2) %in% family(this.range), ]
 	ranges2$seg.mean[ranges2$seg.mean < ylim[1]] <- ylim[1]
 	ranges2$seg.mean[ranges2$seg.mean > ylim[2]] <- ylim[2]
 	## goal is to have the feature cover approx 5% of the plot
@@ -684,3 +683,54 @@ plotRange3 <- function(sampleName,    ## names of samples to plot
 }
 
 
+plotCytobandWithRanges <- function(deletion.ranges, CHR, xlim, FRAME=1e6, ...){
+	deletion.22 <- deletion.ranges[deletion.ranges$chrom == CHR, ]
+	nn <- deletion.22$n.overlap
+	index <- which(deletion.22$n.overlap == max(nn))
+	##samples.22 <- strsplit(deletion.22$others[index], ", ")[[1]]
+	samples.22 <- unique(as.character(sapply(deletion.22$others[index], function(x) strsplit(x, ", ")[[1]])))
+	index.case <- deletion.22$id[index]
+	samples.22 <- unique(c(index.case, samples.22))
+	samples.22 <- samples.22[samples.22 != "NA"]
+	deletion.22 <- deletion.22[deletion.22$id %in% samples.22, ]
+##	deletion.22 <- deletion.22[!is.na(deletion.22$others), ]
+	others <- unique(unlist(sapply(deletion.22$others, function(x) strsplit(x, ", ")[[1]])))
+	others <- others[others != "NA"]
+	##index <- which(deletion.ranges$
+	deletion.22 <- deletion.22[deletion.22$id %in% others, ]
+	##deletion.22 <- deletion.22[deletion.22$others != "NA", ]
+	samples.22 <- unique(deletion.22$id)
+	## if samples has just one overlap, see if its within 200kb of the sample with most overlap
+	position.22 <- c(min(start(deletion.22)), max(end(deletion.22)))
+	if(missing(xlim)){
+		xlim <- c(min(position.22) -FRAME,
+			  max(position.22) +FRAME)
+	}
+##	cyto.coords <-
+##	plotCytoband(CHR, label.cytoband=FALSE, cytoband.ycoords=c(0, 0.1), xlim=xlim,
+##		     ylim=c(0,length(samples.22)+0.5))
+	plot(0:1, 0:1, xlim=xlim,ylim=c(0.5, length(samples.22)+0.5),
+	     type="n", xlab="", ylab="", yaxt="n", xaxt="n")
+	ii <- seq(0.15, 1, by=(1-0.15)/length(samples.22))
+	h <- 0.3
+	for(i in seq_along(samples.22)){
+		this.range <- deletion.22[deletion.22$id == samples.22[i], ]
+		## for each row of this subject, draw a polygon.
+		for(j in 1:nrow(this.range)){
+			x <- c(start(this.range)[j],end(this.range)[j])
+			xx <- c(x, rev(x))
+			y <- c(i-h, i-h, i+h, i+h)
+			polygon(xx, y, col="grey60")
+##			text(max(xx), mean(y), labels=paste("n =", this.range$num.mark[j]), col="blue")
+			if(nrow(this.range) == 1)
+				text(xlim[2], mean(y), labels=this.range$num.mark[j], col="grey30", cex=0.6, adj=1)
+		}
+		if(nrow(this.range) > 1){
+			text(xlim[2], mean(y), labels=median(this.range$num.mark), adj=1, cex=0.6, col="grey30")
+		}
+	}
+	axis(2, at=seq_along(samples.22), labels=samples.22, cex.axis=0.6, adj=0)
+##	abline(v=position.22, col="blue", lwd=2, lty=2)
+	text(0, mean(position.22), paste(diff(position.22)/1e3, "kb"))
+	return(list(xlim=xlim, v=position.22))
+}

@@ -1,14 +1,7 @@
 #!/bin/sh
 ## PUSH
-rsync -avuzbpt -e ssh ~/projects2/Beaty/inst/scripts/*.Rnw enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/
-rsync -avuzbpt -e ssh ~/projects2/Beaty/inst/scripts/sync enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/
-rsync -avuzbpt -e ssh ~/projects2/Beaty/R/ enigma2.jhsph.edu:~/projects2/Beaty/R
-rsync -avuzbpt -e ssh ~/projects2/Beaty/inst/scripts/Makefile enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/
-rsync -avuzbpt -e ssh ~/projects2/Beaty/inst/scripts/*.R enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/
-rsync -avuzbpt -e ssh ~/projects2/Beaty/NAMESPACE enigma2.jhsph.edu:~/projects2/Beaty/
-rsync -avuzbpt -e ssh ~/projects2/Beaty/inst/extdata/snp*.csv enigma2.jhsph.edu:~/projects2/Beaty/inst/extdata
+rsync -avuzbpt --exclude '.git*' --exclude 'figures*' --exclude 'auto*' --exclude '*~' -e ssh ~/projects2/Beaty/ enigma2.jhsph.edu:~/projects2/Beaty
 
 ## PULL
-rsync -avuzbpt -e ssh enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/Beaty*.pdf ~/projects2/Beaty/inst/scripts/
-##rsync -avuzbpt -e ssh enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/Beaty-*.pdf ~/projects2/Beaty/inst/scripts/
-##rsync -avuzbpt -e ssh enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/denovoregions_*.pdf ~/projects2/Beaty/inst/scripts/
+rsync -avuzbpt -e ssh enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/figures/*.pdf ~/projects2/Beaty/inst/scripts/figures/
+

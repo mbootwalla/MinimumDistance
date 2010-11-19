@@ -35,3 +35,6 @@ setAs("MultiSet", "LogRatioSet",
 		  featureData=featureData(bsSet),
 		  annotation=annotation(bsSet))
       })
+
+
+setMethod("family", "eSet", function(object) substr(sampleNames(object), 1, 5))
