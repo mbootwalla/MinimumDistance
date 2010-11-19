@@ -683,22 +683,18 @@ plotRange3 <- function(sampleName,    ## names of samples to plot
 }
 
 
-plotCytobandWithRanges <- function(deletion.ranges, CHR, xlim, FRAME=1e6, ...){
+plotCytobandWithRanges <- function(deletion.ranges, CHR, xlim, FRAME=1e6, ylab.colid,  ...){
 	deletion.22 <- deletion.ranges[deletion.ranges$chrom == CHR, ]
 	nn <- deletion.22$n.overlap
 	index <- which(deletion.22$n.overlap == max(nn))
-	##samples.22 <- strsplit(deletion.22$others[index], ", ")[[1]]
 	samples.22 <- unique(as.character(sapply(deletion.22$others[index], function(x) strsplit(x, ", ")[[1]])))
 	index.case <- deletion.22$id[index]
 	samples.22 <- unique(c(index.case, samples.22))
 	samples.22 <- samples.22[samples.22 != "NA"]
 	deletion.22 <- deletion.22[deletion.22$id %in% samples.22, ]
-##	deletion.22 <- deletion.22[!is.na(deletion.22$others), ]
 	others <- unique(unlist(sapply(deletion.22$others, function(x) strsplit(x, ", ")[[1]])))
 	others <- others[others != "NA"]
-	##index <- which(deletion.ranges$
 	deletion.22 <- deletion.22[deletion.22$id %in% others, ]
-	##deletion.22 <- deletion.22[deletion.22$others != "NA", ]
 	samples.22 <- unique(deletion.22$id)
 	## if samples has just one overlap, see if its within 200kb of the sample with most overlap
 	position.22 <- c(min(start(deletion.22)), max(end(deletion.22)))
@@ -706,9 +702,6 @@ plotCytobandWithRanges <- function(deletion.ranges, CHR, xlim, FRAME=1e6, ...){
 		xlim <- c(min(position.22) -FRAME,
 			  max(position.22) +FRAME)
 	}
-##	cyto.coords <-
-##	plotCytoband(CHR, label.cytoband=FALSE, cytoband.ycoords=c(0, 0.1), xlim=xlim,
-##		     ylim=c(0,length(samples.22)+0.5))
 	plot(0:1, 0:1, xlim=xlim,ylim=c(0.5, length(samples.22)+0.5),
 	     type="n", xlab="", ylab="", yaxt="n", xaxt="n")
 	ii <- seq(0.15, 1, by=(1-0.15)/length(samples.22))
@@ -721,7 +714,6 @@ plotCytobandWithRanges <- function(deletion.ranges, CHR, xlim, FRAME=1e6, ...){
 			xx <- c(x, rev(x))
 			y <- c(i-h, i-h, i+h, i+h)
 			polygon(xx, y, col="grey60")
-##			text(max(xx), mean(y), labels=paste("n =", this.range$num.mark[j]), col="blue")
 			if(nrow(this.range) == 1)
 				text(xlim[2], mean(y), labels=this.range$num.mark[j], col="grey30", cex=0.6, adj=1)
 		}
@@ -730,7 +722,6 @@ plotCytobandWithRanges <- function(deletion.ranges, CHR, xlim, FRAME=1e6, ...){
 		}
 	}
 	axis(2, at=seq_along(samples.22), labels=samples.22, cex.axis=0.6, adj=0)
-##	abline(v=position.22, col="blue", lwd=2, lty=2)
 	text(0, mean(position.22), paste(diff(position.22)/1e3, "kb"))
-	return(list(xlim=xlim, v=position.22))
+	return(list(xlim=xlim, v=position.22, samplesPlotted=samples.22))
 }

@@ -3,6 +3,9 @@ library(Beaty)
 data(bsSet)
 data(minDistanceSet)
 data(minDistanceRanges)
+data(deletion.ranges)
+ldPath(beadstudiodir())
+featureData(minDistanceSet) <- featureData(bsSet)
 @
 
 <<rangesForMinDistance>>=
@@ -11,20 +14,9 @@ open(baf(bsSet))
 open(logR(bsSet))
 @
 
-For each range, look for other trios that might overlap.  Look in a
-window of +/- FRAME.SHIFT of the original hit.
+Some of the regions with a lot of apparent Hets look real.
 
-Plot the number of subjects with overlap vs size.
-
-<<deletion.ranges, eval=FALSE>>=
-deletion.ranges <- collectAllRangesOfSize(SIZE=5,
-					 bsSet=bsSet,
-					 minDistanceSet=minDistanceSet,
-					 MIN=1, MAX=4,
-					 lambda=0.1)
-deletion.ranges <- deletion.ranges[deletion.ranges$noCentromere.overlap, ]
-##homozygous (?) sum(deletion.ranges$pHet > 0.05 & deletion.ranges$seg.mean > 0.5)
-deletion.ranges <- deletion.ranges[deletion.ranges$pHet < 0.05 | ( deletion.ranges$seg.mean > 1 & deletion.ranges$num.mark > 15), ]
+<<plotsOfHetRichRegions>>=
 index <- which(deletion.ranges$pHet > 0.05 & deletion.ranges$seg.mean > 1)
 par(las=1, mar=c(0.5, 6, 0.5 , 0.5), oma=c(2, 0.5, 4, 1))
 layout(matrix(1:2, 2, 1), heights=c(1, 0.2))
@@ -50,54 +42,8 @@ for(i in index[1:10]){
 }
 @
 
-<<>>=
-FRAME.SHIFT <- 200e3
-MIN.SIZE <- 10  ## require at least 5 markers in the other trios
-ranges.md <- deletion.ranges
-deletion.ranges <- deletion.ranges[deletion.ranges$is.deletion, ]
-deletion.ranges <- deletion.ranges[order(deletion.ranges$num.mark, decreasing=T), ]
-deletion.ranges <- deletion.ranges[deletion.ranges$num.mark >= MIN.SIZE, ]
-deletion.ranges <- deletion.ranges[order(deletion.ranges$chrom), ]
-deletion.ranges$others <- NA
-chrom <- unique(deletion.ranges$chrom)
-for(i in seq_along(chrom)){
-	CHR <- chrom[i]
-	cat("Chr ", CHR, "\n")
-	chr.range <- deletion.ranges[deletion.ranges$chrom == CHR, ]
-	##segmean_ranges <- getSegMeans(outdir, CHR=CHR)
-	load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
-	ranges2 <- deletion.ranges[deletion.ranges$chrom == CHR, ]
-	##Look for all ranges that have a denovo event in the region
-	query.ir <- IRanges(start(chr.range) - FRAME.SHIFT,
-			    end(chr.range) + FRAME.SHIFT)
-	matching.subjects <- list()
-	for(j in 1:nrow(chr.range)){
-		## subjects -- all subjects except for the index case
-		ranges3 <- ranges2[ranges2$id != chr.range$id[j], ]
-		subj.ir <- IRanges(start(ranges3), end(ranges3))
-		tmp <- matchMatrix(findOverlaps(query.ir[j, ], subj.ir))
-		if(nrow(tmp) == 0) {
-			matching.subjects[[j]] <- NA
-		} else{
-			matching.subjects[[j]] <- unique(ranges3$id[tmp[, 2]])
-		}
-	}
-	tmp <- unlist(lapply(matching.subjects, function(x) paste(x, collapse=", ")))
-	index <- which(deletion.ranges$chrom==CHR)
-	deletion.ranges$others[index] <- tmp
-}
-matching.subjects <- deletion.ranges$others
-ms <- lapply(matching.subjects, function(x) strsplit(x, ", ")[[1]])
-##n.overlap <- sapply(matching.subjects, length)
-n.overlap <- sapply(ms, length)
-n.overlap[is.na(ms) | ms == "NA"] <- 0
-##deletion.ranges$others <- tmp
-deletion.ranges$n.overlap <- n.overlap
-save(deletion.ranges, file="~/projects2/BeatyExperimentData/data/deletion.ranges.rda")
-@
 
-<<figForR03grant>>=
-load("deletion.ranges.rda")
+<<figForIngosR03grant>>=
 library(RColorBrewer)
 cols <- brewer.pal(8, "Set3")[2]
 pdf("denovoSizes.pdf", width=8, height=6)
@@ -112,7 +58,78 @@ axis(1, at=log(c(5000, 10e3, 50e3, 100e3, 500e3,##500kb
 dev.off()
 @
 
-<<ingoSuggest>>=
+
+<<annotation>>=
+idmap <- read.csv("~/projects2/Beaty/inst/extdata/gwas_to_local_id.csv", stringsAsFactors=FALSE)
+idmap <- idmap[idmap$cidr_name %in% deletion.ranges$id, ]
+index <- match(deletion.ranges$id, idmap$cidr_name)
+idmap <- idmap[index, ]
+stopifnot(identical(idmap$cidr_name, deletion.ranges$id))
+deletion.ranges$local_id <- idmap$local_id2
+@
+
+<<chr22plot>>=
+pdf("chr22
+par(las=1, mar=c(0.5, 5, 0.5 , 0.5), oma=c(2, 0.5, 4, 1))
+j <- 22
+del22 <- deletion.ranges[deletion.ranges$chrom == j, ]
+coords <- plotCytobandWithRanges(del22, CHR=j, FRAME=1e6)
+labels <- pretty(coords$xlim/1e6, n=8)
+axis(3, at=labels*1e6, labels=labels, cex.axis=0.7)
+plotCytoband(j, label.cytoband=FALSE, cytoband.ycoords=c(0.5, 1.2))
+v <- coords$v
+abline(v=v, col="blue", lty=2)
+mtext(paste("Chr ", j), side=3,outer=TRUE, line=2)
+@
+
+<<lowlevelChr22>>=
+pdf("figures/lowlevelChr22.pdf", width=8, height=7)
+CHR <- 22
+index <- which(deletion.ranges$chrom == 22 & deletion.ranges$num.mark > 300)[2:7]
+par(las=1, mar=c(0.5, 6, 0.5 , 0.5), oma=c(2, 0.5, 4, 1))
+layout(matrix(1:4, 4, 1), heights=rep(1,4))
+featureData(minDistanceSet) <- featureData(bsSet)
+for(i in index){
+	mset <- constructTrioSetFromRanges(deletion.ranges[i, ], minDistanceSet,
+					   bsSet, FRAME=1e6)
+	CHR <- unique(chromosome(mset))
+        ranges.md <- minDistanceRanges[minDistanceRanges$chrom == CHR, ]
+	if(exists("cbs.segs")){
+		if(CHR != unique(cbs.segs$chrom))
+			load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
+	} else 	load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
+	familyid <- family(cbs.segs)
+	cbs.segs2 <- cbs.segs[familyid %in% sampleNames(mset), ]
+	layout(matrix(1:7, 7,1, byrow=TRUE), heights=rep(1,7))
+	par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+	plotSegs(index=i,
+		 ranges1=deletion.ranges,
+		 ranges.md=ranges.md,
+		 ranges2=cbs.segs2,
+		 mset=mset)
+}
+dev.off()
+
+del22 <- deletion.ranges[deletion.ranges$chrom == 22, ]
+samples.plotted <- coords$samplesPlotted
+indices <- list()
+for(i in seq_along(samples.plotted)){
+	indices[[i]] <- grep(samples.plotted[i], del22$id)
+}
+index <- unlist(indices)
+del22 <- del22[index, ]
+del22.df <- as.data.frame(del22)
+del22.df <- del22.df[, -match("others", colnames(del22.df))]
+del22.df <- del22.df[, -c(1, 8:10)]
+del22.df <- del22.df[, -7]
+write.table(del22.df, file="chr22denovo.txt", sep="\t", col.names=T, quote=F, row.names=F)
+@
+
+<<chr22table>>=
+
+@
+
+<<PolygonsOfRegions>>=
 data("deletion.ranges")
 CHR <- deletion.ranges$chrom[deletion.ranges$n.overlap >= 15 & deletion.ranges$num.mark > 25]
 CHR <- c(CHR, deletion.ranges$chrom[deletion.ranges$n.overlap >= 1 & deletion.ranges$num.mark > 250])
@@ -139,6 +156,7 @@ for(i in seq_along(CHR)){
 }
 dev.off()
 @
+
 
 <<chr16plots>>=
 load("deletion.ranges.rda")

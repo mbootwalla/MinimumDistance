@@ -4,4 +4,5 @@ rsync -avuzbpt --exclude '.git*' --exclude 'figures*' --exclude 'auto*' --exclud
 
 ## PULL
 rsync -avuzbpt -e ssh enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/figures/*.pdf ~/projects2/Beaty/inst/scripts/figures/
+rsync -avuzbpt -e ssh enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/*.txt ~/projects2/Beaty/inst/scripts/
 
