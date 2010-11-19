@@ -1,3 +1,4 @@
+
 <<>>=
 library(Beaty)
 data(bsSet)
@@ -58,76 +59,6 @@ axis(1, at=log(c(5000, 10e3, 50e3, 100e3, 500e3,##500kb
 dev.off()
 @
 
-
-<<annotation>>=
-idmap <- read.csv("~/projects2/Beaty/inst/extdata/gwas_to_local_id.csv", stringsAsFactors=FALSE)
-idmap <- idmap[idmap$cidr_name %in% deletion.ranges$id, ]
-index <- match(deletion.ranges$id, idmap$cidr_name)
-idmap <- idmap[index, ]
-stopifnot(identical(idmap$cidr_name, deletion.ranges$id))
-deletion.ranges$local_id <- idmap$local_id2
-@
-
-<<chr22plot>>=
-pdf("chr22
-par(las=1, mar=c(0.5, 5, 0.5 , 0.5), oma=c(2, 0.5, 4, 1))
-j <- 22
-del22 <- deletion.ranges[deletion.ranges$chrom == j, ]
-coords <- plotCytobandWithRanges(del22, CHR=j, FRAME=1e6)
-labels <- pretty(coords$xlim/1e6, n=8)
-axis(3, at=labels*1e6, labels=labels, cex.axis=0.7)
-plotCytoband(j, label.cytoband=FALSE, cytoband.ycoords=c(0.5, 1.2))
-v <- coords$v
-abline(v=v, col="blue", lty=2)
-mtext(paste("Chr ", j), side=3,outer=TRUE, line=2)
-@
-
-<<lowlevelChr22>>=
-pdf("figures/lowlevelChr22.pdf", width=8, height=7)
-CHR <- 22
-index <- which(deletion.ranges$chrom == 22 & deletion.ranges$num.mark > 300)[2:7]
-par(las=1, mar=c(0.5, 6, 0.5 , 0.5), oma=c(2, 0.5, 4, 1))
-layout(matrix(1:4, 4, 1), heights=rep(1,4))
-featureData(minDistanceSet) <- featureData(bsSet)
-for(i in index){
-	mset <- constructTrioSetFromRanges(deletion.ranges[i, ], minDistanceSet,
-					   bsSet, FRAME=1e6)
-	CHR <- unique(chromosome(mset))
-        ranges.md <- minDistanceRanges[minDistanceRanges$chrom == CHR, ]
-	if(exists("cbs.segs")){
-		if(CHR != unique(cbs.segs$chrom))
-			load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
-	} else 	load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
-	familyid <- family(cbs.segs)
-	cbs.segs2 <- cbs.segs[familyid %in% sampleNames(mset), ]
-	layout(matrix(1:7, 7,1, byrow=TRUE), heights=rep(1,7))
-	par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
-	plotSegs(index=i,
-		 ranges1=deletion.ranges,
-		 ranges.md=ranges.md,
-		 ranges2=cbs.segs2,
-		 mset=mset)
-}
-dev.off()
-
-del22 <- deletion.ranges[deletion.ranges$chrom == 22, ]
-samples.plotted <- coords$samplesPlotted
-indices <- list()
-for(i in seq_along(samples.plotted)){
-	indices[[i]] <- grep(samples.plotted[i], del22$id)
-}
-index <- unlist(indices)
-del22 <- del22[index, ]
-del22.df <- as.data.frame(del22)
-del22.df <- del22.df[, -match("others", colnames(del22.df))]
-del22.df <- del22.df[, -c(1, 8:10)]
-del22.df <- del22.df[, -7]
-write.table(del22.df, file="chr22denovo.txt", sep="\t", col.names=T, quote=F, row.names=F)
-@
-
-<<chr22table>>=
-
-@
 
 <<PolygonsOfRegions>>=
 data("deletion.ranges")
