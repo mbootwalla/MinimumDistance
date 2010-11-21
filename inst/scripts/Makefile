@@ -8,7 +8,8 @@ Beaty : Beaty.Rnw
 Crlmm : Crlmm.Rnw
 	echo "Stangle(\"Crlmm.Rnw\")"| R-devel --no-save --no-restore;	
 	cat ~/bin/cluster.template | perl -pe "s/Rprog/Crlmm.R/" > Crlmm.R.sh
-	qsub -m e -r y -cwd -l fat -l mem_free=28,h_vmem=30G Crlmm.R.sh
+##	qsub -m e -r y -cwd -l fat -l mem_free=28,h_vmem=30G Crlmm.R.sh
+	qsub -m e -r y -cwd -l mem_free=28G,h_vmem=35G -q standard.q@compute-0-6 copynumber.R.sh 
 
 CbsMinDistance: CbsMinDistance.Rnw
 	echo "Stangle(\"CbsMinDistance.Rnw\")"| R-devel --no-save --no-restore;	

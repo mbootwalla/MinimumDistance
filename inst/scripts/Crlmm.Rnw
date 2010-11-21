@@ -7,7 +7,8 @@ cdfName <- "human610quadv1b"
 data(samplesheet)
 path <- "/thumper/ctsa/beaty/illumina610/Raw_Data/Released_Data/RELEASED_IDATS"
 ##crlmmVersion <- sessionInfo(package="crlmm")$otherPkgs$crlmm$Version
-outdir <- crlmmdir()
+##outdir <- crlmmdir()
+outdir <- "/scratch/temp/beaty"
 dir.create(outdir, recursive=TRUE, showWarnings=FALSE)
 ldPath(outdir)
 ocProbesets(20e3)
@@ -15,19 +16,33 @@ ocSamples(8e3)
 options("ffbatchbytes"=20e6)
 samplesheet$Sample_ID <- samplesheet$CIDR_Name
 index <- 5500:7599
-container <- checkExists("container",
-			 .path=ldPath(),
-			 .FUN=genotype.Illumina,
-			 .load.it=FALSE,
-			 ##genotype.Illumina arguments
-			 batch=as.factor(rep(1, nrow(samplesheet)))[index],
-			 arrayNames=samplesheet$filenames[index],
-			 gender=samplesheet$Gender[index],
-			 highDensity=TRUE,
-			 arrayInfoColNames=list(barcode=NULL, position="Human610.Quadv1_B.Sentrix.Position"),  ### "SentrixPosition"),
-			 cdfName=cdfName,
-			 verbose=TRUE,
-			 saveDate=TRUE)
+##		RG <- readIdatFiles(samplesheet,
+##				    path=dirname(arrayNames[1]),
+##				    arrayInfoColNames=list(barcode=NULL, position="SentrixPosition"),
+##				    saveDate=TRUE)
+##		crlmmResult <- crlmmIllumina(RG=RG,
+##					     cdfName="human370v1c",
+##					     sns=pData(RG)$ID,
+##					     returnParams=TRUE,
+##					     cnFile=file.path(outdir, "cnFile.rda"),
+##					     snpFile=file.path(outdir, "snpFile.rda"),
+##					     save.it=TRUE)
+##		protocolData(crlmmResult)$ScanDate <- protocolData(RG)$ScanDate
+##		range(protocolData(crlmmResult)$ScanDate)
+##		save(crlmmResult, file=file.path(outdir, "crlmmResult.rda"))
+##container <- checkExists("container",
+##			 .path=ldPath(),
+##			 .FUN=genotype.Illumina,
+##			 .load.it=FALSE,
+##			 ##genotype.Illumina arguments
+##			 batch=as.factor(rep(1, nrow(samplesheet)))[index],
+##			 arrayNames=samplesheet$filenames[index],
+##			 gender=samplesheet$Gender[index],
+##			 highDensity=TRUE,
+##			 arrayInfoColNames=list(barcode=NULL, position="Human610.Quadv1_B.Sentrix.Position"),  ### "SentrixPosition"),
+##			 cdfName=cdfName,
+##			 verbose=TRUE,
+##			 saveDate=TRUE)
 q("no")
 @
 

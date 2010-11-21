@@ -62,7 +62,6 @@ for(i in index){
 		 mset=mset)
 }
 dev.off()
-
 del22 <- deletion.ranges[deletion.ranges$chrom == 22, ]
 samples.plotted <- coords$samplesPlotted
 indices <- list()
@@ -76,6 +75,42 @@ del22.df <- del22.df[, -match("others", colnames(del22.df))]
 del22.df <- del22.df[, -c(1, 8:10)]
 del22.df <- del22.df[, -7]
 write.table(del22.df, file="chr22denovo.txt", sep="\t", col.names=T, quote=F, row.names=F)
+@
+
+Plot the low-level data for the smaller regions on chr22.
+
+<<>>=
+pdf("figures/lowlevelChr22.pdf", width=8, height=7)
+CHR <- 22
+index <- which(deletion.ranges$chrom == 22 & deletion.ranges$num.mark > 300)[2:7]
+par(las=1, mar=c(0.5, 6, 0.5 , 0.5), oma=c(2, 0.5, 4, 1))
+layout(matrix(1:4, 4, 1), heights=rep(1,4))
+featureData(minDistanceSet) <- featureData(bsSet)
+for(i in index){
+	mset <- constructTrioSetFromRanges(deletion.ranges[i, ], minDistanceSet,
+					   bsSet, FRAME=1e6)
+	CHR <- unique(chromosome(mset))
+        ranges.md <- minDistanceRanges[minDistanceRanges$chrom == CHR, ]
+	if(exists("cbs.segs")){
+		if(CHR != unique(cbs.segs$chrom))
+			load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
+	} else 	load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
+	familyid <- family(cbs.segs)
+	cbs.segs2 <- cbs.segs[familyid %in% sampleNames(mset), ]
+	layout(matrix(1:7, 7,1, byrow=TRUE), heights=rep(1,7))
+	par(mar=c(0.5, 0.5, 0.5, 0.5), las=1, oma=c(4, 4, 4, 4))
+	plotSegs(index=i,
+		 ranges1=deletion.ranges,
+		 ranges.md=ranges.md,
+		 ranges2=cbs.segs2,
+		 mset=mset)
+}
+dev.off()
+@
+
+
+<<>>=
+
 @
 
 
