@@ -9,7 +9,13 @@ Crlmm : Crlmm.Rnw
 	echo "Stangle(\"Crlmm.Rnw\")"| R-devel --no-save --no-restore;	
 	cat ~/bin/cluster.template | perl -pe "s/Rprog/Crlmm.R/" > Crlmm.R.sh
 ##	qsub -m e -r y -cwd -l fat -l mem_free=28,h_vmem=30G Crlmm.R.sh
-	qsub -m e -r y -cwd -l mem_free=28G,h_vmem=35G -q standard.q@compute-0-6 copynumber.R.sh 
+	qsub -m e -r y -cwd -l mem_free=28G,h_vmem=35G -q standard.q@compute-0-6 Crlmm.R.sh 
+
+testCrlmm : testCrlmm.Rnw
+	echo "Stangle(\"testCrlmm.Rnw\")"| R-devel --no-save --no-restore;	
+	cat ~/bin/cluster.template | perl -pe "s/Rprog/testCrlmm.R/" > testCrlmm.R.sh
+##	qsub -m e -r y -cwd -l fat -l mem_free=28,h_vmem=30G Crlmm.R.sh
+	qsub -m e -r y -cwd -l mem_free=28G,h_vmem=35G -q standard.q@compute-0-6 testCrlmm.R.sh 
 
 CbsMinDistance: CbsMinDistance.Rnw
 	echo "Stangle(\"CbsMinDistance.Rnw\")"| R-devel --no-save --no-restore;	
@@ -22,9 +28,9 @@ PennCNV: PennCNV.Rnw
 	qsub -m e -r y -cwd -l fat -l mem_free=5G,h_vmem=12G PennCNV.R.sh
 
 figs: figs.Rnw
-	echo "Stangle(\"figs.Rnw\")"| R-devel --no-save --no-restore;	
-	cat ~/bin/cluster.template | perl -pe "s/Rprog/figs.R/" > figs.R.sh
-	qsub -m e -r y -cwd -l fat -l mem_free=1G,h_vmem=2G figs.R.sh
+	echo "Stangle(\"PlotSelectedChromosomes.Rnw\")"| R-devel --no-save --no-restore;	
+	cat ~/bin/cluster.template | perl -pe "s/Rprog/PlotSelectedChromosomes.R/" > PlotSelectedChromosomes.R.sh
+	qsub -m e -r y -cwd -l fat -l mem_free=1G,h_vmem=2G PlotSelectedChromosomes.R.sh
 
 DenovoRanges: DenovoRangesBySize.Rnw
 	echo "Stangle(\"DenovoRangesBySize.Rnw\")"| R-devel --no-save --no-restore;	

@@ -1,11 +1,36 @@
 \SweaveInput{setup}
 
 <<penncnv>>=
-penn.joint <- checkExists("penn.joint", .path=outdir, .FUN=readPennCnv,
-			  penndir="/thumper/ctsa/beaty/holger/penncnv/trioDat", .load.it=FALSE)
+##penn.joint <- checkExists("penn.joint", .path=outdir, .FUN=readPennCnv,
+##			  penndir="/thumper/ctsa/beaty/holger/penncnv/trioDat", .load.it=FALSE)
+library(Beaty)
+library(lattice)
+library(grid)
+library(locuszoom)
+##data(bsSet)
+data(minDistanceSet)
+data(minDistanceRanges)
+data(deletion.ranges)
+ldPath(beadstudiodir())
+trace(readPennCnv, browser)
+penn.joint <- checkExists("penn.joint", .path=ldPath(), .FUN=readPennCnv, penndir="/thumper/ctsa/beaty/holger/penncnv/trioDat")
+penn.joint <- do.call("c", penn.joint)
+##tmp <- penn.joint$id %in% sampleNames(minDistanceSet)
+penn.joint <- penn.joint[penn.joint$id %in% sampleNames(minDistanceSet), ]
+penn.denovo <- penn.joint[penn.joint$triostate==332 | penn.joint$triostate==331, ]
 @
 
+Two questions.
+
+1. What is the overlap with our list?
+
+2. Are there PennCNV hits that we're missing?
+
 <<>>=
+penn.denovo <- penn.denovo[penn.denovo$nmarkers >= 5, ]
+
+
+
 ##pennJoint <- pennJoint[pennJoint$id %in% sns, ]
 gr <- freqOfDisjointRange(pennDenovo)
 (index <- which(gr$freq > 10 & gr$median.coverage > 20))

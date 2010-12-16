@@ -491,7 +491,7 @@ plotRangeWrapper2 <- function(i, chrSet, Ranges, segmeans, FRAME, K,
 	NULL
 }
 
-plotSegs <- function(index, ranges1, ranges.md, ranges2, mset, FRAME, strict=FALSE, ylim=c(-1.5, 0.5), ...){
+plotSegs <- function(index, ranges1, ranges.md, ranges2, mset, FRAME, xlim, strict=FALSE, ylim=c(-1.5, 0.5), ...){
 	require(SNPchip)
 	data(chromosomeAnnotation)
 	ranges2$id <- substr(ranges2$id, 1, 8)
@@ -506,11 +506,15 @@ plotSegs <- function(index, ranges1, ranges.md, ranges2, mset, FRAME, strict=FAL
 	ranges2$seg.mean[ranges2$seg.mean < ylim[1]] <- ylim[1]
 	ranges2$seg.mean[ranges2$seg.mean > ylim[2]] <- ylim[2]
 	## goal is to have the feature cover approx 5% of the plot
-	if(missing(FRAME)){
-		w <- width(this.range)
-		FRAME <- w/0.05  * 1/2
+	if(missing(xlim)){
+		if(missing(FRAME)){
+			w <- width(this.range)
+			FRAME <- w/0.05  * 1/2
+		}
+		i <- featuresInRange(mset, this.range, FRAME=FRAME)
+	} else{
+		i <- which(position(mset) >= xlim[1] & position(mset) <= xlim[2])
 	}
-	i <- featuresInRange(mset, this.range, FRAME=FRAME)
 	family.name <- this.range$id
 	j <- match(this.range$family, sampleNames(mset))
 	lset <- mset[i, j]
@@ -682,8 +686,29 @@ plotRange3 <- function(sampleName,    ## names of samples to plot
 	legend("bottomright", legend=who(sampleName),  bty="n", cex=0.8)
 }
 
+getGenomicAxis <- function(deletion.ranges, CHR, FRAME=1e6, xlim){
+	deletion.chr <- deletion.ranges[deletion.ranges$chrom == CHR, ]
+	nn <- deletion.chr$n.overlap
+	index <- which(deletion.chr$n.overlap == max(nn))
+	samples.chr <- unique(as.character(sapply(deletion.chr$others[index], function(x) strsplit(x, ", ")[[1]])))
+	index.case <- deletion.chr$id[index]
+	samples.chr <- unique(c(index.case, samples.chr))
+	samples.chr <- samples.chr[samples.chr != "NA"]
+	deletion.chr <- deletion.chr[deletion.chr$id %in% samples.chr, ]
+	others <- unique(unlist(sapply(deletion.chr$others, function(x) strsplit(x, ", ")[[1]])))
+	others <- others[others != "NA"]
+	deletion.chr <- deletion.chr[deletion.chr$id %in% others, ]
+	samples.chr <- unique(deletion.chr$id)
+	## if samples has just one overlap, see if its within 200kb of the sample with most overlap
+	position.chr <- c(min(start(deletion.chr)), max(end(deletion.chr)))
+	if(missing(xlim)){
+		xlim <- c(min(position.chr) -FRAME,
+			  max(position.chr) +FRAME)
+	}
+	return(xlim)
+}
 
-plotCytobandWithRanges <- function(deletion.ranges, CHR, xlim, FRAME=1e6, ylab.colid,  ...){
+plotCytobandWithRanges <- function(deletion.ranges, CHR, xlim, FRAME=1e6, ylab.colid, featureData, ...){
 	deletion.22 <- deletion.ranges[deletion.ranges$chrom == CHR, ]
 	nn <- deletion.22$n.overlap
 	index <- which(deletion.22$n.overlap == max(nn))
@@ -720,6 +745,11 @@ plotCytobandWithRanges <- function(deletion.ranges, CHR, xlim, FRAME=1e6, ylab.c
 		if(nrow(this.range) > 1){
 			text(xlim[2], mean(y), labels=median(this.range$num.mark), adj=1, cex=0.6, col="grey30")
 		}
+	}
+	if(!missing(featureData)){
+		fD <- featureData[featureData$chromosome == CHR, ]
+		fD <- fD[fD$position >= xlim[1] & fD$position <= xlim[2]]
+		rug(fD$position, side=3)
 	}
 	axis(2, at=seq_along(samples.22), labels=samples.22, cex.axis=0.6, adj=0)
 	text(0, mean(position.22), paste(diff(position.22)/1e3, "kb"))

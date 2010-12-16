@@ -8,7 +8,7 @@ data(samplesheet)
 path <- "/thumper/ctsa/beaty/illumina610/Raw_Data/Released_Data/RELEASED_IDATS"
 ##crlmmVersion <- sessionInfo(package="crlmm")$otherPkgs$crlmm$Version
 ##outdir <- crlmmdir()
-outdir <- "/scratch/temp/beaty"
+outdir <- "/scratch/temp/beaty2"
 ##outdir <- "/amber1/archive/ctsa/beaty_crlmm/devel"
 dir.create(outdir, recursive=TRUE, showWarnings=FALSE)
 ldPath(outdir)
@@ -22,41 +22,7 @@ samplesheet$Sample_ID <- samplesheet$CIDR_Name
 ##ffrowapply(A[snp.index,][i1:i2, sel] <- res[["A"]][i1:i2, ], X=res[["A"]], BATCHBYTES=bb)
 ##index <- 5500:7599
 ##ocSamples(10)
-index <- 1:2500
-##		RG <- readIdatFiles(samplesheet,
-##				    path=dirname(arrayNames[1]),
-##				    arrayInfoColNames=list(barcode=NULL, position="SentrixPosition"),
-##				    saveDate=TRUE)
-##		crlmmResult <- crlmmIllumina(RG=RG,
-##					     cdfName="human370v1c",
-##					     sns=pData(RG)$ID,
-##					     returnParams=TRUE,
-##					     cnFile=file.path(outdir, "cnFile.rda"),
-##					     snpFile=file.path(outdir, "snpFile.rda"),
-##					     save.it=TRUE)
-##		protocolData(crlmmResult)$ScanDate <- protocolData(RG)$ScanDate
-##		range(protocolData(crlmmResult)$ScanDate)
-##		save(crlmmResult, file=file.path(outdir, "crlmmResult.rda"))
-##trace(processIDAT, browser)
-##load(file.path(ldPath(), "callSet.rda"))
-##A <- A(callSet)
-##B <- B(callSet)
-##
-##tmpA <- initializeBigMatrix(initdata=0L, name="tmpA", nr=nrow(callSet), nc=ocSamples(), vmode="integer")
-##system.time(
-##for(j in 1:100){
-##	cat('.')
-##	tmpA[, j] <- as.matrix(A[, j])
-##})
-##
-##system.time(
-##	    ffrowapply(tmpA[i1:i2, ] <-  as.matrix(A[i1:i2, ]), X=A)
-##    )
-##
-##system.time(
-##	    ffcolapply(tmpA[, i1:i2] <-  as.matrix(A[, i1:i2]), X=A)
-##    )
-
+index <- 1:7599
 cnSet <- genotype.Illumina(batch=as.factor(rep(1, nrow(samplesheet)))[index],
 			   arrayNames=samplesheet$filenames[index],
 			   gender=samplesheet$Gender[index],
@@ -65,7 +31,7 @@ cnSet <- genotype.Illumina(batch=as.factor(rep(1, nrow(samplesheet)))[index],
 			   cdfName=cdfName,
 			   verbose=TRUE,
 			   saveDate=TRUE)
-
+save(cnSet, file=file.path(outdir, "cnSet.rda"))
 ##x <- matrix(c(13, 17, 26, 18, 29,
 ##	      42, 48, 57, 41, 59,
 ##	      34, 31, 36, 22, 41), nr=3, nc=5, byrow=T)

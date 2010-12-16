@@ -1,0 +1,84 @@
+<<>>=
+CHR <- 1
+save.figs <- TRUE
+Sweave("ChromosomeFigures.Rnw")
+
+CHR <- 5
+xlim <- c(68e6, 72e6)
+save.figs <- TRUE
+Sweave("ChromosomeFigures.Rnw")
+
+CHR <- 6
+xlim <- c(32e6, 33e6)
+v <- 2
+save.figs <- TRUE
+Sweave("ChromosomeFigures.Rnw")
+
+rm(xlim)
+v <- 1
+CHR <- 11
+save.figs <- TRUE
+Sweave("ChromosomeFigures.Rnw")
+
+xlim <- c(31.5e6, 33e6)
+CHR <- 16
+v <- 2
+save.figs <- TRUE
+Sweave("ChromosomeFigures.Rnw")
+
+rm(xlim)
+v <- 1
+xlim <- c(41.2e6, 43e6)
+CHR <- 17
+save.figs <- TRUE
+Sweave("ChromosomeFigures.Rnw")
+
+rm(xlim)
+CHR <- 22
+save.figs <- TRUE
+Sweave("ChromosomeFigures.Rnw")
+q('no')
+@
+
+<<table>>=
+chroms <- c(1, 5, 6, 11, 16, 17, 22)
+xlims <- matrix(c(1, 102.8, 105.2,
+		  5, 68, 72,
+		  6, 32, 33,
+		  11, 54.8, 55.6,
+		  16, 31.5, 33,
+		  17, 41, 43,
+		  22, 16,21), byrow=TRUE, ncol=3)
+xlims[, 2:3] <- xlims[, 2:3]*1e6
+
+tab <- list()
+for(i in 1:nrow(xlims)){
+	CHR <- xlims[i, 1]
+	del <- deletion.ranges[deletion.ranges$chrom == CHR, ]
+	del <- del[start(del) <= xlims[i, 3] & end(del) >= xlims[i, 2], ]
+	del.df <- as.data.frame(del)
+	del.df <- del.df[, -match("others", colnames(del.df))]
+	exclude.cols <- match(c("space", "is.deletion", "noCentromere.overlap", "n.overlap"), colnames(del.df))
+	tab[[i]] <- del.df[, -exclude.cols]
+}
+table_coords <- do.call("rbind", tab)
+write.table(table_coords, file="figures/table_coords.txt", sep="\t", col.names=T, quote=F, row.names=F)
+chrom.id <- split(table_coords$chrom, table_coords$id)
+chrom.id <- lapply(chrom.id, unique)
+chrom.id <- chrom.id[sapply(chrom.id, length) > 1]
+@
+
+<<samplesInMultipleChromosomes>>=
+pdf("figures/chrom_vs_sample.pdf", height=7, width=7)
+plot(0:10, xlim=c(0, 23), ylim=c(1, length(chrom.id)), xaxt="n", yaxt="n", type="n", ylab="family id", xlab="chromosome",
+     main="offspring with denovo deletions in multiple chromosomes")
+for(i in seq_along(chrom.id)){
+	points(chrom.id[[i]], rep(i, length(chrom.id[[i]])), pch=21)
+}
+axis(1, at=xlims[, 1], cex.axis=0.8)
+par(las=1)
+axis(2, at=1:length(chrom.id), labels=substr(names(chrom.id), 1, 5), cex.axis=0.7)
+dev.off()
+@
+
+
