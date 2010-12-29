@@ -1,9 +1,0 @@
-#!/bin/sh
-## PUSH
-rsync -avuzbpt --exclude '.git*' --exclude 'figures*' --exclude 'auto*' --exclude '*~' -e ssh ~/projects2/Beaty/ enigma2.jhsph.edu:~/projects2/Beaty
-
-## PULL
-rsync -avuzbpt -e ssh enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/figures/*.pdf ~/projects2/Beaty/inst/scripts/figures/
-rsync -avuzbpt -e ssh enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/figures/*.png ~/projects2/Beaty/inst/scripts/figures/
-rsync -avuzbpt -e ssh enigma2.jhsph.edu:~/projects2/Beaty/inst/scripts/figures/*.txt ~/projects2/Beaty/inst/scripts/figures/
-

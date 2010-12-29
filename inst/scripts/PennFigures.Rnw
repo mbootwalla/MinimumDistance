@@ -1,0 +1,38 @@
+## which chromosomes to plot
+<<>>=
+library(BeatyExperimentData)
+library(lattice)
+library(grid)
+library(locuszoom)
+data(bsSet)
+data(penn.ranges)
+open(baf(bsSet))
+open(logR(bsSet))
+open(bsSet$MAD)
+data(jugessur)
+@
+
+
+<<>>=
+penn.ranges <- getLocalId(penn.ranges)
+@
+
+<<>>=
+rd <- penn.ranges[penn.ranges$num.mark >= 10, ]
+rd$n.overlap <- as.integer(sapply(rd$others, function(x) length(strsplit(x, ", ")[[1]])))
+##
+rd <- penn.ranges[noverlap >= 5, ]
+chrom <- unique(rd$chrom)
+chrom <- chrom[order(chrom)]
+@
+
+<<>>=
+for(i in seq_along(chrom)){
+	CHR <- chrom[i]
+	trace(getGenomicAxis, browser)
+	xlim <- getGenomicAxis(rd, CHR=CHR, FRAME=1e6)
+	if(diff(xlim) > 5e6){
+
+
+	}
+@

@@ -21,10 +21,6 @@ save(minDistanceSet, file=file.path(ldPath(), "minDistanceSet.rda"))
 @
 
 <<replacemethod>>=
-setReplaceMethod("copyNumber", signature(object="CopyNumberSet",
-					 value="ff_matrix"), function(object, value){
-						 assayDataElementReplace(object, "copyNumber", value)
-					 })
 minDistanceSet <- checkExists("minDistanceSet", .path=ldPath(), .FUN=load)
 @
 

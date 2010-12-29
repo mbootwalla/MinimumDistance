@@ -12,6 +12,7 @@ Imports: mybase
 collate: AllClasses.R
 	 AllGenerics.R
 	 methods-CNSet.R
+	 methods-CopyNumberSet.R
 	 methods-MultiSet.R
 	 methods-GRanges.R
 	 methods-RangedData.R
