@@ -1,4 +1,28 @@
 <<>>=
+library(Beaty)
+library(lattice)
+library(grid)
+library(locuszoom)
+data(bsSet)
+data(minDistanceSet)
+data(minDistanceRanges)
+data(deletion.ranges)
+ldPath(beadstudiodir())
+featureData(minDistanceSet) <- featureData(bsSet)
+open(copyNumber(minDistanceSet))
+open(baf(bsSet))
+open(logR(bsSet))
+open(minDistanceSet$MAD)
+open(bsSet$MAD)
+data(jugessur)
+@
+
+
+<<annotation>>=
+deletion.ranges <- getLocalId(deletion.ranges)
+@
+
+<<>>=
 CHR <- 1
 save.figs <- TRUE
 Sweave("ChromosomeFigures.Rnw")
@@ -11,6 +35,11 @@ Sweave("ChromosomeFigures.Rnw")
 CHR <- 6
 xlim <- c(32e6, 33e6)
 v <- 2
+save.figs <- TRUE
+Sweave("ChromosomeFigures.Rnw")
+
+CHR <- 8
+v <- 1
 save.figs <- TRUE
 Sweave("ChromosomeFigures.Rnw")
 

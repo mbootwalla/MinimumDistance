@@ -482,3 +482,17 @@ filterCommonRegion <- function(deletion.ranges, CHR, FRAME=1e6){
 	return(list(deletion.22, position.22))
 }
 
+getLocalId <- function(rd.object){
+	idmap <- read.csv("~/projects2/Beaty/inst/extdata/gwas_to_local_id.csv", stringsAsFactors=FALSE)
+	idmap <- idmap[idmap$cidr_name %in% rd.object$id, ]
+	if(any(!rd.object$id %in% idmap$cidr_name)){
+		print("The following ids in rd.object are not in the gwas_to_local_id file:")
+		print(unique(rd.object$id[!rd.object$id %in% idmap$cidr_name]))
+		rd.object <- rd.object[rd.object$id %in% idmap$cidr_name, ]
+	}
+	index <- match(rd.object$id, idmap$cidr_name)
+	idmap <- idmap[index, ]
+	stopifnot(identical(idmap$cidr_name, rd.object$id))
+	rd.object$local_id <- idmap$local_id2
+	return(rd.object)
+}

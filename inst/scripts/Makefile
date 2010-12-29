@@ -15,7 +15,7 @@ testCrlmm : testCrlmm.Rnw
 	echo "Stangle(\"testCrlmm.Rnw\")"| R-devel --no-save --no-restore;	
 	cat ~/bin/cluster.template | perl -pe "s/Rprog/testCrlmm.R/" > testCrlmm.R.sh
 ##	qsub -m e -r y -cwd -l fat -l mem_free=28,h_vmem=30G Crlmm.R.sh
-	qsub -m e -r y -cwd -l mem_free=28G,h_vmem=35G -q standard.q@compute-0-6 testCrlmm.R.sh 
+	qsub -m e -r y -cwd -l mem_free=20G,h_vmem=25G -q standard.q@compute-0-6 testCrlmm.R.sh 
 
 CbsMinDistance: CbsMinDistance.Rnw
 	echo "Stangle(\"CbsMinDistance.Rnw\")"| R-devel --no-save --no-restore;	

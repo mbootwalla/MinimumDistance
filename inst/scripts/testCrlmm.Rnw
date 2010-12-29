@@ -1,81 +1,36 @@
 <<>>=
+stopifnot(exists("sample.batch"))
 library(Beaty)
 library(ff)
-##library(snow)
-##setCluster(4, "SOCK")
 cdfName <- "human610quadv1b"
 data(samplesheet)
 path <- "/thumper/ctsa/beaty/illumina610/Raw_Data/Released_Data/RELEASED_IDATS"
-##crlmmVersion <- sessionInfo(package="crlmm")$otherPkgs$crlmm$Version
-##outdir <- crlmmdir()
 outdir <- "/scratch/temp/beaty2"
-##outdir <- "/amber1/archive/ctsa/beaty_crlmm/devel"
 dir.create(outdir, recursive=TRUE, showWarnings=FALSE)
 ldPath(outdir)
 ocProbesets(50e3)
-##ocSamples(100)
 ocSamples(200)
-##options("ffbatchbytes"=50e6)
 options("ffcaching"="mmnoflush")
 samplesheet$Sample_ID <- samplesheet$CIDR_Name
-##A=A(callSet)
-##ffrowapply(A[snp.index,][i1:i2, sel] <- res[["A"]][i1:i2, ], X=res[["A"]], BATCHBYTES=bb)
-##index <- 5500:7599
-##ocSamples(10)
 index <- 1:7599
-cnSet <- genotype.Illumina(batch=as.factor(rep(1, nrow(samplesheet)))[index],
-			   arrayNames=samplesheet$filenames[index],
-			   gender=samplesheet$Gender[index],
-			   highDensity=TRUE,
-			   arrayInfoColNames=list(barcode=NULL, position="Human610.Quadv1_B.Sentrix.Position"),  ### "SentrixPosition"),
-			   cdfName=cdfName,
-			   verbose=TRUE,
-			   saveDate=TRUE)
-save(cnSet, file=file.path(outdir, "cnSet.rda"))
-##x <- matrix(c(13, 17, 26, 18, 29,
-##	      42, 48, 57, 41, 59,
-##	      34, 31, 36, 22, 41), nr=3, nc=5, byrow=T)
-##rowMedians(x)
-##apply(x, 2, median)
-##e <- x
-##r.j <- numeric(nrow(x))
-##c.k <- numeric(ncol(x))
-##t <- numeric(1)
-##for(i in 1:20){
-##	rm=rowMedians(e)
-##	e <- e-rm
-##	r.j <- r.j+rm
-##
-##	delta <- median(c.k)
-##	c.k <- c.k-delta
-##	t <- t+delta
-##
-##	cdelta <- apply(e, 2L, median)
-##	e <- e-matrix(cdelta, nrow=nrow(e), ncol(e), byrow=T)
-##	c.k <- c.k+cdelta
-##
-##	delta <- median(r.j)
-##	r.j <- r.j-delta
-##	t <- t+delta
-##}
-##rowMedians(e)
-##apply(e, 2, median)
-##
-####y_jk=mu+r_j + c_k + e_jk
-##mu <- median(x-e)
-##y_jk - e_jk -mu = r_j + c_km
-##
-
+##myindexList <- splitIndicesByLength(c(1:3600, 5001:7599), 200)
+myindexList <- splitIndicesByLength(c(1:3600, 5001:7599), 3000)
+myindex <- myindexList[[sample.batch]]
+source("genotype.Illumina2.R")
+trace(genotype.Illumina2, browser)
+cnSet <- genotype.Illumina2(batch=as.factor(rep(1, nrow(samplesheet)))[index],
+			    arrayNames=samplesheet$filenames[index],
+			    gender=samplesheet$Gender[index],
+			    highDensity=TRUE,
+			    arrayInfoColNames=list(barcode=NULL, position="Human610.Quadv1_B.Sentrix.Position"),  ### "SentrixPosition"),
+			    cdfName=cdfName,
+			    verbose=TRUE,
+			    saveDate=TRUE,
+			    myindex=myindex)
 q("no")
 @
 
-<<symbolicLinks, eval=FALSE>>=
-fns <- list.files(path, full.names=TRUE)
-fns <- list.files(fns, full.names=TRUE)
-file.symlink(from=fns, to=file.path("/thumper/ctsa/beaty/scharpf/raw", basename(fns)))
-@
-
-<<crlmm>>=
+<<crlmm, eval=FALSE, echo=FALSE>>=
 plate <- samplesheet$Sample.Plate
 group <- samplesheet$Sample.Group
 DNA.source <- samplesheet$DNA.Source
