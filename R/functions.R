@@ -440,17 +440,20 @@ collectAllRangesOfSize <- function(SIZE, bsSet, minDistanceSet,
 }
 
 ## for denovo-amplifications
-collectAllRangesOfSize2 <- function(SIZE, bsSet, minDistanceSet, minDistanceRanges,
-				   outdir, MIN=1, MAX=4, lambda=0.1, upper.limit=-0.5){
+collectAllRangesOfSize2 <- function(SIZE, bsSet,
+				    maxDistanceSet,
+				    maxDistanceRanges,
+				    outdir, MIN=1, MAX=4,
+				    lambda=0.1, upper.limit=-0.5){
 	data(chromosomeAnnotation)
 	centromere.ranges <- GRanges(seqnames=Rle(paste("chr", 1:22, sep=""), rep(1,22)),
 				     ranges=IRanges(chromosomeAnnotation[1:22, "centromereStart"],
 				     chromosomeAnnotation[1:22, "centromereEnd"]))
-	##ranges2 <- minDistanceRanges[minDistanceRanges$seg.mean < 0 & minDistanceRanges$num.mark >= SIZE, ]
-	ranges2 <- minDistanceRanges[minDistanceRanges$seg.mean < upper.limit & minDistanceRanges$num.mark >= SIZE, ]
-	index <- match(ranges2$id, sampleNames(minDistanceSet))
-	open(minDistanceSet$MAD)
-	mads <- minDistanceSet$MAD[index]
+	##ranges2 <- maxDistanceRanges[maxDistanceRanges$seg.mean < 0 & maxDistanceRanges$num.mark >= SIZE, ]
+	ranges2 <- maxDistanceRanges[maxDistanceRanges$seg.mean < upper.limit & maxDistanceRanges$num.mark >= SIZE, ]
+	index <- match(ranges2$id, sampleNames(maxDistanceSet))
+	open(maxDistanceSet$MAD)
+	mads <- maxDistanceSet$MAD[index]
 	x <- ranges2$num.mark
 	p <- lambda*exp(-lambda*x)
 	MIN <- 1; MAX <- 4
