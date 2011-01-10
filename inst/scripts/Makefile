@@ -37,6 +37,10 @@ DenovoRanges: DenovoRangesBySize.Rnw
 	cat ~/bin/cluster.template | perl -pe "s/Rprog/DenovoRangesBySize.R/" > DenovoRangesBySize.R.sh
 	qsub -m e -r y -cwd -l fat -l mem_free=25G,h_vmem=30G DenovoRangesBySize.R.sh
 
+AmpRanges: AmpRanges.Rnw
+	echo "Stangle(\"AmpRanges.Rnw\")"| R-devel --no-save --no-restore;	
+	cat ~/bin/cluster.template | perl -pe "s/Rprog/AmpRanges.R/" > AmpRanges.R.sh
+	qsub -m e -r y -cwd -l fat -l mem_free=20G,h_vmem=22G AmpRanges.R.sh
 
 clean:
 	-rm *.pdf

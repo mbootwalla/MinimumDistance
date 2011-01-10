@@ -1,8 +1,5 @@
 <<>>=
 library(Beaty)
-library(lattice)
-library(grid)
-library(locuszoom)
 data(bsSet)
 data(minDistanceSet)
 data(minDistanceRanges)
@@ -34,38 +31,38 @@ Sweave("ChromosomeFigures.Rnw")
 
 CHR <- 6
 xlim <- c(32e6, 33e6)
-v <- 2
-save.figs <- TRUE
-Sweave("ChromosomeFigures.Rnw")
-
-CHR <- 8
 v <- 1
 save.figs <- TRUE
 Sweave("ChromosomeFigures.Rnw")
 
-rm(xlim)
-v <- 1
-CHR <- 11
-save.figs <- TRUE
-Sweave("ChromosomeFigures.Rnw")
-
-xlim <- c(31.5e6, 33e6)
-CHR <- 16
-v <- 2
-save.figs <- TRUE
-Sweave("ChromosomeFigures.Rnw")
-
-rm(xlim)
-v <- 1
-xlim <- c(41.2e6, 43e6)
-CHR <- 17
-save.figs <- TRUE
-Sweave("ChromosomeFigures.Rnw")
-
-rm(xlim)
-CHR <- 22
-save.figs <- TRUE
-Sweave("ChromosomeFigures.Rnw")
+##CHR <- 8
+##v <- 1
+##save.figs <- TRUE
+##Sweave("ChromosomeFigures.Rnw")
+##
+##rm(xlim)
+##v <- 1
+##CHR <- 11
+##save.figs <- TRUE
+##Sweave("ChromosomeFigures.Rnw")
+##
+##xlim <- c(31.5e6, 33e6)
+##CHR <- 16
+##v <- 2
+##save.figs <- TRUE
+##Sweave("ChromosomeFigures.Rnw")
+##
+##rm(xlim)
+##v <- 1
+##xlim <- c(41.2e6, 43e6)
+##CHR <- 17
+##save.figs <- TRUE
+##Sweave("ChromosomeFigures.Rnw")
+##
+##rm(xlim)
+##CHR <- 22
+##save.figs <- TRUE
+##Sweave("ChromosomeFigures.Rnw")
 q('no')
 @
 

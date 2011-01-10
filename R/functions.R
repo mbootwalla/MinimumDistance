@@ -109,6 +109,7 @@ getRanges <- function(outdir, pattern, CHR, name){
 	}
 	segmean_ranges <- RangedData(IRanges(segmean_ranges$pos.start,
 					     segmean_ranges$pos.end),
+				     space=rep(CHR, nrow(segmean_ranges)),
 				     id=segmean_ranges$id,
 				     chrom=segmean_ranges$chrom,
 				     num.mark=width(segmean_ranges), ## would be number of markers that were not NAs (I think)
@@ -383,6 +384,7 @@ constructTrioSetFromRanges <- function(ranges1, ## top hit ranges
 }
 
 collectAllRangesOfSize <- function(SIZE, bsSet, minDistanceSet,
+				   minDistanceRanges,
 				   outdir, MIN=1, MAX=4, lambda=0.1){
 	library(SNPchip)
 	data(chromosomeAnnotation)
@@ -435,6 +437,32 @@ collectAllRangesOfSize <- function(SIZE, bsSet, minDistanceSet,
 	}
 	deletion.RD <- deletion.RD[order(deletion.RD$chrom, start(deletion.RD)), ]
 	return(deletion.RD)
+}
+
+## for denovo-amplifications
+collectAllRangesOfSize2 <- function(SIZE, bsSet, minDistanceSet, minDistanceRanges,
+				   outdir, MIN=1, MAX=4, lambda=0.1, upper.limit=-0.5){
+	data(chromosomeAnnotation)
+	centromere.ranges <- GRanges(seqnames=Rle(paste("chr", 1:22, sep=""), rep(1,22)),
+				     ranges=IRanges(chromosomeAnnotation[1:22, "centromereStart"],
+				     chromosomeAnnotation[1:22, "centromereEnd"]))
+	##ranges2 <- minDistanceRanges[minDistanceRanges$seg.mean < 0 & minDistanceRanges$num.mark >= SIZE, ]
+	ranges2 <- minDistanceRanges[minDistanceRanges$seg.mean < upper.limit & minDistanceRanges$num.mark >= SIZE, ]
+	index <- match(ranges2$id, sampleNames(minDistanceSet))
+	open(minDistanceSet$MAD)
+	mads <- minDistanceSet$MAD[index]
+	x <- ranges2$num.mark
+	p <- lambda*exp(-lambda*x)
+	MIN <- 1; MAX <- 4
+	b <- 1/(MAX - MIN)
+	a <- MIN * b
+	numberMads <- ((p-min(p))/(max(p)-min(p)) + a)/b
+	thr <- -numberMads * mads
+	thr[thr > upper.limit] <- upper.limit
+	ranges2$is.altered <- ifelse(ranges2$seg.mean <= thr, TRUE, FALSE)
+	altered.RD <- ranges2[ranges2$is.altered, ]
+	altered.RD <- altered.RD[order(altered.RD$chrom, start(altered.RD)), ]
+	return(altered.RD)
 }
 
 getRefGene <- function(filename="~/Data/Downloads/hg18_refGene.txt"){
@@ -495,4 +523,50 @@ getLocalId <- function(rd.object){
 	stopifnot(identical(idmap$cidr_name, rd.object$id))
 	rd.object$local_id <- idmap$local_id2
 	return(rd.object)
+}
+
+
+
+findSubjectsInRange <- function(object, ##RangedData
+				FRAME.SHIFT=200e3,
+				MIN.SIZE=10){
+	object <- object[order(object$num.mark, decreasing=T), ]
+	object <- object[object$num.mark >= MIN.SIZE, ]
+	object <- object[order(object$chrom), ]
+	object$others <- NA
+	chrom <- unique(object$chrom)
+	for(i in seq_along(chrom)){
+		CHR <- chrom[i]
+		cat("Chr ", CHR, "\n")
+		chr.range <- object[object$chrom == CHR, ]
+		##segmean_ranges <- getSegMeans(outdir, CHR=CHR)
+		load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
+		ranges2 <- object[object$chrom == CHR, ]
+		##Look for all ranges that have a denovo event in the region
+		query.ir <- IRanges(start(chr.range) - FRAME.SHIFT,
+				    end(chr.range) + FRAME.SHIFT)
+		matching.subjects <- list()
+		for(j in 1:nrow(chr.range)){
+			## subjects -- all subjects except for the index case
+			ranges3 <- ranges2[ranges2$id != chr.range$id[j], ]
+			subj.ir <- IRanges(start(ranges3), end(ranges3))
+			tmp <- matchMatrix(findOverlaps(query.ir[j, ], subj.ir))
+			if(nrow(tmp) == 0) {
+				matching.subjects[[j]] <- NA
+			} else{
+				matching.subjects[[j]] <- unique(ranges3$id[tmp[, 2]])
+			}
+		}
+		tmp <- unlist(lapply(matching.subjects, function(x) paste(x, collapse=", ")))
+		index <- which(object$chrom==CHR)
+		object$others[index] <- tmp
+	}
+	matching.subjects <- object$others
+	ms <- lapply(matching.subjects, function(x) strsplit(x, ", ")[[1]])
+	##n.overlap <- sapply(matching.subjects, length)
+	n.overlap <- sapply(ms, length)
+	n.overlap[is.na(ms) | ms == "NA"] <- 0
+	##object$others <- tmp
+	object$n.overlap <- n.overlap
+	return(object)
 }

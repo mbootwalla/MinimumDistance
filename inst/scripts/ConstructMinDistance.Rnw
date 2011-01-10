@@ -1,10 +1,14 @@
-<<loadBeadStudio>>=
+<<loadBeadStudio, eval=FALSE>>=
 bsSet <- checkExists("bsSet", .path=outdir, .FUN=load)
 invisible(open(logR(bsSet)))
 invisible(open(baf(bsSet)))
 bsSet$pedId <- who(sampleNames(bsSet))
 sampleNames(bsSet) <- substr(sampleNames(bsSet), 1, 8)
 offspring.index <- which(bsSet$pedId=="offspring")
+@
+
+<<>>=
+data(bsSet)
 @
 
 
@@ -21,6 +25,8 @@ save(minDistanceSet, file=file.path(ldPath(), "minDistanceSet.rda"))
 @
 
 <<replacemethod>>=
+
+data(minDistanceSet)
 minDistanceSet <- checkExists("minDistanceSet", .path=ldPath(), .FUN=load)
 @
 

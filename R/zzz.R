@@ -18,6 +18,10 @@ THISPKG <- "Beaty"
 	library(crlmm)
 	library(GenomicRanges)
 	library(Study)
+	library(lattice)
+	library(grid)
+	library(locuszoom)
+	library(RColorBrewer)
 	ocSamples(100)
 	beatyOptions()
 }

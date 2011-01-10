@@ -33,6 +33,12 @@ y <- yy[-c(1, length(yy))]
 y <- rep(y, sapply(ids, length))
 sp <- diff(yy[1:2])/2
 
+cols <- brewer.pal(12, "Paired")[11:12]
+homo.del <- substr(del$state, 3, 3) == 1
+hemi.del <- substr(del$state, 3, 3) == 2
+fill <- rep(NA, nrow(del))
+fill[homo.del] <- cols[1]
+fill[hemi.del] <- cols[2]
 
 ## rectangle regions using graphical objects in grid
 if(save.figs) pdf(paste("figures/rectanglePlot_", chr.name, "_v", v, ".pdf", sep=""), onefile=FALSE)
@@ -45,8 +51,10 @@ sts <- sapply(starts, function(x) x[[1]])
 eds <- sapply(ends, function(x) x[[1]])
 pushViewport(dataViewport(c(sts/1e6, unlist(ends)/1e6), rep(y, each=2), xscale=xlim/1e6,
 			  yscale=c(0, 1), name="plotRegion"))
+
+
 grid.rect(x=starts/1e6, y=y, height=sp, width=width(del)/1e6,
-	  default.units="native", gp=gpar("fill"="grey60"), name="cnv.regions", just=c("left", "center"))
+	  default.units="native", gp=gpar(fill=fill, border=fill), name="cnv.regions", just=c("left", "center"))
 grid.rect(gp=gpar("col"="grey50"))
 grid.xaxis(gp=gpar("cex"=0.7), at=pretty(xlim/1e6, n=10))
 yax <- yaxisGrob(at=y, label=del$id, gp=gpar("cex"=0.7), name="ylabs")
@@ -170,6 +178,7 @@ for(j in seq_along(index)){
 
         ranges.md <- minDistanceRanges[minDistanceRanges$chrom == CHR, ]
 	ranges.md$seg.mean <- -1*ranges.md$seg.mean
+
 	cbs.sub <- ranges.md[substr(ranges.md$id, 1, 5) %in% sampleNames(mset), ]
 	trellis.focus("panel", 1, 1, highlight = FALSE)
 	panel.grid(h = 10, v = 10, col = "grey", lty = 3)
