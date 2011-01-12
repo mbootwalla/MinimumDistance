@@ -1,15 +1,24 @@
 <<mads, fig=TRUE, width=8, height=6>>=
+library(Beaty)
+data(bsSet)
 library(RColorBrewer)
 pastelcolors <- brewer.pal(4, "Set1")[2:3]
-DNA.source <- as.character(lrSet$DNA.Source)
+##DNA.source <- as.character(lrSet$DNA.Source)
+DNA.source <- as.character(bsSet$DNA.Source)
 cell.lines <- c(grep("CEPH", DNA.source),
 		grep("HAN CHINESE", DNA.source),
 		grep("JAPANESE", DNA.source),
 		grep("Yoruba", DNA.source))
 DNA.source[cell.lines] <- "cell line"
-mads <- split(lrSet$MAD, DNA.source)
+which.wga <- grep("WGA", DNA.source)
+
+mads <- split(bsSet$MAD, DNA.source)
 nn <- sapply(mads, length)
-which.wga <- grep("WGA", names(mads))
+
+open(bsSet$MAD)
+
+
+
 col <- rep(pastelcolors[1], length(mads))
 col[which.wga] <- pastelcolors[2]
 par(mfrow=c(1,1), mar=c(8, 4, 2, 2), las=1)

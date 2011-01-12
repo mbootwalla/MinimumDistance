@@ -688,6 +688,10 @@ plotRange3 <- function(sampleName,    ## names of samples to plot
 
 getGenomicAxis <- function(deletion.ranges, CHR, FRAME=1e6, xlim){
 	deletion.chr <- deletion.ranges[deletion.ranges$chrom == CHR, ]
+	if(!any(deletion.chr$n.overlap > 0)){
+		message("None of the segments on chromosome ", CHR, " have any overlap")
+		return(integer(0))
+	}
 	nn <- deletion.chr$n.overlap
 	index <- which(deletion.chr$n.overlap == max(nn))
 	samples.chr <- unique(as.character(sapply(deletion.chr$others[index], function(x) strsplit(x, ", ")[[1]])))
@@ -754,4 +758,329 @@ plotCytobandWithRanges <- function(deletion.ranges, CHR, xlim, FRAME=1e6, ylab.c
 	axis(2, at=seq_along(samples.22), labels=samples.22, cex.axis=0.6, adj=0)
 	text(0, mean(position.22), paste(diff(position.22)/1e3, "kb"))
 	return(list(xlim=xlim, v=position.22, samplesPlotted=samples.22))
+}
+
+myPanel <- function(x,y, subscripts, ...){
+	panel.xyplot(x, y, ...)
+	panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+}
+
+rangesInXlim <- function(ranges.object, CHR, xlim){
+	del <- ranges.object[ranges.object$chrom == CHR, ]
+	del <- del[start(del) <= xlim[2] & end(del) >= xlim[1], ]
+	return(del)
+}
+
+
+grid.rectangle <- function(ranges.object, CHR, xlim,
+			   jugessur,
+			   rf, cnv, cols, alpha=0.1){
+	chr.name <- paste("chr", CHR, sep="")
+	del <- rangesInXlim(ranges.object, CHR, xlim)
+	stopifnot(nrow(del) > 0)
+	jug <- jugessur[start(jugessur) <= xlim[2] & end(jugessur) >= xlim[1] & jugessur$chrom==CHR, ]
+	rf.chr <- rf[rf$txStart <= xlim[2] & rf$txEnd >= xlim[1] & rf$chrom==chr.name, ]
+	cnv.chr <- cnv[cnv$txStart <= xlim[2] & cnv$txEnd >= xlim[1] & cnv$chrom==chr.name, ]
+	flatBed <- flatten.bed(rf.chr)
+	flatBed.cnv <- flatten.bed(cnv.chr)
+	del <- del[order(del$id), ]
+	ids <- del$id
+	ids <- split(ids, ids)
+	ids <- ids[match(unique(del$id), names(ids))]
+	starts <- start(del)
+	ends <- end(del)
+	yy <- (1:(length(ids)+2))/(length(ids)+2)
+	y <- yy[-c(1, length(yy))]
+	y <- rep(y, sapply(ids, length))
+	sp <- diff(yy[1:2])/2
+	if(missing(cols)){
+		message("color scheme for denovo homo vs hemi deletions")
+		##cols <- brewer.pal(12, "Paired")[11:12]
+		cols <- c("grey95", "grey55")
+	}
+	cols <- col2rgb(cols)/255
+	cols <- rgb(cols[1, ],
+		    cols[2, ],
+		    cols[3, ], alpha=alpha)
+	homo.del <- substr(del$state, 3, 3) == 1  ##homozygous
+	hemi.del <- substr(del$state, 3, 3) == 2  ##hemizygous
+	fill <- rep(NA, nrow(del))
+	fill[homo.del] <- cols[1]
+	fill[hemi.del] <- cols[2]
+	## rectangle using graphical objects in grid
+	layout <- grid.layout(3, 1, heights=unit(c(1, 0.2, 0.2), c("null", "null", "null")))
+	##grid.newpage()
+	pushViewport(viewport(layout=layout))
+	pushViewport(viewport(layout.pos.row=1, name="row1"))
+	pushViewport(plotViewport(c(2,4,2,2)))  ## rectangular region with space in lines to the bottom, left, top and right
+	sts <- sapply(starts, function(x) x[[1]])
+	eds <- sapply(ends, function(x) x[[1]])
+	pushViewport(dataViewport(c(sts/1e6, unlist(ends)/1e6), rep(y, each=2), xscale=xlim/1e6,
+				  yscale=c(0, 1), name="plotRegion"))
+	grid.rect(x=starts/1e6, y=y, height=sp, width=width(del)/1e6,
+		  default.units="native", gp=gpar(fill=fill, border=fill), name="cnv.regions", just=c("left", "center"))
+	grid.rect(gp=gpar("col"="grey50"))
+	grid.xaxis(gp=gpar("cex"=0.7), at=pretty(xlim/1e6, n=10))
+	yax <- yaxisGrob(at=y, label=del$id, gp=gpar("cex"=0.7), name="ylabs")
+	editGrob(yax, "labels", just="bottom")
+	grid.draw(yax)
+	panel.grid(h = -1, v = 10, col = "grey", lty = 3)
+	upViewport()
+	grid.text(paste("Chromosome", CHR), y=unit(1.05, "native"), just="top")
+	if(nrow(jug) > 0){
+		grid.rect(x=start(jug)/1e6, y=rep(yy[1], nrow(jug)), height=sp, width=width(jug)/1e6,
+			  default.units="native", gp=gpar("fill"="lightblue"), name="jug.regions", just=c("left", "top"), vp="plotRegion")
+		grid.lines(y=yy[1]+sp, default.units="native", gp=gpar("lty"=2), vp="plotRegion")
+		grid.text("Jugessur", gp=gpar("col"="blue"),
+			  ##y=unit(yy[1]+sp, "native"),
+			  y=unit(yy[1], "native"),
+			  x=unit(xlim[1]/1e6, "native"), just=c("left", "bottom"), vp="plotRegion")
+	}
+	grid.text(label=as.character(del$num.mark), vp="plotRegion",
+		  y=unit(y, "native"),
+		  ##x=unit(ends/1e6+0.1, "native"),
+		  x=unit((ends/1e6+starts/1e6)/2, "native"),
+		  gp=gpar("cex"=0.7))
+	upViewport(0)
+	if(nrow(flatBed) > 0){
+		mn <- min(flatBed$start)
+		mx <- max(flatBed$stop)
+		pushViewport(viewport(layout=layout))
+		pushViewport(viewport(layout.pos.row=2, name="genes", clip="on"))
+		pushViewport(plotViewport(c(0, 4, 0,2)))  ## needs to be exact same as above
+		pushViewport(dataViewport(xscale=xlim/1000, yscale=c(0,1), clip="on"))
+		panel.flatbed(flat=flatBed, showIso=FALSE, cex=0.6, rows=6)
+	}
+	if(nrow(flatBed.cnv) > 0){
+		upViewport(0)
+		mn <- min(flatBed.cnv$start)
+		mx <- max(flatBed.cnv$stop)
+		pushViewport(viewport(layout=layout))
+		pushViewport(viewport(layout.pos.row=3, name="genes", clip="on"))
+		pushViewport(plotViewport(c(0, 4, 0,2)))  ## needs to be exact same as above
+		pushViewport(dataViewport(xscale=xlim/1000, yscale=c(0,1), clip="on"))
+		panel.flatbed(flat=flatBed.cnv, showIso=FALSE, cex=0.6, rows=6, col="red", fill="red")
+	}
+	return()
+}
+
+grid.trioLogR <- function(mset,
+			  labels=c("Father", "Mother", "Offspring", "max distance"),
+			  cex=0.3){
+	grid.obj <- data.frame(logR=c(logR.F(mset),
+			       logR.M(mset),
+			       logR.O(mset),
+			       -mindist(mset)),
+			       x=rep(position(mset)/1e6, 4),
+			       subject=factor(rep(1:4, each=nrow(mset)), labels=labels, ordered=TRUE))
+	nn <- sum(grid.obj$logR < -2, na.rm=TRUE)
+	if(nn > 10) {
+		ii <- which(grid.obj$logR < -5)
+		grid.obj$logR[ii] <- jitter(rep(-5, length(ii)),  amount=0.5)
+	} else {
+		ii <- which(grid.obj$logR < -2)
+		if(length(ii) > 0){
+			grid.obj$logR[ii] <- jitter(rep(-2, length(ii)),  amount=0.5)
+		}
+	}
+	nn <- sum(grid.obj$logR > 1, na.rm=TRUE)
+	if(nn > 10) {
+		ii <- which(grid.obj$logR > 2)
+		grid.obj$logR[ii] <- jitter(rep(2, length(ii)),  amount=0.5)
+	} else {
+		ii <- which(grid.obj$logR > 1)
+		if(length(ii) > 0){
+			grid.obj$logR[ii] <- jitter(rep(1, length(ii)),  amount=0.5)
+		}
+	}
+	plot.logr <- xyplot(logR ~ x | subject,
+			    data=grid.obj,
+			    pch=21,
+			    cex=cex,
+			    layout=c(1,4),
+			    index.cond=list(4:1),
+			    xlab="Mb",
+			    ylab="")
+	return(plot.logr)
+}
+
+grid.trioBaf <- function(mset, cex=0.3){
+	grid.obj2 <- data.frame(baf=c(baf.F(mset),
+				baf.M(mset),
+				baf.O(mset)),
+				x=rep(position(mset)/1e6, 3),
+				subject=factor(rep(1:3, each=nrow(mset)), labels=c("Father", "Mother", "Offspring"), ordered=TRUE))
+	plot.baf <- xyplot(baf ~ x | subject,
+			   data=grid.obj2, pch=21, cex=cex,
+			   layout=c(1,3), index.cond=list(3:1),
+			   xlab="",
+			   ylab="")
+	return(plot.baf)
+}
+
+addSegments <- function(cbs.segs, distanceRanges, CHR, mset){
+	trellis.focus("panel", 1, 4, highlight = FALSE)
+	panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+	cbs.sub <- cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "03", sep="_"), ]
+	panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
+
+	trellis.focus("panel", 1, 3, highlight = FALSE)
+	panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+	cbs.sub=cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "02", sep="_"), ]
+	panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
+
+	trellis.focus("panel", 1, 2, highlight = FALSE)
+	panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+	cbs.sub <- cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "01", sep="_"), ]
+	tmp <- panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
+
+        ranges.md <- distanceRanges[distanceRanges$chrom == CHR, ]
+	ranges.md$seg.mean <- -1*ranges.md$seg.mean
+
+	cbs.sub <- ranges.md[substr(ranges.md$id, 1, 5) %in% sampleNames(mset), ]
+	trellis.focus("panel", 1, 1, highlight = FALSE)
+	panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+	tmp <- panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
+	upViewport(0)
+}
+
+addGenes <- function(rf, chr.name, xlim){
+	rf.chr <- rf[rf$txStart <= xlim[2] & rf$txEnd >= xlim[1] & rf$chrom==chr.name, ]
+	flatBed <- flatten.bed(rf.chr)
+	panel.flatbed(flat=flatBed, showIso=FALSE, rows=5, cex=0.7)
+}
+
+addCnv <- function(cnv, chr.name, xlim, col="red", fill="red"){
+	cnv.chr <- cnv[cnv$txStart <= xlim[2] & cnv$txEnd >= xlim[1] & cnv$chrom==chr.name, ]
+	flatBed.cnv <- flatten.bed(cnv.chr)
+	panel.flatbed(flat=flatBed.cnv, showIso=FALSE, rows=5, cex=0.7, col=col, fill=fill)
+}
+
+highlightRegion <- function(ranges.object, index, col="grey80", lwd=1, bg="lightblue",
+			    alpha=0.1){
+	bg2 <- col2rgb(bg)/255
+	fill <- rgb(bg2[1, ], bg2[2,], bg2[3,], alpha=alpha)
+	for(k in seq_along(index)){
+		ii <- index[k]
+		st <- start(ranges.object[ii, ])/1e6
+		en <- end(ranges.object[ii,])/1e6
+		grid.rect(x=unit(st, "native"),
+			  y=unit(0, "native"),
+			  width=unit(en-st, "native"),
+			  height=unit(1, "native"),
+			  just=c("left", "bottom"), gp=gpar(col=col, lwd=lwd, fill=fill))
+	}
+}
+
+trioIndices <- function(ranges.object, selectedRanges, xlim){
+	CHR <- unique(selectedRanges$chrom)
+	index <- which(ranges.object$chrom == CHR & ranges.object$id %in% selectedRanges$id & start(ranges.object) <= xlim[2] & end(ranges.object) >= xlim[1])
+	index <- index[unlist(sapply(selectedRanges$id, function(x,y) grep(x, y), y=ranges.object$id[index]))]
+	ids <- ranges.object$id[index]
+	unique.ids <- unique(ids)
+	index <- split(index, ids)
+	index <- index[match(unique.ids, names(index))]
+	index <- lapply(index, unique)
+	return(index)
+}
+
+grid.trio <- function(ranges.object, distanceRanges, distanceSet,
+		      bsSet,
+		      index, xlim, CHR,
+		      add.segments=TRUE,
+		      highlight=TRUE,
+		      add.genes=TRUE,
+		      cex.pch=0.3,
+		      label="min distance"){
+	chr.name <- paste("chr", CHR, sep="")
+	for(j in seq_along(index)){
+		grid.newpage()
+		cat("Fig ", j, "\n")
+		i <- index[[j]][1]
+		mset <- constructTrioSetFromRanges(ranges.object[i, ], distanceSet,
+						   bsSet, xlim=xlim)
+		plot.logr <- grid.trioLogR(mset,
+					   labels=c("Father", "Mother", "Offspring", label),
+					   cex=cex.pch)
+		plot.baf <- grid.trioBaf(mset, cex=cex.pch)
+		if(exists("cbs.segs")){
+			if(CHR != unique(cbs.segs$chrom))
+				load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
+		} else 	load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
+		st <- start(ranges.object[i, ])/1e6
+		en <- end(ranges.object[i,])/1e6
+		lvp <- viewport(x=0, width=unit(0.5, "npc"), just="left", name="lvp")
+		pushViewport(lvp)
+		print(plot.logr, newpage=FALSE, prefix="plot1", more=TRUE)
+		if(add.segments) addSegments(cbs.segs=cbs.segs, distanceRanges=distanceRanges, CHR=CHR, mset=mset)
+		if(highlight){
+			pushViewport(viewport(x=unit(0.25, "npc"),
+					      y=unit(0.5, "npc"),
+					      width=unit(0.5, "npc"),
+					      height=unit(1, "npc")))
+			pushViewport(plotViewport(c(0, 3, 0,3)))  ## needs to be exact same as above
+			pushViewport(dataViewport(xscale=plot.logr$x.limits, yscale=c(0,1), clip="on"))
+			suppressWarnings(highlightRegion(ranges.object, index[[j]]))
+		}
+		upViewport(0)
+		grid.text("Log R Ratio", x=unit(0.25, "npc"), y=unit(0.97, "npc"), gp=gpar("cex"=1.1))
+		grid.text(paste(chr.name, ", Family", sampleNames(mset)), x=unit(0.5, "npc"), y=unit(0.98, "npc"), gp=gpar("cex"=1.2))
+
+		## Plot BAFs
+		upViewport(0)
+		print(plot.baf, position=c(0.5, 0.21,1, 1), more=TRUE, prefix="baf")
+		grid.text("B Allele Frequency", x=unit(0.75, "npc"), y=unit(0.97, "npc"), gp=gpar("cex"=1.1))
+		if(add.genes){
+			upViewport(0)
+			pushViewport(viewport(x=unit(0.75, "npc"),
+					      y=unit(0.12, "npc"),
+					      width=unit(0.5, "npc"),
+					      height=unit(0.12, "npc"), just="bottom"))
+			pushViewport(plotViewport(c(0, 3, 0,3)))  ## needs to be exact same as above
+			pushViewport(dataViewport(xscale=xlim/1000, yscale=c(0,1), clip="on"))
+			addGenes(rf, chr.name, xlim)
+
+			upViewport(0)
+			pushViewport(viewport(x=unit(0.75, "npc"),
+					      y=unit(0, "npc"),
+					      width=unit(0.5, "npc"),
+					      height=unit(0.12, "npc"), just="bottom"))
+			pushViewport(plotViewport(c(0, 3, 0,3)))  ## needs to be exact same as above
+			pushViewport(dataViewport(xscale=xlim/1000, yscale=c(0,1), clip="on"))
+			addCnv(rf, chr.name, xlim)
+		}
+		if(highlight){
+			upViewport(0)
+			pushViewport(viewport(x=unit(0.75, "npc"),
+					      y=unit(0.5, "npc"),
+					      width=unit(0.5, "npc"),
+					      height=unit(1, "npc")))
+			pushViewport(plotViewport(c(0, 3, 0,3)))  ## needs to be exact same as above
+			pushViewport(dataViewport(xscale=plot.logr$x.limits, yscale=c(0,1), clip="on"))
+			highlightRegion(ranges.object, index[[j]])
+		}
+	}
+}
+
+getXlimAmp <- function(chr){
+	switch(chr,
+	       chr1.all=c(0, 17e6),
+	       chr1.1=c(0,5e6),
+	       chr1.2=c(15e6, 17e6),
+	       chr2=c(60e6, 62.5e6),
+	       chr3.1=c(45e6, 55e6),
+	       chr3.2=c(85e6, 98e6),
+	       chr4=c(65e6, 75e6),
+	       chr5=c(45e6, 52e6),
+	       chr6=c(32.4e6, 33e6),
+	       chr7=c(96e6, 105e6),
+	       chr8=c(38e6, 39.8e6),
+	       chr11=c(51.5e6, 58e6),
+	       chr14=c(21.5e6, 22.5e6),
+	       chr15=c(32.2e6, 33e6),
+	       chr16=c(32e6, 33e6),
+	       chr17=c(74.4e6, 75e6),
+	       chr18=c(64e6, 66e6),
+	       chr19=c(19.8e6, 21.4e6),
+	       chr22=c(17.8e6, 19.8e6))
 }

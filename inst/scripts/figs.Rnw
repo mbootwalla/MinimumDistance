@@ -1,6 +1,0 @@
-\SweaveInput{preamble}
-\begin{document}
-\SweaveInput{setup}
-% evaluate <<figures>> code chunk in the segmentation file
-\SweaveInput{segmentation}
-

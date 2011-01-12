@@ -32,6 +32,11 @@ figs: figs.Rnw
 	cat ~/bin/cluster.template | perl -pe "s/Rprog/PlotSelectedChromosomes.R/" > PlotSelectedChromosomes.R.sh
 	qsub -m e -r y -cwd -l fat -l mem_free=1G,h_vmem=2G PlotSelectedChromosomes.R.sh
 
+PlotAmp: PlotAmplificationRanges.Rnw
+	echo "Stangle(\"PlotAmplificationRanges.Rnw\")"| R-devel --no-save --no-restore;	
+	cat ~/bin/cluster.template | perl -pe "s/Rprog/PlotAmplificationRanges.R/" > PlotAmplificationRanges.R.sh
+	qsub -m e -r y -cwd -l fat -l mem_free=1G,h_vmem=2G PlotAmplificationRanges.R.sh
+
 DenovoRanges: DenovoRangesBySize.Rnw
 	echo "Stangle(\"DenovoRangesBySize.Rnw\")"| R-devel --no-save --no-restore;	
 	cat ~/bin/cluster.template | perl -pe "s/Rprog/DenovoRangesBySize.R/" > DenovoRangesBySize.R.sh

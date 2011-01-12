@@ -1,16 +1,46 @@
 ## which chromosomes to plot
 <<>>=
 library(BeatyExperimentData)
-library(lattice)
-library(grid)
-library(locuszoom)
-data(bsSet)
+data(bsSet2)
 data(penn.ranges)
-open(baf(bsSet))
-open(logR(bsSet))
-open(bsSet$MAD)
+open(baf(bsSet2))
+open(logR(bsSet2))
+open(bsSet2$MAD)
 data(jugessur)
+data(rf)
+data(cnv)
+w <- cnv$txEnd-cnv$txStart
+cnv <- cnv[w >= 10e3, ]
+w <- rf$txEnd-rf$txStart
+rf <- rf[w >= 5e3, ]
+penn.ranges$n.overlap <- sapply(penn.ranges$others, function(x) length(strsplit(x, ", ")[[1]]))
 @
+
+<<pennRectangles>>=
+selectedRanges <- xlim <- list()
+for(CHR in 1:22){
+	xlim[[CHR]] <- getGenomicAxis(penn.ranges, CHR=CHR, FRAME=1e6)
+	selectedRanges[[CHR]] <- rangesInXlim(penn.ranges, CHR=CHR, xlim[[CHR]])
+}
+
+w <- cnv$txEnd-cnv$txStart
+cnv <- cnv[w >= 1e6, ]
+w <- rf$txEnd-rf$txStart
+rf <- rf[w >= 1e6, ]
+
+for(CHR in 1:22){
+	jpeg(paste("rectanglePlot_penn_chr", CHR, "_%02d.jpg", sep=""), width=950, height=700)
+	grid.rectangle(ranges.object=penn.ranges,
+		       CHR=CHR,
+		       xlim=xlim[[CHR]],
+		       jugessur=jugessur,
+		       rf=rf, cnv=cnv,
+		       cols="grey80")
+	dev.off()
+}
+@
+
+
 
 
 <<>>=

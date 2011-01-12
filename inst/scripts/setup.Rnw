@@ -1,7 +1,0 @@
-Specify where to store and look for intermediate files.
-
-<<outdir>>=
-
-@
-
-

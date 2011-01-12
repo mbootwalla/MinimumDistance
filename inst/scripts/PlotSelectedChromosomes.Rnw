@@ -12,7 +12,166 @@ open(logR(bsSet))
 open(minDistanceSet$MAD)
 open(bsSet$MAD)
 data(jugessur)
+offspring.del <- substr(deletion.ranges$state, 3, 3) < 3
+deletion.ranges <- deletion.ranges[offspring.del, ]
+data(rf)
+data(cnv)
+w <- cnv$txEnd-cnv$txStart
+cnv <- cnv[w >= 10e3, ]
+w <- rf$txEnd-rf$txStart
+rf <- rf[w >= 10e3, ]
 @
+
+
+<<>>=
+CHR <- 1
+chr.name <- paste("chr", CHR, sep="")
+xlim <- getGenomicAxis(deletion.ranges, CHR=CHR, FRAME=1e6)
+grid.rectangle(ranges.object=deletion.ranges, CHR=CHR,
+	       xlim=xlim,
+	       jugessur=jugessur,
+	       rf=rf, cnv=cnv,
+	       cols=c("grey95", ##homozygous
+	       "grey55")) ##hemizygous
+@
+
+<<>>=
+CHR <- 22
+chr.name <- paste("chr", CHR, sep="")
+xlim <- getGenomicAxis(deletion.ranges, CHR=CHR, FRAME=1e6)
+xlim[2] <- 22e6
+##trace(rangesInXlim, browser)
+pdf("figures/rectanglePlot_del_chr22.pdf", onefile=FALSE, width=8, height=6)
+##trace(grid.rectangle, browser)
+grid.newpage()
+grid.rectangle(ranges.object=deletion.ranges, CHR=CHR,
+	       xlim=xlim,
+	       jugessur=jugessur,
+	       rf=rf, cnv=cnv,
+	       cols=c("grey40", "grey70"))  ## the lighter color is hemizygous del
+dev.off()
+@
+
+<<>>=
+selectedRanges <- rangesInXlim(deletion.ranges, CHR=CHR, xlim)
+index <- trioIndices(deletion.ranges, selectedRanges, xlim)
+xlim <- getGenomicAxis(deletion.ranges, CHR=CHR, FRAME=1e6)
+xlim[2] <- 22e6
+jpeg("figures/lowlevel_del_chr22_%02d.jpg", width=1000, height=800, quality=100)
+grid.trio(deletion.ranges, distanceRanges=minDistanceRanges,
+	  bsSet=bsSet,
+	  distanceSet=minDistanceSet, index=index, xlim=xlim, CHR=CHR)
+dev.off()
+## Magnify small denovo-events
+
+xlim <- c(16.7, 17.7)*1e6
+jpeg("figures/lowlevel_del_chr22_2x_%02d.jpg", width=1000, height=800, quality=100)
+grid.trio(deletion.ranges, distanceRanges=minDistanceRanges,
+	  bsSet=bsSet,
+	  distanceSet=minDistanceSet, index=index[12:14], xlim=xlim, CHR=CHR,
+	  cex.pch=0.7)
+dev.off()
+@
+
+Illustrate min distance with example on chr22 with some waviness
+
+<<mindistanceExample>>=
+xlim <- getGenomicAxis(deletion.ranges, CHR=CHR, FRAME=1e6)
+xlim[2] <- 22e6
+i <- grep("19225", names(index))
+grid.newpage()
+i <- index[[i]][1]
+cex <- 0.3
+mset <- constructTrioSetFromRanges(deletion.ranges[i, ], minDistanceSet,
+				   bsSet, xlim=xlim)
+grid.obj <- data.frame(logR=c(logR.F(mset),
+		       logR.M(mset),
+		       logR.O(mset)),
+		       x=rep(position(mset)/1e6, 3),
+		       subject=factor(rep(1:3, each=nrow(mset)), labels=c("Father", "Mother", "Offspring"), ordered=TRUE))
+ylim <- c(-1,0.7)
+plot.logr <- xyplot(logR ~ x | subject,
+		    data=grid.obj,
+		    pch=21,
+		    cex=cex,
+		    layout=c(1,3),
+		    index.cond=list(3:1), ylim=ylim,
+		    xlab="Mb",
+		    ylab="")
+lvp <- viewport(x=0, y=unit(1, "npc"),
+		width=unit(1, "npc"), height=unit(0.75, "npc"),
+		just=c("left", "top"), name="lvp")
+tvp <- viewport(x=0, y=unit(0, "npc"), width=unit(1, "npc"),
+		height=unit(0.3, "npc"),
+		just=c("left", "bottom"),
+		name="tvp")
+
+grid.newpage()
+pushViewport(lvp)
+print(plot.logr, newpage=FALSE, more=TRUE)
+
+load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
+grid.newpage()
+pushViewport(lvp)
+print(plot.logr, newpage=FALSE, more=TRUE)
+trellis.focus("panel", 1, 3, highlight = FALSE)
+panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+cbs.sub <- cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "03", sep="_"), ]
+panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
+
+trellis.focus("panel", 1, 2, highlight = FALSE)
+panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+cbs.sub=cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "02", sep="_"), ]
+panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
+
+trellis.focus("panel", 1, 1, highlight = FALSE)
+panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+cbs.sub <- cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "01", sep="_"), ]
+tmp <- panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
+
+upViewport(0)
+pushViewport(tvp)
+grid.obj2 <- data.frame(md=as.numeric(-mindist(mset)),
+			x=position(mset)/1e6)
+plot.logr2 <- xyplot(md ~ x,
+		    data=grid.obj2,
+		    pch=21,
+		    cex=cex,
+		    ylim=ylim,
+		    xlab="",
+		    ylab="")
+print(plot.logr2, newpage=FALSE)
+ranges.md <- minDistanceRanges[minDistanceRanges$chrom == CHR, ]
+ranges.md$seg.mean <- -1*ranges.md$seg.mean
+
+cbs.sub <- ranges.md[substr(ranges.md$id, 1, 5) %in% sampleNames(mset), ]
+trellis.focus("panel", 1, 1, highlight = FALSE)
+panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+tmp <- panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
+
+
+
+
+
+
+jpeg("figures/mindistance_%02d.jpg", width=1000, height=800, quality=100)
+trace(grid.trio, browser)
+grid.trio(deletion.ranges, distanceRanges=minDistanceRanges,
+	  bsSet=bsSet,
+	  distanceSet=minDistanceSet, index=index[i], xlim=xlim, CHR=CHR,
+	  add.genes=FALSE, highlight=FALSE, add.segments=FALSE)
+
+grid.trio(deletion.ranges, distanceRanges=minDistanceRanges,
+	  bsSet=bsSet,
+	  distanceSet=minDistanceSet, index=index[i], xlim=xlim, CHR=CHR,
+	  add.genes=FALSE, highlight=FALSE, add.segments=FALSE)
+dev.off()
+@
+
+
+
+
+
 
 
 <<annotation>>=
@@ -23,7 +182,6 @@ deletion.ranges <- getLocalId(deletion.ranges)
 CHR <- 1
 save.figs <- TRUE
 Sweave("ChromosomeFigures.Rnw")
-
 CHR <- 5
 xlim <- c(68e6, 72e6)
 save.figs <- TRUE
