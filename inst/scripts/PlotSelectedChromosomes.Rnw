@@ -12,6 +12,7 @@ open(logR(bsSet))
 open(minDistanceSet$MAD)
 open(bsSet$MAD)
 data(jugessur)
+## remove amp-amp-normal
 offspring.del <- substr(deletion.ranges$state, 3, 3) < 3
 deletion.ranges <- deletion.ranges[offspring.del, ]
 data(rf)
@@ -22,157 +23,195 @@ w <- rf$txEnd-rf$txStart
 rf <- rf[w >= 10e3, ]
 @
 
-
-<<>>=
-CHR <- 1
-chr.name <- paste("chr", CHR, sep="")
-xlim <- getGenomicAxis(deletion.ranges, CHR=CHR, FRAME=1e6)
-grid.rectangle(ranges.object=deletion.ranges, CHR=CHR,
-	       xlim=xlim,
-	       jugessur=jugessur,
-	       rf=rf, cnv=cnv,
-	       cols=c("grey95", ##homozygous
-	       "grey55")) ##hemizygous
-@
-
 <<>>=
 CHR <- 22
 chr.name <- paste("chr", CHR, sep="")
 xlim <- getGenomicAxis(deletion.ranges, CHR=CHR, FRAME=1e6)
 xlim[2] <- 22e6
 ##trace(rangesInXlim, browser)
+
+##cols <- brewer.pal(8, "Dark2")
 pdf("figures/rectanglePlot_del_chr22.pdf", onefile=FALSE, width=8, height=6)
-##trace(grid.rectangle, browser)
 grid.newpage()
 grid.rectangle(ranges.object=deletion.ranges, CHR=CHR,
 	       xlim=xlim,
 	       jugessur=jugessur,
 	       rf=rf, cnv=cnv,
-	       cols=c("grey40", "grey70"))  ## the lighter color is hemizygous del
+	       cols=c("grey80", "lightblue"),
+	       alpha=0.5)  ## the lighter color is hemizygous del
 dev.off()
 @
 
-<<>>=
+<<chr8>>=
+data(deletion.ranges)
+CHR <- 8
+##xlim <- c(32e6, 33e6)
+xlim <- c(38.2e6, 40.2e6)
+chr.name <- paste("chr", CHR, sep="")
+cols <- brewer.pal(8, "Accent")[4:5]
+deletion.ranges <- deletion.ranges[deletion.ranges$state %in% c("321", "231", "221", "331", "332", "431", "432", "341", "342", "442", "441"), ]
+pdf("figures/rectanglePlot_del_chr08.pdf", onefile=FALSE, width=8, height=6)
+grid.newpage()
+##trace(grid.rectangle, browser)
+grid.rectangle(ranges.object=deletion.ranges, CHR=CHR,
+	       xlim=xlim,
+	       jugessur=jugessur,
+	       rf=rf, cnv=cnv,
+	       cols=cols, ## the lighter color is homozygous del
+	       alpha=0.5)
+dev.off()
+
+data(deletion.ranges)
+CHR <- 4
+xlim <- c(68.2e6, 69.9e6)
+chr.name <- paste("chr", CHR, sep="")
+cols <- brewer.pal(8, "Accent")[4:5]
+deletion.ranges <- deletion.ranges[deletion.ranges$state %in% c("321", "231", "221", "331", "332", "431", "432", "341", "342", "442", "441"), ]
+pdf("figures/rectanglePlot_del_chr04.pdf", onefile=FALSE, width=8, height=6)
+grid.newpage()
+##trace(grid.rectangle, browser)
+grid.rectangle(ranges.object=deletion.ranges, CHR=CHR,
+	       xlim=xlim,
+	       jugessur=jugessur,
+	       rf=rf, cnv=cnv,
+	       cols=cols, ## the lighter color is homozygous del
+	       alpha=0.5)
+dev.off()
 selectedRanges <- rangesInXlim(deletion.ranges, CHR=CHR, xlim)
 index <- trioIndices(deletion.ranges, selectedRanges, xlim)
+pdf("figures/lowlevel_del_chr04_%02d.pdf", width=10, height=8, onefile=FALSE)
+grid.trio(deletion.ranges,
+	  distanceRanges=minDistanceRanges,
+	  bsSet=bsSet,
+	  distanceSet=minDistanceSet,
+	  index=index,
+	  xlim=xlim, CHR=CHR,
+	  ylim=c(-3,1),
+	  alpha=0.3)
+dev.off()
+
+data(amp.ranges)
+amp.ranges <- amp.ranges[amp.ranges$state == "334", ]
+selectedRanges <- rangesInXlim(deletion.ranges, CHR=CHR, xlim)
+index <- trioIndices(amp.ranges, selectedRanges, xlim)
+@
+
+<<>>=
 xlim <- getGenomicAxis(deletion.ranges, CHR=CHR, FRAME=1e6)
 xlim[2] <- 22e6
-jpeg("figures/lowlevel_del_chr22_%02d.jpg", width=1000, height=800, quality=100)
+selectedRanges <- rangesInXlim(deletion.ranges, CHR=CHR, xlim)
+index <- trioIndices(deletion.ranges, selectedRanges, xlim)
+##jpeg("figures/lowlevel_del_chr22_%02d.jpg", width=1000, height=800, quality=100, pointsize=18)
+pdf("figures/lowlevel_del_chr22_%02d.pdf", width=10, height=8, onefile=FALSE)
 grid.trio(deletion.ranges, distanceRanges=minDistanceRanges,
 	  bsSet=bsSet,
-	  distanceSet=minDistanceSet, index=index, xlim=xlim, CHR=CHR)
+	  distanceSet=minDistanceSet, index=index[c(3, 12)] , xlim=xlim, CHR=CHR,
+	  alpha=0.3)
 dev.off()
 ## Magnify small denovo-events
 
 xlim <- c(16.7, 17.7)*1e6
-jpeg("figures/lowlevel_del_chr22_2x_%02d.jpg", width=1000, height=800, quality=100)
+pdf("figures/lowlevel_del_chr22_2x_%02d.pdf", width=10, height=8, onefile=FALSE)
 grid.trio(deletion.ranges, distanceRanges=minDistanceRanges,
 	  bsSet=bsSet,
-	  distanceSet=minDistanceSet, index=index[12:14], xlim=xlim, CHR=CHR,
-	  cex.pch=0.7)
+	  distanceSet=minDistanceSet, index=index[12], xlim=xlim, CHR=CHR,
+	  cex.pch=0.7,
+	  alpha=0.3)
 dev.off()
+
+##---------------------------------------------------------------------------
+## low-level plots for the possible normal-normal amp on chr6
+CHR <- 8
+xlim <- c(38.2e6, 40.2e6)
+chr.name <- paste("chr", CHR, sep="")
+selectedRanges <- rangesInXlim(deletion.ranges, CHR=CHR, xlim)
+index <- trioIndices(deletion.ranges, selectedRanges, xlim)
+index <- index[sapply(index, length) == 1]
+denovo.homozygous <- deletion.ranges$state[unlist(index)] == "331"
+denovo.homo.index <- index[denovo.homozygous]
+cols <- brewer.pal(8, "Accent")[4:5]
+pdf("figures/N-N-Homo_%02d.pdf", width=10, height=8, onefile=FALSE)
+##trace(grid.trio, browser)
+##trace(grid.trioLogR, browser)
+grid.trio(deletion.ranges,
+	  distanceRanges=minDistanceRanges,
+	  bsSet=bsSet,
+	  distanceSet=minDistanceSet,
+	  index=denovo.homo.index,
+	  xlim=xlim,
+	  ylim=c(-3,1),
+	  CHR=CHR,
+	  cex.pch=0.4,
+	  alpha=0.3)
+dev.off()
+
+
+##Denovo-amplifications
+data(amp.ranges)
+chr.name <- paste("chr", CHR, sep="")
+selectedRanges <- rangesInXlim(amp.ranges, CHR=CHR, xlim)
+index <- trioIndices(amp.ranges, selectedRanges, xlim)
+amp.ranges$state[unlist(index)]
+pdf("figures/rectanglePlot_amp_chr08.pdf", onefile=FALSE, width=8, height=6)
+grid.newpage()
+grid.rectangle(ranges.object=amp.ranges, CHR=CHR,
+	       xlim=xlim,
+	       jugessur=jugessur,
+	       rf=rf, cnv=cnv,
+	       cols=c("grey", "grey"),
+	       alpha=0.5,
+	       deletion.colors=FALSE)  ## the lighter color is hemizygous del
+dev.off()
+
+data(maxDistanceRanges)
+data(maxDistanceSet)
+CHR <- 8
+xlim <- c(38.2e6, 40.2e6)
+chr.name <- paste("chr", CHR, sep="")
+selectedRanges <- rangesInXlim(amp.ranges, CHR=CHR, xlim)
+index <- trioIndices(amp.ranges, selectedRanges, xlim)
+index <- index[sapply(index, length) == 1]
+cols <- brewer.pal(8, "Accent")[4:5]
+featureData(maxDistanceSet) <- featureData(minDistanceSet)
+
+pdf("figures/denovoAmp_chr8_%02d.pdf", width=10, height=8, onefile=FALSE)
+grid.trio(amp.ranges,
+	  distanceRanges=maxDistanceRanges,
+	  bsSet=bsSet,
+	  distanceSet=maxDistanceSet,
+	  index=index,
+	  xlim=xlim,
+	  CHR=CHR,
+	  cex.pch=0.4,
+	  alpha=0.3,
+	  label="max distance")
+dev.off()
+
 @
 
 Illustrate min distance with example on chr22 with some waviness
 
 <<mindistanceExample>>=
+CHR <- 22
 xlim <- getGenomicAxis(deletion.ranges, CHR=CHR, FRAME=1e6)
 xlim[2] <- 22e6
-i <- grep("19225", names(index))
-grid.newpage()
-i <- index[[i]][1]
-cex <- 0.3
-mset <- constructTrioSetFromRanges(deletion.ranges[i, ], minDistanceSet,
-				   bsSet, xlim=xlim)
-grid.obj <- data.frame(logR=c(logR.F(mset),
-		       logR.M(mset),
-		       logR.O(mset)),
-		       x=rep(position(mset)/1e6, 3),
-		       subject=factor(rep(1:3, each=nrow(mset)), labels=c("Father", "Mother", "Offspring"), ordered=TRUE))
-ylim <- c(-1,0.7)
-plot.logr <- xyplot(logR ~ x | subject,
-		    data=grid.obj,
-		    pch=21,
-		    cex=cex,
-		    layout=c(1,3),
-		    index.cond=list(3:1), ylim=ylim,
-		    xlab="Mb",
-		    ylab="")
-lvp <- viewport(x=0, y=unit(1, "npc"),
-		width=unit(1, "npc"), height=unit(0.75, "npc"),
-		just=c("left", "top"), name="lvp")
-tvp <- viewport(x=0, y=unit(0, "npc"), width=unit(1, "npc"),
-		height=unit(0.3, "npc"),
-		just=c("left", "bottom"),
-		name="tvp")
-
-grid.newpage()
-pushViewport(lvp)
-print(plot.logr, newpage=FALSE, more=TRUE)
-
-load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
-grid.newpage()
-pushViewport(lvp)
-print(plot.logr, newpage=FALSE, more=TRUE)
-trellis.focus("panel", 1, 3, highlight = FALSE)
-panel.grid(h = 10, v = 10, col = "grey", lty = 3)
-cbs.sub <- cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "03", sep="_"), ]
-panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
-
-trellis.focus("panel", 1, 2, highlight = FALSE)
-panel.grid(h = 10, v = 10, col = "grey", lty = 3)
-cbs.sub=cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "02", sep="_"), ]
-panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
-
-trellis.focus("panel", 1, 1, highlight = FALSE)
-panel.grid(h = 10, v = 10, col = "grey", lty = 3)
-cbs.sub <- cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "01", sep="_"), ]
-tmp <- panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
-
-upViewport(0)
-pushViewport(tvp)
-grid.obj2 <- data.frame(md=as.numeric(-mindist(mset)),
-			x=position(mset)/1e6)
-plot.logr2 <- xyplot(md ~ x,
-		    data=grid.obj2,
-		    pch=21,
-		    cex=cex,
-		    ylim=ylim,
-		    xlab="",
-		    ylab="")
-print(plot.logr2, newpage=FALSE)
-ranges.md <- minDistanceRanges[minDistanceRanges$chrom == CHR, ]
-ranges.md$seg.mean <- -1*ranges.md$seg.mean
-
-cbs.sub <- ranges.md[substr(ranges.md$id, 1, 5) %in% sampleNames(mset), ]
-trellis.focus("panel", 1, 1, highlight = FALSE)
-panel.grid(h = 10, v = 10, col = "grey", lty = 3)
-tmp <- panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
-
-
-
-
-
-
-jpeg("figures/mindistance_%02d.jpg", width=1000, height=800, quality=100)
-trace(grid.trio, browser)
-grid.trio(deletion.ranges, distanceRanges=minDistanceRanges,
-	  bsSet=bsSet,
-	  distanceSet=minDistanceSet, index=index[i], xlim=xlim, CHR=CHR,
-	  add.genes=FALSE, highlight=FALSE, add.segments=FALSE)
-
-grid.trio(deletion.ranges, distanceRanges=minDistanceRanges,
-	  bsSet=bsSet,
-	  distanceSet=minDistanceSet, index=index[i], xlim=xlim, CHR=CHR,
-	  add.genes=FALSE, highlight=FALSE, add.segments=FALSE)
+selectedRanges <- rangesInXlim(deletion.ranges, CHR=CHR, xlim)
+index <- trioIndices(deletion.ranges, selectedRanges, xlim)
+pdf("figures/explainingMindistance_%02d.pdf", width=10, height=8, onefile=FALSE)
+explainingMinDistance(deletion.ranges, label="")
+explainingMinDistance(deletion.ranges, label="", show.segmentation=TRUE)
+explainingMinDistance(deletion.ranges, show.segmentation=TRUE,
+		      show.distance=TRUE, label = "-min(Father - Offspring, Mother - Offspring)")
+explainingMinDistance(deletion.ranges, show.segmentation=TRUE,
+		      label = "-min(Father - Offspring, Mother - Offspring)",
+		      show.distance=TRUE,
+		      show.distance.segmentation=TRUE,
+		      highlight=TRUE,
+		      highlight.border="grey40",
+		      highlight.col="lightblue",
+		      highlight.alpha=0.3)
 dev.off()
 @
-
-
-
-
-
-
 
 <<annotation>>=
 deletion.ranges <- getLocalId(deletion.ranges)

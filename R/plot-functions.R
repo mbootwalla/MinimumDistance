@@ -774,7 +774,8 @@ rangesInXlim <- function(ranges.object, CHR, xlim){
 
 grid.rectangle <- function(ranges.object, CHR, xlim,
 			   jugessur,
-			   rf, cnv, cols, alpha=0.1){
+			   rf, cnv, cols, alpha=0.1,
+			   deletion.colors=TRUE){
 	chr.name <- paste("chr", CHR, sep="")
 	del <- rangesInXlim(ranges.object, CHR, xlim)
 	stopifnot(nrow(del) > 0)
@@ -789,6 +790,14 @@ grid.rectangle <- function(ranges.object, CHR, xlim,
 	ids <- ids[match(unique(del$id), names(ids))]
 	starts <- start(del)
 	ends <- end(del)
+
+	## for matching samples with another ranges.object
+	## need to insert 'blank rows'
+##	if(!missing(ranges.object2)){
+##		uids <- unique(ranges.object2$id)
+##		match(del$id, uids)
+##		uidsNotInRanges <- uids[!uids %in% ranges.object$id]
+##	}
 	yy <- (1:(length(ids)+2))/(length(ids)+2)
 	y <- yy[-c(1, length(yy))]
 	y <- rep(y, sapply(ids, length))
@@ -802,11 +811,17 @@ grid.rectangle <- function(ranges.object, CHR, xlim,
 	cols <- rgb(cols[1, ],
 		    cols[2, ],
 		    cols[3, ], alpha=alpha)
-	homo.del <- substr(del$state, 3, 3) == 1  ##homozygous
-	hemi.del <- substr(del$state, 3, 3) == 2  ##hemizygous
-	fill <- rep(NA, nrow(del))
-	fill[homo.del] <- cols[1]
-	fill[hemi.del] <- cols[2]
+	if(deletion.colors){
+		homo.del <- substr(del$state, 3, 3) == 1  ##homozygous
+		hemi.del <- substr(del$state, 3, 3) == 2  ##hemizygous
+		fill <- rep(NA, nrow(del))
+		fill[homo.del] <- cols[1]
+		fill[hemi.del] <- cols[2]
+	} else {
+		denovo.amp <- substr(del$state, 3, 3) == 4
+		fill[denovo.amp] <- cols[1]
+		fill[!denovo.amp] <- cols[2]
+	}
 	## rectangle using graphical objects in grid
 	layout <- grid.layout(3, 1, heights=unit(c(1, 0.2, 0.2), c("null", "null", "null")))
 	##grid.newpage()
@@ -828,8 +843,10 @@ grid.rectangle <- function(ranges.object, CHR, xlim,
 	upViewport()
 	grid.text(paste("Chromosome", CHR), y=unit(1.05, "native"), just="top")
 	if(nrow(jug) > 0){
-		grid.rect(x=start(jug)/1e6, y=rep(yy[1], nrow(jug)), height=sp, width=width(jug)/1e6,
-			  default.units="native", gp=gpar("fill"="lightblue"), name="jug.regions", just=c("left", "top"), vp="plotRegion")
+		grid.rect(x=start(jug)/1e6, y=rep(yy[1], nrow(jug)), height=sp,
+			  width=width(jug)/1e6,
+			  default.units="native", gp=gpar(fill="lightblue"),
+			  name="jug.regions", just=c("left", "top"), vp="plotRegion")
 		grid.lines(y=yy[1]+sp, default.units="native", gp=gpar("lty"=2), vp="plotRegion")
 		grid.text("Jugessur", gp=gpar("col"="blue"),
 			  ##y=unit(yy[1]+sp, "native"),
@@ -866,14 +883,19 @@ grid.rectangle <- function(ranges.object, CHR, xlim,
 
 grid.trioLogR <- function(mset,
 			  labels=c("Father", "Mother", "Offspring", "max distance"),
-			  cex=0.3){
+			  cex=0.3, ...){
 	grid.obj <- data.frame(logR=c(logR.F(mset),
 			       logR.M(mset),
 			       logR.O(mset),
 			       -mindist(mset)),
 			       x=rep(position(mset)/1e6, 4),
 			       subject=factor(rep(1:4, each=nrow(mset)), labels=labels, ordered=TRUE))
-	nn <- sum(grid.obj$logR < -2, na.rm=TRUE)
+	if("ylim" %in% names(list(...))){
+		ylim <- list(...)[["ylim"]]
+		nn <- sum(grid.obj$logR < ylim[1], na.rm=T)
+		grid.obj$logR[grid.obj$logR < ylim[1]] <- runif(n=nn, min=ylim[1], max=ylim[1]+0.5)
+	}
+	nn <- sum(grid.obj$logR < -4, na.rm=TRUE)
 	if(nn > 10) {
 		ii <- which(grid.obj$logR < -5)
 		grid.obj$logR[ii] <- jitter(rep(-5, length(ii)),  amount=0.5)
@@ -900,7 +922,8 @@ grid.trioLogR <- function(mset,
 			    layout=c(1,4),
 			    index.cond=list(4:1),
 			    xlab="Mb",
-			    ylab="")
+			    ylab="",
+			    ...)
 	return(plot.logr)
 }
 
@@ -918,7 +941,14 @@ grid.trioBaf <- function(mset, cex=0.3){
 	return(plot.baf)
 }
 
-addSegments <- function(cbs.segs, distanceRanges, CHR, mset){
+addSegments <- function(cbs.segs, distanceRanges, CHR, mset,...){
+        ranges.md <- distanceRanges[distanceRanges$chrom == CHR, ]
+	ranges.md$seg.mean <- -1*ranges.md$seg.mean
+	if("ylim" %in% names(list(...))){
+		ylim <- list(...)[["ylim"]]
+		cbs.segs$seg.mean[cbs.segs$seg.mean < ylim[1]] <- ylim[1]+0.1
+		ranges.md$seg.mean[ranges.md$seg.mean < ylim[1]] <- ylim[1]+0.1
+	}
 	trellis.focus("panel", 1, 4, highlight = FALSE)
 	panel.grid(h = 10, v = 10, col = "grey", lty = 3)
 	cbs.sub <- cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "03", sep="_"), ]
@@ -933,9 +963,6 @@ addSegments <- function(cbs.segs, distanceRanges, CHR, mset){
 	panel.grid(h = 10, v = 10, col = "grey", lty = 3)
 	cbs.sub <- cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "01", sep="_"), ]
 	tmp <- panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
-
-        ranges.md <- distanceRanges[distanceRanges$chrom == CHR, ]
-	ranges.md$seg.mean <- -1*ranges.md$seg.mean
 
 	cbs.sub <- ranges.md[substr(ranges.md$id, 1, 5) %in% sampleNames(mset), ]
 	trellis.focus("panel", 1, 1, highlight = FALSE)
@@ -956,7 +983,10 @@ addCnv <- function(cnv, chr.name, xlim, col="red", fill="red"){
 	panel.flatbed(flat=flatBed.cnv, showIso=FALSE, rows=5, cex=0.7, col=col, fill=fill)
 }
 
-highlightRegion <- function(ranges.object, index, col="grey80", lwd=1, bg="lightblue",
+highlightRegion <- function(ranges.object, index,
+			    col="grey80",
+			    lwd=1,
+			    bg="lightblue",
 			    alpha=0.1){
 	bg2 <- col2rgb(bg)/255
 	fill <- rgb(bg2[1, ], bg2[2,], bg2[3,], alpha=alpha)
@@ -986,22 +1016,27 @@ trioIndices <- function(ranges.object, selectedRanges, xlim){
 
 grid.trio <- function(ranges.object, distanceRanges, distanceSet,
 		      bsSet,
-		      index, xlim, CHR,
+		      index,
+		      xlim,
+		      CHR,
 		      add.segments=TRUE,
 		      highlight=TRUE,
+		      alpha=0.1,
 		      add.genes=TRUE,
 		      cex.pch=0.3,
-		      label="min distance"){
+		      label="min distance", ...){
 	chr.name <- paste("chr", CHR, sep="")
 	for(j in seq_along(index)){
 		grid.newpage()
 		cat("Fig ", j, "\n")
 		i <- index[[j]][1]
-		mset <- constructTrioSetFromRanges(ranges.object[i, ], distanceSet,
-						   bsSet, xlim=xlim)
+		mset <- constructTrioSetFromRanges(ranges.object[i, ],
+						   distanceSet,
+						   bsSet,
+						   xlim=xlim)
 		plot.logr <- grid.trioLogR(mset,
 					   labels=c("Father", "Mother", "Offspring", label),
-					   cex=cex.pch)
+					   cex=cex.pch, ...)
 		plot.baf <- grid.trioBaf(mset, cex=cex.pch)
 		if(exists("cbs.segs")){
 			if(CHR != unique(cbs.segs$chrom))
@@ -1011,16 +1046,17 @@ grid.trio <- function(ranges.object, distanceRanges, distanceSet,
 		en <- end(ranges.object[i,])/1e6
 		lvp <- viewport(x=0, width=unit(0.5, "npc"), just="left", name="lvp")
 		pushViewport(lvp)
+		pushViewport(dataViewport(xscale=plot.logr$x.limits, yscale=c(0,1), clip="on"))
 		print(plot.logr, newpage=FALSE, prefix="plot1", more=TRUE)
-		if(add.segments) addSegments(cbs.segs=cbs.segs, distanceRanges=distanceRanges, CHR=CHR, mset=mset)
+		if(add.segments) addSegments(cbs.segs=cbs.segs, distanceRanges=distanceRanges, CHR=CHR, mset=mset, ...)
 		if(highlight){
 			pushViewport(viewport(x=unit(0.25, "npc"),
 					      y=unit(0.5, "npc"),
 					      width=unit(0.5, "npc"),
 					      height=unit(1, "npc")))
-			pushViewport(plotViewport(c(0, 3, 0,3)))  ## needs to be exact same as above
+			pushViewport(plotViewport(c(0, 3, 0, 3)))  ## needs to be exact same as above
 			pushViewport(dataViewport(xscale=plot.logr$x.limits, yscale=c(0,1), clip="on"))
-			suppressWarnings(highlightRegion(ranges.object, index[[j]]))
+			suppressWarnings(highlightRegion(ranges.object, index[[j]], alpha=alpha))
 		}
 		upViewport(0)
 		grid.text("Log R Ratio", x=unit(0.25, "npc"), y=unit(0.97, "npc"), gp=gpar("cex"=1.1))
@@ -1047,7 +1083,7 @@ grid.trio <- function(ranges.object, distanceRanges, distanceSet,
 					      height=unit(0.12, "npc"), just="bottom"))
 			pushViewport(plotViewport(c(0, 3, 0,3)))  ## needs to be exact same as above
 			pushViewport(dataViewport(xscale=xlim/1000, yscale=c(0,1), clip="on"))
-			addCnv(rf, chr.name, xlim)
+			addCnv(cnv, chr.name, xlim)
 		}
 		if(highlight){
 			upViewport(0)
@@ -1057,7 +1093,7 @@ grid.trio <- function(ranges.object, distanceRanges, distanceSet,
 					      height=unit(1, "npc")))
 			pushViewport(plotViewport(c(0, 3, 0,3)))  ## needs to be exact same as above
 			pushViewport(dataViewport(xscale=plot.logr$x.limits, yscale=c(0,1), clip="on"))
-			highlightRegion(ranges.object, index[[j]])
+			suppressWarnings(highlightRegion(ranges.object, index[[j]], alpha=alpha))
 		}
 	}
 }
@@ -1083,4 +1119,99 @@ getXlimAmp <- function(chr){
 	       chr18=c(64e6, 66e6),
 	       chr19=c(19.8e6, 21.4e6),
 	       chr22=c(17.8e6, 19.8e6))
+}
+
+
+explainingMinDistance <- function(deletion.ranges,
+				  show.segmentation=FALSE,
+				  show.distance=FALSE,
+				  show.distance.segmentation=FALSE,
+				  highlight=FALSE,
+				  label="min distance",
+				  highlight.border="grey80",
+				  highlight.col="lightblue",
+				  highlight.alpha=0.1){
+	xlim <- getGenomicAxis(deletion.ranges, CHR=CHR, FRAME=1e6)
+	xlim[2] <- 22e6
+	i <- grep("19225", names(index))
+	i <- index[[i]][1]
+	cex <- 0.3
+	mset <- constructTrioSetFromRanges(deletion.ranges[i, ], minDistanceSet,
+					   bsSet, xlim=xlim)
+	grid.obj <- data.frame(logR=c(logR.F(mset),
+			       logR.M(mset),
+			       logR.O(mset),
+			       -mindist(mset)),
+			       x=rep(position(mset)/1e6, 4),
+			       subject=factor(rep(1:4, each=nrow(mset)), labels=c("Father", "Mother", "Offspring", label), ordered=TRUE))
+	ylim <- c(-1,0.7)
+	plot.logr <- xyplot(logR ~ x | subject,
+			    data=grid.obj,
+			    pch=21,
+			    cex=cex,
+			    layout=c(1,4),
+			    index.cond=list(4:1), ylim=ylim,
+			    xlab="Mb",
+			    ylab="",
+			    panel=myPanel)
+	lvp <- viewport(x=0, y=unit(1, "npc"),
+			width=unit(1, "npc"), height=unit(1, "npc"),
+			just=c("left", "top"), name="lvp")
+	load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
+	grid.newpage()
+	pushViewport(lvp)
+	print(plot.logr, newpage=FALSE, more=TRUE)
+	if(!show.distance){
+		trellis.focus("panel", 1, 1, highlight = FALSE)
+		grid.points(grid.obj$x[grid.obj$subject==label],
+			    grid.obj$logR[grid.obj$subject==label],
+			    pch=21, gp=gpar(col="white", cex=0.5, fill="white"))
+		panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+	}
+	if(show.segmentation){
+		trellis.focus("panel", 1, 4, highlight = FALSE)
+		panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+		cbs.sub <- cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "03", sep="_"), ]
+		panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
+		trellis.focus("panel", 1, 3, highlight = FALSE)
+		panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+		cbs.sub=cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "02", sep="_"), ]
+		panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
+		trellis.focus("panel", 1, 2, highlight = FALSE)
+		panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+		cbs.sub <- cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "01", sep="_"), ]
+		panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
+	}
+##	if(show.distance){
+##		upViewport(0)
+##		pushViewport(tvp)
+##		plot(plot.logr2, position=c(newpage=FALSE)
+##	}
+	if(show.distance.segmentation){
+		ranges.md <- minDistanceRanges[minDistanceRanges$chrom == CHR, ]
+		ranges.md$seg.mean <- -1*ranges.md$seg.mean
+		cbs.sub <- ranges.md[substr(ranges.md$id, 1, 5) %in% sampleNames(mset), ]
+		trellis.focus("panel", 1, 1, highlight = FALSE)
+		panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+		panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
+	}
+	if(highlight){
+		upViewport(0)
+		pushViewport(viewport(x=unit(0.5, "npc"),
+				      y=unit(0.5, "npc"),
+				      width=unit(1, "npc"),
+				      height=unit(0.98, "npc")))
+		pushViewport(plotViewport(c(0, 3, 0, 3)))  ## needs to be exact same as above
+		pushViewport(dataViewport(xscale=plot.logr$x.limits, yscale=c(0,1), clip="on"))
+		i <- grep("19225", names(index))
+		highlightRegion(deletion.ranges, index[[i]],
+				col=highlight.border,
+				bg=highlight.col,
+				alpha=highlight.alpha)
+	}
+}
+
+myboxplotPanel <- function(x,y, subscripts, col="black", cex=1, ...){
+	panel.bwplot(x, y, col=col, cex=cex, ...)
+	panel.grid(h = 10, v=0, col = "grey", lty = 3)
 }

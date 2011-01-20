@@ -1,22 +1,42 @@
-\SweaveInput{preamble}
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[authoryear,round,numbers]{natbib}
+\usepackage{hyperref}
+\usepackage[mathcal]{euscript}
+\usepackage[margin=1in]{geometry}
+\newcommand{\scscst}{\scriptscriptstyle}
+\newcommand{\scst}{\scriptstyle}
+\newcommand{\Rpackage}[1]{\textit{#1}}
+\newcommand{\Rfunction}[1]{\texttt{#1}}
+\newcommand{\Robject}[1]{\texttt{#1}}
+\newcommand{\R}{\textsf{R}}
+\newcommand{\bioc}{http://www.bioconductor.org}
+\parindent 0in  % Left justify
+\parskip 7.2pt
+\newcommand{\denovo}{de novo}
+\newcommand{\Denovo}{De novo}
+
 \begin{document}
 
-<<metadata>>=
-data(Beaty)
-cdfName <- Beaty[["cdfName"]]
-@
+\begin{abstract}
 
-The segmentation is done by splitting the samples into batches of 600
-and running the jobs on separate nodes.  Uncomment the following lines
-to submit (must be on a fat node).
+  Cleft palate and lip birth defects are heritable disorders.
+  Previous genome wide association studies have identified several
+  loci that are associated with the cleft phenotype.  We analyzed a
+  collection of 2600 case-parent trios for \denovo{} copy number
+  variants using the Illumina high-throughput genotyping platform. We
+  identified several offspring with similar \denovo{} deletions in a
+  region of chromosome 22 previously implicated in DiGeorge
+  syndrome. These regions were validated via a multi-plex PCR assay.
+  This paper also describes a simple tool for detection of \denovo{}
+  copy number variants in case-parent designs that appears to be more
+  robust to genomic waves and noisy data that existing approaches
+  \denovo{} inference.
 
-%\SweaveInput{AllChromosomes.Rnw}
-%\SweaveInput{ConstructMinDistance}
-% evaluate 'segmentation2' code chunk in segmentation.Rnw
-%\SweaveInput{segmentation}
-\SweaveInput{MinDistanceDeletions}
+\end{abstract}
 
-%\SweaveInput{PlotDenovo}
+
 
 \section{Session Info}
 

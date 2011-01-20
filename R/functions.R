@@ -573,3 +573,18 @@ findSubjectsInRange <- function(object, ##RangedData
 	object$n.overlap <- n.overlap
 	return(object)
 }
+
+getDnaSource <- function(bsSet){
+	dna <- as.character(bsSet$DNA.Source)
+	cell.lines <- c(grep("CEPH", dna),
+			grep("HAN CHINESE", dna),
+			grep("JAPANESE", dna),
+			grep("YORUBA", dna))
+	dna[cell.lines] <- "HapMap"
+	which.wga <- grep("WGA", dna)
+	dna[which.wga] <- "WGA"
+	dna[dna=="dried blood spot"] <- "blood"
+	which.mouth <- match("mouth", dna)
+	dna[which.mouth] <- "saliva"
+	return(dna)
+}
