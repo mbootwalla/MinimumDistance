@@ -1,0 +1,152 @@
+<<>>=
+library(Beaty)
+data(bsSet2)
+data(maxDistanceSet)
+data(maxDistanceRanges)
+ldPath(beadstudiodir())
+featureData(maxDistanceSet) <- featureData(bsSet2)
+open(copyNumber(maxDistanceSet))
+open(baf(bsSet2))
+open(logR(bsSet2))
+open(maxDistanceSet$MAD)
+open(bsSet2$MAD)
+data(jugessur)
+data(amp.ranges)
+data(rf)
+data(cnv)
+w <- cnv$txEnd-cnv$txStart
+cnv <- cnv[w >= 10e3, ]
+w <- rf$txEnd-rf$txStart
+rf <- rf[w >= 5e3, ]
+ranges.object <- amp.ranges
+@
+
+<<genomic.annotations, eval=FALSE>>=
+CHR <- 1
+chr.name <- paste("chr", CHR, sep="")
+xlim <- getGenomicAxis(ranges.object, CHR=CHR, FRAME=1e6)
+xlim[1] <- max(0, xlim[1])
+xlim <- list(chr1.all=getXlimAmp("chr1.all"),
+	     chr1.1=getXlimAmp("chr1.1"),
+	     chr1.2=getXlimAmp("chr1.2"),
+	     chr2=getXlimAmp("chr2"),
+	     chr3.1=getXlimAmp("chr3.1"),
+	     chr3.2=getXlimAmp("chr3.2"),
+	     chr4=getXlimAmp("chr4"),
+	     chr5=getXlimAmp("chr5"),
+	     chr6=getXlimAmp("chr6"),
+	     chr7=getXlimAmp("chr7"),
+	     chr8=getXlimAmp("chr8"),
+	     chr11=getXlimAmp("chr11"),
+	     chr14=getXlimAmp("chr14"),
+	     chr15=getXlimAmp("chr15"),
+	     chr16=getXlimAmp("chr16"),
+	     chr17=getXlimAmp("chr17"),
+	     chr18=getXlimAmp("chr18"),
+	     chr19=getXlimAmp("chr19"),
+	     chr22=getXlimAmp("chr22"))
+@
+
+<<rectangle, eval=FALSE>>=
+selectedRanges <- list()
+for(i in seq_along(xlim)){
+	grid.newpage()
+	selectedRanges[[i]] <- rangesInXlim(ranges.object, CHR=CHR, xlim[[i]])
+}
+pdf(paste("figures/rectanglePlot_amp_", chr.name, ".pdf", sep=""), onefile=FALSE)
+grid.rectangle(ranges.object=ranges.object, CHR=1, xlim=xlim[[1]],
+	       jugessur=jugessur,
+	       rf=rf, cnv=cnv)
+dev.off()
+@
+
+<<grid.lowlevel, eval=FALSE>>=
+## get indices of all the ranges that overlap with the range of highest frequency
+if(save.figs) pdf(paste("figures/lowlevel_amp_", chr.name, "_%02d.pdf", sep=""), width=10, height=7, onefile=FALSE)
+index <- trioIndices(ranges.object, selectedRanges[[2]], xlim[[2]])
+grid.trio(ranges.object, index=index, xlim=xlim[[2]])
+index <- trioIndices(ranges.object, selectedRanges[[3]], xlim[[3]])
+grid.trio(ranges.object, index=index, xlim=xlim[[3]])
+if(save.figs) dev.off()
+@
+
+Use these graphs to narrow down the appropriate x-axis limits for each
+chromosome.
+
+<<>>=
+xlim <- list(chr1.all=getXlimAmp("chr1.all"),
+	     chr1.1=getXlimAmp("chr1.1"),
+	     chr1.2=getXlimAmp("chr1.2"),
+	     chr2=getXlimAmp("chr2"),
+	     chr3.1=getXlimAmp("chr3.1"),
+	     chr3.2=getXlimAmp("chr3.2"),
+	     chr4=getXlimAmp("chr4"),
+	     chr5=getXlimAmp("chr5"),
+	     chr6=getXlimAmp("chr6"),
+	     chr7=getXlimAmp("chr7"),
+	     chr8=getXlimAmp("chr8"),
+	     chr11=getXlimAmp("chr11"),
+	     chr14=getXlimAmp("chr14"),
+	     chr15=getXlimAmp("chr15"),
+	     chr16=getXlimAmp("chr16"),
+	     chr17=getXlimAmp("chr17"),
+	     chr18=getXlimAmp("chr18"),
+	     chr19=getXlimAmp("chr19"),
+	     chr22=getXlimAmp("chr22"))
+pdf(paste("figures/rectanglePlot_amp_%02d.pdf", sep=""), onefile=FALSE)
+grid.newpage()
+grid.rectangle(ranges.object=ranges.object, CHR=1, xlim=xlim[[1]],
+	       jugessur=jugessur,
+	       rf=rf, cnv=cnv, cols="grey80")
+for(i in 4:length(xlim)){
+	nm <- names(xlim)[i]
+	nm <- strsplit(nm, "chr")[[1]][2]
+	if(length(grep(".", nm)) > 0) nm <- strsplit(nm, "\\.")[[1]][1]
+	CHR <- chromosome2integer(nm)
+	grid.newpage()
+	grid.rectangle(ranges.object=ranges.object, CHR=CHR, xlim=xlim[[i]],
+		       jugessur=jugessur,
+		       cols="grey80",
+		       rf=rf, cnv=cnv)
+}
+dev.off()
+
+selectedRanges <- list()
+for(i in 1:length(xlim)){
+	nm <- names(xlim)[i]
+	nm <- strsplit(nm, "chr")[[1]][2]
+	if(length(grep(".", nm)) > 0) nm <- strsplit(nm, "\\.")[[1]][1]
+	CHR <- chromosome2integer(nm)
+	selectedRanges[[i]] <- rangesInXlim(ranges.object, CHR=CHR, xlim[[i]])
+}
+
+for(i in 2:length(xlim)){
+	grid.newpage()
+	nm <- names(xlim)[i]
+	nm <- strsplit(nm, "chr")[[1]][2]
+	if(length(grep(".", nm)) > 0) nm <- strsplit(nm, "\\.")[[1]][1]
+	CHR <- chromosome2integer(nm)
+	jpeg(paste("figures/lowlevel_amp_chr", CHR, "_%02d.jpg", sep=""), quality=100, width=950, height=700)
+	index <- trioIndices(ranges.object, selectedRanges[[i]], xlim[[i]])
+	##	trace(grid.trio, browser)
+	grid.trio(ranges.object=ranges.object, maxDistanceRanges=maxDistanceRanges, index=index, xlim=xlim[[i]], CHR=unique(selectedRanges[[i]]$chrom))
+	dev.off()
+}
+@
+
+Families involved.
+
+<<>>=
+family <- lapply(selectedRanges, function(x) unique(x$id))
+family.denovoAmp <- unique(substr(unlist(family), 1, 5))
+
+data(deletion.ranges)
+state <- as.character(c(331, 332, 432, 342, 431, 341))
+family.denovoDel <- unique(substr(deletion.ranges$id, 1, 5)[deletion.ranges$state %in% state])
+
+mean(family.denovoDel %in% family.denovoAmp)
+@
+
+
+
+

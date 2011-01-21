@@ -125,3 +125,20 @@ dev.off()
 @
 
 
+How to cluster the rows of the pictures?
+- the data is start and stop coordinates that take on one of three values
+- for each segment, we know the coverage.
+- would it be calculating the disjoint ranges.  Then converting each
+range to be 0 (homo-del),1 (hemi-del), 2 (normal), 3 (amp)
+
+- find the unique marker positions for a chromosome
+  create IRanges object with start=snp.position-12, end=snp.position+12
+  use findOverlaps to get the indices of the segments.
+
+<<>>=
+
+@
+
+
+
+
