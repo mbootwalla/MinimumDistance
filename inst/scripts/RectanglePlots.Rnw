@@ -1,0 +1,127 @@
+<<>>=
+library(Beaty)
+ldPath(beadstudiodir())
+data(deletion.ranges)
+data(amp.ranges)
+data(rf)
+data(cnv)
+w <- cnv$txEnd-cnv$txStart
+cnv <- cnv[w >= 10e3, ]
+w <- rf$txEnd-rf$txStart
+rf <- rf[w >= 10e3, ]
+@
+
+
+<<data>>=
+trace(combineRanges, browser)
+ranges.all <- combineRanges(deletion.ranges, amp.ranges)
+palette <- brewer.pal(9, "Set1")[1:3]
+dat <- data.frame.for.rectangles(ranges.all, palette=palette)
+penn.joint <- checkExists("penn.joint", .path=ldPath(), .FUN=readPennCnv, penndir="/thumper/ctsa/beaty/holger/penncnv/trioDat")
+penn.joint <- do.call("c", penn.joint)
+data(bsSet)
+penn.joint <- penn.joint[penn.joint$id %in% sampleNames(bsSet), ]
+penn.rd <- getPennDenovo(penn.joint)
+penn.df <- data.frame.for.rectangles(penn.rd, palette)
+penn.df <- penn.df[penn.df$coverage >= 10, ]
+combined.df <- combine.data.frames(dat, penn.df)
+@
+
+<<trellis>>=
+mykey <- simpleKey(c("homo-del", "hemi-del", "amp"), points=FALSE,
+		   rectangles=TRUE, col=palette[1:3], space="right")
+mykey$rectangles$col <- palette
+mykey$rectangles$border <- palette
+dist.chr.lim <- xyplot(y~midpoint|chr, data=dat, panel=my.rectangle,
+			 x0=dat$x0,
+			 x1=dat$x1,
+			 y0=dat$y0,
+			 y1=dat$y1,
+			 col=dat$col,
+			 border=dat$col,
+			 alpha=1,
+			 chr.size=dat$chr.size,
+			 scales=list(y="free", x="free", rot=0),
+			 coverage=dat$coverage, xlab="Mb", ylab="offspring index",
+			 show.coverage=FALSE, key=mykey,
+			 par.strip.text=list(lines=0.7, cex=0.6),
+			 prepanel=prepanel.fxn)
+
+penn.chr.lim <- xyplot(y~midpoint|chr, data=penn.df, panel=my.rectangle,
+		       x0=penn.df$x0,
+		       x1=penn.df$x1,
+		       y0=penn.df$y0,
+		       y1=penn.df$y1,
+		       col=penn.df$col,
+		       border=penn.df$col,
+		       alpha=1,
+		       chr.size=penn.df$chr.size,
+		       scales=list(y="free", x="free", rot=0),
+		       coverage=penn.df$coverage, xlab="Mb", ylab="offspring index",
+		       show.coverage=FALSE, key=mykey,
+		       par.strip.text=list(lines=0.7, cex=0.6),
+		       prepanel=prepanel.fxn)
+
+dist.packet.lim <- xyplot(y~midpoint|chr, data=dat, panel=my.rectangle,
+			  x0=dat$x0,
+			  x1=dat$x1,
+			  y0=dat$y0,
+			  y1=dat$y1,
+			  col=dat$col,
+			  border=dat$col,
+			  alpha=1,
+			  chr.size=dat$chr.size,
+			  scales=list(y="free", x="free", rot=0),
+			  coverage=dat$coverage, xlab="Mb", ylab="offspring index",
+			  show.coverage=FALSE, key=mykey,
+			  par.strip.text=list(lines=0.7, cex=0.6))
+
+penn.packet.lim <- xyplot(y~midpoint|chr, data=penn.df, panel=my.rectangle,
+			  x0=penn.df$x0,
+			  x1=penn.df$x1,
+			  y0=penn.df$y0,
+			  y1=penn.df$y1,
+			  col=penn.df$col,
+			  border=penn.df$col,
+			  alpha=1,
+			  chr.size=penn.df$chr.size,
+			  scales=list(y="free", x="free", rot=0),
+			  coverage=penn.df$coverage, xlab="Mb", ylab="offspring index",
+			  show.coverage=FALSE, key=mykey,
+			  par.strip.text=list(lines=0.7, cex=0.6))
+
+by.chrom <- xyplot(y~midpoint|method+chr, data=combined.df, panel=my.rectangle,
+		   x0=combined.df$x0,
+		   x1=combined.df$x1,
+		   y0=combined.df$y0,
+		   y1=combined.df$y1,
+		   col=combined.df$col,
+		   border=combined.df$col,
+		   alpha=1,
+		   chr.size=combined.df$chr.size,
+		   scales=list(y="free", x="free", rot=0),
+		   coverage=combined.df$coverage, xlab="Mb", ylab="offspring index",
+		   show.coverage=FALSE, key=mykey,
+		   par.strip.text=list(lines=0.7, cex=0.6),
+		   layout=c(1, 2, 22), prepanel=prepanel.fxn2,
+		   min=combined.df$min, max=combined.df$max) ##columns, rows, pages
+@
+
+<<device>>=
+hist(penn.df$coverage, breaks=10000, xlim=c(0,20), xaxt="n")
+axis(1, at=1:20, labels=1:20)
+## x-limit is size of chromosome
+trellis.device(device="pdf", file="figures/rectangles_distance_%02d.pdf", width=10, height=8,
+	       onefile=FALSE)
+pars <- trellis.par.get()
+pars$axis.text$cex <- 0.5
+trellis.par.set("axis.text", pars$axis.text)
+print(dist.chr.lim)
+print(penn.chr.lim)
+print(dist.packet.lim)
+print(penn.packet.lim)
+print(by.chrom)
+dev.off()
+@
+
+

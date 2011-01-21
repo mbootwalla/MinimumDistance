@@ -1215,3 +1215,84 @@ myboxplotPanel <- function(x,y, subscripts, col="black", cex=1, ...){
 	panel.bwplot(x, y, col=col, cex=cex, ...)
 	panel.grid(h = 10, v=0, col = "grey", lty = 3)
 }
+
+data.frame.for.rectangles <- function(ranges.all, palette){
+	## important to order by chromosome before splitting
+	ranges.all <- ranges.all[order(ranges.all$chrom), ]
+	del.states <- c("332", "331", "321", "231", "221", "431", "341", "432", "342", "441", "442", "421")
+	amp.states <- c("334", "224", "114", "124", "214", "324", "234", "124", "214", "314", "134")
+	is.denovo <- ranges.all$state %in% c(del.states, amp.states)
+	if(!all(is.denovo)){
+		message("states non-denovo states detected.  Excluding non-denovo states")
+		ranges.all <- ranges.all[is.denovo, ]
+	}
+	hemizygous.states <- c("332", "432", "342")
+	homozygous.states <- c("331", "321", "231", "431", "341", "441", "221")
+	isAmp <- substr(ranges.all$state, 3, 3) == "4"
+	cols <- rep(NA, nrow(ranges.all))
+	cols[ranges.all$state %in% homozygous.states] <- palette[1]
+	cols[ranges.all$state %in% hemizygous.states] <- palette[2]
+	cols[isAmp] <- palette[3]
+	## height of rectangle
+	h <- 0.75
+	meanSegment <- apply(cbind(start(ranges.all), end(ranges.all)), 1, mean)
+	data(chromosomeAnnotation)
+	chr.size <- chromosomeAnnotation[1:22, "chromosomeSize"]
+	chrom <- ranges.all$chrom
+	chr.size <- chr.size[chrom]
+	y <- split(ranges.all$id, chrom)
+	y <- lapply(y, function(x){
+		tmp <- as.numeric(as.factor(x))
+		names(tmp) <- as.character(x)
+		tmp
+	})
+	y <- unlist(y)
+	nms2 <- paste(ranges.all$chrom, ranges.all$id, sep=".")
+	if(!identical(names(y), nms2)){
+		y <- y[match(nms2, names(y))]
+		stopifnot(identical(names(y), nms2))
+	}
+	dat <- data.frame(x0=start(ranges.all)/1e6,
+			  x1=end(ranges.all)/1e6,
+			  y0=y-h/2,
+			  y1=y+h/2,
+			  chr=ranges.all$chrom,
+			  coverage=ranges.all$num.mark,
+			  midpoint=meanSegment/1e6,
+			  id=ranges.all$id,
+			  chr.size=chr.size/1e6,
+			  col=cols,
+			  y=y)
+	dat$col <- as.character(dat$col)
+	dat$chr <- as.factor(dat$chr)
+	##dat <- dat[isHemizygous | isHomozygous, ]
+	dat$id=as.integer(dat$id)
+	return(dat)
+}
+
+my.rectangle <- function(x, y, x0, x1, y0, y1, alpha, chr.size, col, border, coverage,
+			 show.coverage=TRUE, ..., subscripts){
+	## axis limits and tick labels already present
+	panel.grid(h=-1, v=-1)
+	## nothing plotted
+	panel.xyplot(x, as.factor(y), ##xlim=c(0, unique(chr.size[subscript])),
+		     ..., subscripts)
+	lrect(xleft=x0[subscripts],
+	      xright=x1[subscripts],
+	      ybottom=y0[subscripts],
+	      ytop=y1[subscripts],
+	      border=border[subscripts],
+	      col=col[subscripts],
+	      alpha=alpha)
+	if(show.coverage)
+		ltext(x,y,labels=coverage[subscripts])
+}
+
+prepanel.fxn <- function(x,y, chr.size, ..., subscripts){
+	list(xlim=c(0, unique(chr.size[subscripts])))
+}
+prepanel.fxn2 <- function(x,y, min, max, ..., subscripts){
+	min <- unique(min[subscripts])
+	max <- unique(max[subscripts])
+	list(xlim=c(min, max))
+}

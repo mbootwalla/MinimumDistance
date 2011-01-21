@@ -16,8 +16,15 @@
 \parskip 7.2pt
 \newcommand{\denovo}{de novo}
 \newcommand{\Denovo}{De novo}
+\newcommand{\via}{\textit{via}}
+
+\title{Denovo copy number variants implicated in cleft lip and palate
+  birth defects}
+
+\author{RS, TB, AS, HS, and IR (in some order)}
 
 \begin{document}
+\maketitle
 
 \begin{abstract}
 
@@ -28,15 +35,52 @@
   variants using the Illumina high-throughput genotyping platform. We
   identified several offspring with similar \denovo{} deletions in a
   region of chromosome 22 previously implicated in DiGeorge
-  syndrome. These regions were validated via a multi-plex PCR assay.
-  This paper also describes a simple tool for detection of \denovo{}
-  copy number variants in case-parent designs that appears to be more
-  robust to genomic waves and noisy data that existing approaches
+  syndrome. These regions were validated \via{} multiplex qPCR.  This
+  paper also describes a simple tool for detection of \denovo{} copy
+  number variants in case-parent designs that appears to be more
+  robust to genomic waves and noisy data than existing approaches for
   \denovo{} inference.
 
 \end{abstract}
 
+\section{Introduction}
 
+Cleft palate and cleft lip affect 1 in every 2500 offspring. This is
+the first paper to identify copy number variants implicated in
+clefting (?)
+
+\section{Methods}
+
+
+BeadStudio was used to process the raw intensities for 7599 samples,
+including 318 HapMap samples.
+
+\section{Results}
+
+What we still need:
+
+- plots for every chromosome with color codes for the type of denovo event
+
+- For the rectangle plots:
+    - use the pages option.  put everything we need in a big matrix?
+
+    - make use of darker colors without borders for color coding calls
+      Perhaps 3 colors for denovo hemizygous, denovo homozygous,
+      denovo amplification (3 colors)
+
+   - For chromosome-level plots, add a histogram with frequencies
+     for the samples
+
+   - Add a legend for colors.
+
+
+
+
+\section{Discussion}
+
+
+
+\end{document}
 
 \section{Session Info}
 
@@ -44,4 +88,3 @@
 toLatex(sessionInfo())
 @
 
-\end{document}

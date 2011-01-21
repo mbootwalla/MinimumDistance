@@ -588,3 +588,74 @@ getDnaSource <- function(bsSet){
 	dna[which.mouth] <- "saliva"
 	return(dna)
 }
+
+combineRanges <- function(deletion.ranges, amp.ranges){
+	state <- deletion.ranges$state
+	hemizygous.states <- c("332", "432", "342")
+	homozygous.states <- c("331", "321", "231", "431", "341", "441", "221")
+	deletion.ranges <- deletion.ranges[state %in% hemizygous.states | state %in% homozygous.states, ]
+	amp.ranges <- amp.ranges[, colnames(amp.ranges) %in% colnames(deletion.ranges)]
+	index <- match(colnames(amp.ranges), colnames(deletion.ranges))
+	deletion.ranges2 <- deletion.ranges[,  index]
+	stopifnot(all.equal(colnames(deletion.ranges2), colnames(amp.ranges)))
+	ranges.all <- RangedData(IRanges(c(start(deletion.ranges2), start(amp.ranges)),
+					 c(end(deletion.ranges2), end(amp.ranges))),
+				 id=c(deletion.ranges2$id, amp.ranges$id),
+				 chrom=c(deletion.ranges2$chrom, amp.ranges$chrom),
+				 num.mark=c(deletion.ranges2$num.mark, amp.ranges$num.mark),
+				 seg.mean=c(deletion.ranges2$seg.mean, amp.ranges$seg.mean),
+				 state=c(deletion.ranges2$state, amp.ranges$state))
+	ranges.all
+}
+
+combine.data.frames <- function(dist.df, penn.df){
+	dist.df$method <- rep("distance", nrow(dist.df))
+	penn.df$method <- rep("penncnv", nrow(penn.df))
+	combined.df <- rbind(dist.df, penn.df)
+	combined.df <- combined.df[order(combined.df$chr), ]
+	maxim.chr <- split(combined.df$x1, combined.df$chr)
+	maxim <- sapply(maxim.chr, max)
+	maxim <- rep(maxim, sapply(maxim.chr, length))
+	min.chr <- split(combined.df$x0, combined.df$chr)
+	minim <- sapply(min.chr, min)
+	minim <- rep(minim, sapply(min.chr, length))
+	combined.df$min <- minim
+	combined.df$max <- maxim
+	return(combined.df)
+}
+
+getPennDenovo <- function(penn.joint){
+	isOffspring <- substr(penn.joint$id, 6, 8) == "_01"
+	penn.joint <- penn.joint[isOffspring, ]
+
+	penn.rd <- as(penn.joint, "RangedData")
+	chr <- as.character(space(penn.rd))
+	penn.rd$chrom <- as.integer(substr(chr, 4, nchar(chr)))
+	colnames(penn.rd)[4] <- "state"
+	colnames(penn.rd)[2] <- "num.mark"
+	penn.rd <- penn.rd[, -5]
+	index.multiple.states <- grep("-", penn.rd$state)
+	ms <- penn.rd$state[index.multiple.states]
+	ms <- sapply(ms, function(x) unique(strsplit(x, "-")[[1]]))
+	l2 <- which(sapply(ms, length) > 1)
+	ms[l2] <- sapply(ms[l2], function(x) paste(x, collapse="-"))
+	ms <- unlist(ms)
+	penn.rd$state[index.multiple.states] <- ms
+	index.multiple.states <- grep("-", penn.rd$state)
+	penn.rd <- penn.rd[-index.multiple.states, ]
+	## 4 is copy neutral LOH.  Replace 4's with 3's (normal CN).
+	## Replace any 5s and 6s (duplications) with 4
+	state <- penn.rd$state
+	state <- gsub("4", "3", state)
+	state <- gsub("5", "4", state)
+	state <- gsub("6", "4", state)
+	index1 <- substr(state, 1, 1)
+	index2 <- substr(state, 2, 2)
+	index3 <- substr(state, 3, 3)
+	not.denovo <- index1 == index3 | index2 == index3
+	state <- state[!not.denovo]
+	del.states <- c("332", "331", "321", "231", "221", "431", "341", "432", "342", "441", "442", "421")
+	amp.states <- c("334", "224", "114", "124", "214", "324", "234", "124", "214", "314", "134")
+	penn.rd <- penn.rd[penn.rd$state %in% c(del.states, amp.states), ] ##68,472
+	return(penn.rd)
+}
