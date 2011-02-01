@@ -882,19 +882,22 @@ grid.rectangle <- function(ranges.object, CHR, xlim,
 }
 
 grid.trioLogR <- function(mset,
+			  ranges,
 			  labels=c("Father", "Mother", "Offspring", "max distance"),
-			  cex=0.3, ...){
+			  highlight=TRUE,
+			  highlight.fill,
+			  highlight.border,
+			  highlight.alpha=0.3,
+			  ylim, ...){
 	grid.obj <- data.frame(logR=c(logR.F(mset),
 			       logR.M(mset),
 			       logR.O(mset),
 			       -mindist(mset)),
 			       x=rep(position(mset)/1e6, 4),
 			       subject=factor(rep(1:4, each=nrow(mset)), labels=labels, ordered=TRUE))
-	if("ylim" %in% names(list(...))){
-		ylim <- list(...)[["ylim"]]
-		nn <- sum(grid.obj$logR < ylim[1], na.rm=T)
-		grid.obj$logR[grid.obj$logR < ylim[1]] <- runif(n=nn, min=ylim[1], max=ylim[1]+0.5)
-	}
+	grid.obj <- grid.obj[!is.na(grid.obj$logR), ]
+	nn <- sum(grid.obj$logR < ylim[1], na.rm=T)
+	grid.obj$logR[grid.obj$logR < ylim[1]] <- runif(n=nn, min=ylim[1], max=ylim[1]+0.5)
 	nn <- sum(grid.obj$logR < -4, na.rm=TRUE)
 	if(nn > 10) {
 		ii <- which(grid.obj$logR < -5)
@@ -917,31 +920,149 @@ grid.trioLogR <- function(mset,
 	}
 	plot.logr <- xyplot(logR ~ x | subject,
 			    data=grid.obj,
-			    pch=21,
-			    cex=cex,
 			    layout=c(1,4),
 			    index.cond=list(4:1),
 			    xlab="Mb",
 			    ylab="",
+			    highlight.fill=highlight.fill,
+			    highlight.border=highlight.border,
+			    highlight.alpha=highlight.alpha,
+			    ranges=ranges,
+			    panel=logrpanelfunction,
+			    highlight=highlight,
+			    ylim=ylim,
 			    ...)
 	return(plot.logr)
 }
 
-grid.trioBaf <- function(mset, cex=0.3){
+mypanelfunction <- function(x, y,
+			    highlight,
+			    highlight.fill,
+			    highlight.alpha,
+			    highlight.border,
+			    alpha,
+			    ranges,
+			    ylim,
+			    cex.genes=0.6,
+			    rows,
+			    flatBed,
+			    flatBed.cnv, ..., subscripts){
+	if(panel.number() > 2){
+		panel.xyplot(x, y, ...)
+		panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+
+	}
+	if(panel.number() == 2){
+		panel.flatbed(flat=flatBed,
+			      showIso=FALSE, rows=rows,
+			      cex=cex.genes)
+	}
+	if(panel.number() == 1){
+		panel.flatbed(flat=flatBed.cnv,
+			      showIso=FALSE, rows=rows,
+			      cex=cex.genes,
+			      col="red")
+	}
+	if(highlight){
+		##trellis.focus("panel", 1, panel.number())
+		ylim=c(0, 1)
+		st <- start(ranges)/1e6
+		en <- end(ranges)/1e6
+		lrect(xleft=st,
+		      xright=en,
+		      ybottom=ylim[1],
+		      ytop=ylim[2],
+		      border=highlight.border,
+		      col=highlight.fill,
+		      alpha=highlight.alpha)
+	}
+	if("other.ranges" %in% names(list(...))){
+		ranges <- list(...)[["other.ranges"]]
+		ylim=c(0, 1)
+		st <- start(ranges)/1e6
+		en <- end(ranges)/1e6
+		lrect(xleft=st,
+		      xright=en,
+		      ybottom=ylim[1],
+		      ytop=ylim[2],
+		      border=highlight.border,
+		      col=highlight.fill,
+		      alpha=highlight.alpha)
+	}
+}
+
+logrpanelfunction <- function(x, y, highlight,
+			      highlight.fill,
+			      highlight.alpha,
+			      highlight.border,
+			      alpha,
+			      ranges,
+			      ylim, ..., subscripts){
+	panel.xyplot(x, y, ...)
+	panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+	ylim=c(-3, 2)
+	if(highlight){
+		st <- start(ranges)/1e6
+		en <- end(ranges)/1e6
+		lrect(xleft=st,
+		      xright=en,
+		      ybottom=ylim[1],
+		      ytop=ylim[2],
+		      border=highlight.border,
+		      col=highlight.fill,
+		      alpha=highlight.alpha)
+	}
+	if("other.ranges" %in% names(list(...))){
+		ranges <- list(...)[["other.ranges"]]
+		st <- start(ranges)/1e6
+		en <- end(ranges)/1e6
+		lrect(xleft=st,
+		      xright=en,
+		      ybottom=ylim[1],
+		      ytop=ylim[2],
+		      border=highlight.border,
+		      col=highlight.fill,
+		      alpha=highlight.alpha)
+	}
+}
+
+
+grid.trioBaf <- function(mset,
+			 highlight.fill,
+			 highlight.border,
+			 highlight,
+			 ranges,
+			 alpha,
+			 ...){
 	grid.obj2 <- data.frame(baf=c(baf.F(mset),
 				baf.M(mset),
 				baf.O(mset)),
 				x=rep(position(mset)/1e6, 3),
 				subject=factor(rep(1:3, each=nrow(mset)), labels=c("Father", "Mother", "Offspring"), ordered=TRUE))
 	plot.baf <- xyplot(baf ~ x | subject,
-			   data=grid.obj2, pch=21, cex=cex,
+			   data=grid.obj2,
 			   layout=c(1,3), index.cond=list(3:1),
 			   xlab="",
-			   ylab="")
+			   ylab="",
+			   scales=list(x=list(draw=FALSE)),
+			   panel=mypanelfunction,
+			   highlight=highlight,
+			   highlight.fill=highlight.fill,
+			   highlight.border=highlight.border,
+			   highlight.alpha=alpha,
+			   ranges=ranges, ...)
 	return(plot.baf)
 }
 
-addSegments <- function(cbs.segs, distanceRanges, CHR, mset,...){
+addSegments <- function(cbs.segs,
+			ranges.object,
+			distanceRanges,
+			CHR, mset,
+			highlight=TRUE,
+			col="grey80",
+			lwd=1,
+			bg="lightblue",
+			alpha=0.3, ...){
         ranges.md <- distanceRanges[distanceRanges$chrom == CHR, ]
 	ranges.md$seg.mean <- -1*ranges.md$seg.mean
 	if("ylim" %in% names(list(...))){
@@ -950,37 +1071,37 @@ addSegments <- function(cbs.segs, distanceRanges, CHR, mset,...){
 		ranges.md$seg.mean[ranges.md$seg.mean < ylim[1]] <- ylim[1]+0.1
 	}
 	trellis.focus("panel", 1, 4, highlight = FALSE)
-	panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+	##panel.grid(h = 10, v = 10, col = "grey", lty = 3)
 	cbs.sub <- cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "03", sep="_"), ]
 	panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
 
 	trellis.focus("panel", 1, 3, highlight = FALSE)
-	panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+	##panel.grid(h = 10, v = 10, col = "grey", lty = 3)
 	cbs.sub=cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "02", sep="_"), ]
 	panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
 
 	trellis.focus("panel", 1, 2, highlight = FALSE)
-	panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+	##panel.grid(h = 10, v = 10, col = "grey", lty = 3)
 	cbs.sub <- cbs.segs[cbs.segs$id==paste(sampleNames(mset)[1], "01", sep="_"), ]
 	tmp <- panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
 
 	cbs.sub <- ranges.md[substr(ranges.md$id, 1, 5) %in% sampleNames(mset), ]
 	trellis.focus("panel", 1, 1, highlight = FALSE)
-	panel.grid(h = 10, v = 10, col = "grey", lty = 3)
+	##panel.grid(h = 10, v = 10, col = "grey", lty = 3)
 	tmp <- panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2)#gp=gpar("lwd"=2))
 	upViewport(0)
 }
 
-addGenes <- function(rf, chr.name, xlim){
+addGenes <- function(rf, chr.name, xlim, rows=5, cex=0.7){
 	rf.chr <- rf[rf$txStart <= xlim[2] & rf$txEnd >= xlim[1] & rf$chrom==chr.name, ]
 	flatBed <- flatten.bed(rf.chr)
-	panel.flatbed(flat=flatBed, showIso=FALSE, rows=5, cex=0.7)
+	panel.flatbed(flat=flatBed, showIso=FALSE, rows=rows, cex=cex)
 }
 
-addCnv <- function(cnv, chr.name, xlim, col="red", fill="red"){
+addCnv <- function(cnv, chr.name, xlim, col="red", fill="red", rows=5, cex=0.7){
 	cnv.chr <- cnv[cnv$txStart <= xlim[2] & cnv$txEnd >= xlim[1] & cnv$chrom==chr.name, ]
 	flatBed.cnv <- flatten.bed(cnv.chr)
-	panel.flatbed(flat=flatBed.cnv, showIso=FALSE, rows=5, cex=0.7, col=col, fill=fill)
+	panel.flatbed(flat=flatBed.cnv, showIso=FALSE, rows=rows, cex=cex, col=col, fill=fill)
 }
 
 highlightRegion <- function(ranges.object, index,
@@ -1021,11 +1142,18 @@ grid.trio <- function(ranges.object, distanceRanges, distanceSet,
 		      CHR,
 		      add.segments=TRUE,
 		      highlight=TRUE,
-		      alpha=0.1,
+		      highlight.fill="lightblue",
+		      highlight.border="grey60",
+		      highlight.alpha=0.1,
 		      add.genes=TRUE,
 		      cex.pch=0.3,
-		      label="min distance", ...){
+		      label="min distance",
+		      pch=21, ...){
 	chr.name <- paste("chr", CHR, sep="")
+	if(highlight){
+		fill <- col2rgb(highlight.fill)/255
+		highlight.fill <- rgb(fill[1, ], fill[2,], fill[3,], alpha=highlight.alpha)
+	}
 	for(j in seq_along(index)){
 		grid.newpage()
 		cat("Fig ", j, "\n")
@@ -1036,8 +1164,20 @@ grid.trio <- function(ranges.object, distanceRanges, distanceSet,
 						   xlim=xlim)
 		plot.logr <- grid.trioLogR(mset,
 					   labels=c("Father", "Mother", "Offspring", label),
-					   cex=cex.pch, ...)
-		plot.baf <- grid.trioBaf(mset, cex=cex.pch)
+					   cex=cex.pch,
+					   highlight.fill=highlight.fill,
+					   highlight.border=highlight.border,
+					   highlight=highlight,
+					   ranges=ranges.object[i, ],
+					   alpha=highlight.alpha,
+					   pch=pch,...)
+		plot.baf <- grid.trioBaf(mset, cex=cex.pch,
+					 highlight.fill=highlight.fill,
+					 highlight.border=highlight.border,
+					 highlight=highlight,
+					 ranges=ranges.object[i, ],
+					 alpha=highlight.alpha,
+					 pch=pch)
 		if(exists("cbs.segs")){
 			if(CHR != unique(cbs.segs$chrom))
 				load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
@@ -1048,16 +1188,24 @@ grid.trio <- function(ranges.object, distanceRanges, distanceSet,
 		pushViewport(lvp)
 		pushViewport(dataViewport(xscale=plot.logr$x.limits, yscale=c(0,1), clip="on"))
 		print(plot.logr, newpage=FALSE, prefix="plot1", more=TRUE)
-		if(add.segments) addSegments(cbs.segs=cbs.segs, distanceRanges=distanceRanges, CHR=CHR, mset=mset, ...)
-		if(highlight){
-			pushViewport(viewport(x=unit(0.25, "npc"),
-					      y=unit(0.5, "npc"),
-					      width=unit(0.5, "npc"),
-					      height=unit(1, "npc")))
-			pushViewport(plotViewport(c(0, 3, 0, 3)))  ## needs to be exact same as above
-			pushViewport(dataViewport(xscale=plot.logr$x.limits, yscale=c(0,1), clip="on"))
-			suppressWarnings(highlightRegion(ranges.object, index[[j]], alpha=alpha))
+		if(add.segments) {
+			addSegments(cbs.segs=cbs.segs,
+				    distanceRanges=distanceRanges,
+				    ranges.object=ranges.object[i, ],
+				    col=highlight.border,
+				    bg=highlight.fill,
+				    CHR=CHR, mset=mset,
+				    highlight=highlight, ...)
 		}
+##		if(highlight){
+##			pushViewport(viewport(x=unit(0.25, "npc"),
+##					      y=unit(0.5, "npc"),
+##					      width=unit(0.5, "npc"),
+##					      height=unit(1, "npc")))
+##			pushViewport(plotViewport(c(0, 3, 0, 3)))  ## needs to be exact same as above
+##			pushViewport(dataViewport(xscale=plot.logr$x.limits, yscale=c(0,1), clip="on"))
+##			suppressWarnings(highlightRegion(ranges.object, index[[j]], alpha=alpha))
+##		}
 		upViewport(0)
 		grid.text("Log R Ratio", x=unit(0.25, "npc"), y=unit(0.97, "npc"), gp=gpar("cex"=1.1))
 		grid.text(paste(chr.name, ", Family", sampleNames(mset)), x=unit(0.5, "npc"), y=unit(0.98, "npc"), gp=gpar("cex"=1.2))
@@ -1085,17 +1233,116 @@ grid.trio <- function(ranges.object, distanceRanges, distanceSet,
 			pushViewport(dataViewport(xscale=xlim/1000, yscale=c(0,1), clip="on"))
 			addCnv(cnv, chr.name, xlim)
 		}
-		if(highlight){
-			upViewport(0)
-			pushViewport(viewport(x=unit(0.75, "npc"),
-					      y=unit(0.5, "npc"),
-					      width=unit(0.5, "npc"),
-					      height=unit(1, "npc")))
-			pushViewport(plotViewport(c(0, 3, 0,3)))  ## needs to be exact same as above
-			pushViewport(dataViewport(xscale=plot.logr$x.limits, yscale=c(0,1), clip="on"))
-			suppressWarnings(highlightRegion(ranges.object, index[[j]], alpha=alpha))
-		}
+##		if(highlight){
+##			upViewport(0)
+##			pushViewport(viewport(x=unit(0.75, "npc"),
+##					      y=unit(0.5, "npc"),
+##					      width=unit(0.5, "npc"),
+##					      height=unit(1, "npc")))
+##			pushViewport(plotViewport(c(0, 3, 0,3)))  ## needs to be exact same as above
+##			pushViewport(dataViewport(xscale=plot.logr$x.limits, yscale=c(0,1), clip="on"))
+##			suppressWarnings(highlightRegion(ranges.object, index[[j]], alpha=alpha))
+##		}
 	}
+}
+
+grid.trio2 <- function(ranges.object, distanceRanges, distanceSet,
+		       bsSet,
+		       xlimit,
+		       CHR,
+		       add.segments=TRUE,
+		       highlight=TRUE,
+		       highlight.fill="lightblue",
+		       highlight.border="grey60",
+		       highlight.alpha=0.5,
+		       add.genes=TRUE,
+		       ylim=c(-3,2),
+		       cex.genes=0.8,
+		       label="min distance",
+		       rf, cnv, ...){
+	chr.name <- paste("chr", CHR, sep="")
+	fill <- col2rgb(highlight.fill)/255
+	highlight.fill <- rgb(fill[1, ], fill[2,], fill[3,], alpha=highlight.alpha)
+	mset <- constructTrioSetFromRanges(ranges.object,
+					   distanceSet,
+					   bsSet,
+					   xlim=xlimit*1e6)
+	plot.logr <- grid.trioLogR(mset,
+				   labels=c("Father", "Mother", "Offspring", label),
+				   highlight.fill=highlight.fill,
+				   highlight.border=highlight.border,
+				   highlight=highlight,
+				   ranges=ranges.object,
+				   alpha=highlight.alpha,
+				   ylim=ylim,
+				   ...)
+	grid.obj2 <- data.frame(baf=c(baf.F(mset),
+				baf.M(mset),
+				baf.O(mset),
+				rep(0, nrow(mset)*2)),
+				x=rep(position(mset)/1e6, 5),
+				subject=factor(rep(1:5, each=nrow(mset)), labels=c("Father", "Mother", "Offspring", "Genes", "CNV"), ordered=TRUE))
+	rf <- rf[!duplicated(rf$geneName), ]
+	rf.chr <- rf[rf$txStart/1e6 <= xlimit[2] & rf$txEnd/1e6 >= xlimit[1] & rf$chrom==chr.name, ]
+	cnv.chr <- cnv[cnv$txStart/1e6 <= xlimit[2] & cnv$txEnd/1e6 >= xlimit[1] & cnv$chrom==chr.name, ]
+##	if(nrow(rf.chr) > 100){
+##		w <- rf.chr$txEnd-rf.chr$txStart
+##		rf.chr <- rf.chr[order(w, decreasing=TRUE), ]
+##		rf.chr <- rf.chr[1:100, ]
+##	}
+##	if(nrow(cnv.chr) > 100){
+##		w <- cnv.chr$txStart-cnv.chr$txEnd
+##		cnv.chr <- cnv.chr[order(w, decreasing=TRUE), ]
+##		cnv.chr <- cnv.chr[1:100, ]
+##	}
+	flatBed <- flatten.bed(rf.chr)
+	flatBed$start <- flatBed$start/1e3
+	flatBed$stop <- flatBed$stop/1e3
+	flatBed.cnv <- flatten.bed(cnv.chr)
+	flatBed.cnv$start <- flatBed.cnv$start/1e3
+	flatBed.cnv$stop <- flatBed.cnv$stop/1e3
+	plot.baf <- xyplot(baf ~ x | subject,
+			   data=grid.obj2,
+			   ##pch=pch,
+			   ##cex=cex,
+			   layout=c(1,5),
+			   index.cond=list(5:1),
+			   xlab="",
+			   ylab="",
+			   panel=mypanelfunction,
+			   highlight=highlight,
+			   highlight.fill=highlight.fill,
+			   highlight.border=highlight.border,
+			   highlight.alpha=highlight.alpha,
+			   ranges=ranges.object,
+			   flatBed=flatBed,
+			   flatBed.cnv=flatBed.cnv,
+			   rows=5,
+			   cex.genes=cex.genes,
+			   ylim=c(0,1),
+			   ...)
+	lvp <- viewport(x=0, width=unit(0.5, "npc"), just="left", name="lvp")
+	pushViewport(lvp)
+	pushViewport(dataViewport(xscale=plot.logr$x.limits, yscale=c(0,1), clip="on"))
+	print(plot.logr, newpage=FALSE, prefix="plot1", more=TRUE)
+	if(add.segments) {
+		if(exists("cbs.segs")){
+			if(CHR != unique(cbs.segs$chrom))
+				load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
+		} else 	load(file.path(beadstudiodir(), paste("cbs_chr" , CHR, ".rda", sep="")))
+		addSegments(cbs.segs=cbs.segs,
+			    distanceRanges=distanceRanges,
+			    ranges.object=ranges.object[i, ],
+			    col=highlight.border,
+			    bg=highlight.fill,
+			    CHR=CHR, mset=mset,
+			    highlight=highlight, ...)
+	}
+	upViewport(0)
+	grid.text("Log R Ratio", x=unit(0.25, "npc"), y=unit(0.97, "npc"), gp=gpar("cex"=0.9))
+	grid.text(paste(chr.name, ", Family", sampleNames(mset)), x=unit(0.5, "npc"), y=unit(0.98, "npc"), gp=gpar("cex"=0.9))
+	upViewport(0)
+	print(plot.baf, position=c(0.5, 0, 1, 1), more=TRUE, prefix="baf")
 }
 
 getXlimAmp <- function(chr){
@@ -1219,7 +1466,7 @@ myboxplotPanel <- function(x,y, subscripts, col="black", cex=1, ...){
 data.frame.for.rectangles <- function(ranges.all, palette){
 	## important to order by chromosome before splitting
 	ranges.all <- ranges.all[order(ranges.all$chrom), ]
-	del.states <- c("332", "331", "321", "231", "221", "431", "341", "432", "342", "441", "442", "421")
+	del.states <- c("332", "331", "321", "231", "431", "341", "432", "342", "441", "442", "421")
 	amp.states <- c("334", "224", "114", "124", "214", "324", "234", "124", "214", "314", "134")
 	is.denovo <- ranges.all$state %in% c(del.states, amp.states)
 	if(!all(is.denovo)){
@@ -1262,37 +1509,213 @@ data.frame.for.rectangles <- function(ranges.all, palette){
 			  id=ranges.all$id,
 			  chr.size=chr.size/1e6,
 			  col=cols,
-			  y=y)
-	dat$col <- as.character(dat$col)
+			  y=y,
+			  stringsAsFactors=FALSE)
 	dat$chr <- as.factor(dat$chr)
-	##dat <- dat[isHemizygous | isHomozygous, ]
-	dat$id=as.integer(dat$id)
 	return(dat)
 }
 
-my.rectangle <- function(x, y, x0, x1, y0, y1, alpha, chr.size, col, border, coverage,
-			 show.coverage=TRUE, ..., subscripts){
+## don't need y0 and y1
+my.rectangle <- function(x, y, x0, x1, y0, y1, alpha, chr.size,
+			 col, border, centromere.col="grey80",
+			 coverage, chr,
+			 show.coverage=TRUE, plot.cytoband=FALSE,
+			 add.annotation=FALSE, ..., subscripts){
+##	if(all(chr[subscripts]==4)) browser()
 	## axis limits and tick labels already present
-	panel.grid(h=-1, v=-1)
 	## nothing plotted
-	panel.xyplot(x, as.factor(y), ##xlim=c(0, unique(chr.size[subscript])),
+	panel.xyplot(x, as.integer(as.factor(y)), ##xlim=c(0, unique(chr.size[subscript])),
 		     ..., subscripts)
+	yy <- as.integer(as.factor(y))
+	h <- 0.75
 	lrect(xleft=x0[subscripts],
 	      xright=x1[subscripts],
-	      ybottom=y0[subscripts],
-	      ytop=y1[subscripts],
+	      ybottom=yy-h/2,
+	      ytop=yy+h/2,
 	      border=border[subscripts],
 	      col=col[subscripts],
 	      alpha=alpha)
 	if(show.coverage)
 		ltext(x,y,labels=coverage[subscripts])
+	if(plot.cytoband){
+		##message("plot.cytoband not implemented")
+		bg2 <- col2rgb(centromere.col)/255
+		fill <- rgb(bg2[1, ], bg2[2,], bg2[3,], alpha=alpha)
+		data(chromosomeAnnotation)
+		CHR <- unique(chr[subscripts])
+		centromere.lim <- as.numeric(chromosomeAnnotation[CHR, 1:2])/1e6
+		lrect(xleft=centromere.lim[1],
+		      xright=centromere.lim[2],
+		      ybottom=0,
+		      ytop=max(y1[subscripts]),
+		      col=fill,
+		      border=fill,
+		      alpha=0.3)
+	}
+	panel.grid(h=-1, v=-1)
 }
 
-prepanel.fxn <- function(x,y, chr.size, ..., subscripts){
-	list(xlim=c(0, unique(chr.size[subscripts])))
+prepanel.fxn <- function(x,y, chr, chr.size, ..., subscripts){
+	list(xlim=c(0, unique(chr.size[subscripts])), ylim=range(as.integer(as.factor(y[subscripts]))))
 }
 prepanel.fxn2 <- function(x,y, min, max, ..., subscripts){
 	min <- unique(min[subscripts])
 	max <- unique(max[subscripts])
 	list(xlim=c(min, max))
+}
+
+lplotCytoband <- function(chromosome,
+			  cytoband.ycoords,
+			  xlim,
+			  ylim=c(0, 2),
+			  new=TRUE,
+			  label.cytoband=TRUE,  ##whether to label cytobands
+			  label.y=NULL,         ##if specified, use text() rather than axis()
+			  srt,
+			  cex.axis=1,
+			  outer=FALSE,
+			  taper=0.15,
+			  verbose=FALSE,
+			  build="hg18",
+			  ...){
+	pathto <- system.file("hg18", package="SNPchip")
+	cytoband <- read.table(file.path(pathto, "cytoBand.txt"), as.is=TRUE)
+	colnames(cytoband) <- c("chrom", "start", "end", "name", "gieStain")
+	if(missing(chromosome)){
+		if(length(unique(cytoband[, "chrom"])) > 1) stop("Must specify chromosome")
+	}
+	if(length(unique(cytoband$chrom)) > 1){
+		cytoband <- cytoband[cytoband[, "chrom"] == paste("chr", chromosome, sep=""), ]
+	}
+	if(missing(cytoband.ycoords)){
+		cytoband.ycoords <- ylim
+	}
+	rownames(cytoband) <- as.character(cytoband[, "name"])
+	if(missing(xlim)) xlim <- c(0, chromosomeSize(unique(cytoband$chrom)))
+	cytoband_p <- cytoband[grep("^p", rownames(cytoband), value=TRUE), ]
+	cytoband_q <- cytoband[grep("^q", rownames(cytoband), value=TRUE), ]
+	p.bands <- nrow(cytoband_p)
+	cut.left  <- c()
+	cut.right <- c()
+	##  1st  band of arm or 1st  band after  "stalk"
+	##  last band of arm or last band before "stalk"
+	for (i in 1:nrow(cytoband)) {
+		if (i == 1){ cut.left[i] <- TRUE; cut.right[i] <- FALSE} else
+		if (i == p.bands){ cut.left[i] <- FALSE; cut.right[i] <- TRUE} else
+		if (i == (p.bands+1)){ cut.left[i] <- TRUE; cut.right[i] <- FALSE} else
+		if (i == nrow(cytoband)) { cut.left[i] <- FALSE; cut.right[i] <- TRUE} else{
+			cut.left[i] <- FALSE; cut.right[i] <- FALSE
+		}
+	}
+	for (i in 1:nrow(cytoband)) {
+		if (as.character(cytoband[i, "gieStain"]) == "stalk") {
+			cut.right[i-1] <- TRUE
+			cut.left[i] <- NA
+			cut.right[i] <- NA
+			cut.left[i+1] <- TRUE
+		}
+	}
+	##When plotting subregions of a chromosome, this prevents the
+	##cytobands from extending beyond the subsetted object
+
+	## exclude cytobands that end before the minimum plotting
+	##limits
+	include <- cytoband[, "end"] > xlim[1] & cytoband[, "start"] < xlim[2]
+	cytoband <- cytoband[include, ]
+	N <- nrow(cytoband)
+	cytoband[N, "end"] <- min(xlim[2], cytoband[N, "end"])
+	cytoband[1, "start"] <- max(xlim[1], cytoband[1, "start"])
+	cut.left <- cut.left[include]
+	cut.right <- cut.right[include]
+	if(new){
+		xx <- c(0, cytoband[nrow(cytoband), "end"])
+		yy <- cytoband.ycoords
+##		yy <- ylim
+		plot(xx,
+		     yy,
+		     xlim=xlim,
+		     type="n",
+		     xlab="",
+		     ylab="",
+		     axes=FALSE,
+		     yaxs="i",
+		     ylim=ylim,
+		     ...)
+	}
+	top <- cytoband.ycoords[2]
+	bot <- cytoband.ycoords[1]
+	h <- top-bot
+	p <- taper
+	for (i in 1:nrow(cytoband)) {
+		start <- cytoband[i, "start"]
+		last   <- cytoband[i, "end"]
+		delta = (last-start)/4
+		getStain <- function(stain){
+			switch(stain,
+			       gneg="grey100",
+			       gpos25="grey90",
+			       gpos50="grey70",
+			       gpos75="grey40",
+			       gpos100="grey0",
+			       gvar="grey100",
+			       stalk="brown3",
+			       acen="brown4",
+			       "white")
+		}
+		color <- getStain(as.character(cytoband[i, "gieStain"]))
+		if (is.na(cut.left[i]) & is.na(cut.right[i])) {
+			## this is a "stalk", do not draw box. Draw two vertical lines instead
+			delta <- (last-start)/3
+			segments(start+delta, cytoband.ycoords[1], start+delta, cytoband.ycoords[2])
+			segments(last-delta, cytoband.ycoords[1], last-delta, cytoband.ycoords[2])
+##			lines(c(start+delta, start+delta), ylim, col=color)
+##			lines(c(last-delta, last-delta), ylim, col=color)
+		} else if (cut.left[i] & cut.right[i]) {      # cut both lasts
+##			polygon(c(start, start+delta, last-delta, last, last, last-delta, start+delta, start),
+##				c(0.3, 0, 0, 0.3, 1.7, 2, 2, 1.7), col=color)
+			##Taper both ends
+			yy <- c(bot + p*h, bot, bot, bot + p*h, top - p*h, top, top, top - p*h)
+			polygon(c(start, start+delta, last-delta, last, last, last-delta, start+delta, start),
+				yy, col=color)
+		} else if (cut.left[i]) {              # cut left last only
+			##Taper left end only
+			yy <- c(bot + p*h, bot, bot, top, top, top - p*h)
+			polygon(c(start, start+delta, last, last, start+delta, start),
+				yy, col=color)
+		} else if (cut.right[i]) {             # cut right last only
+			##Taper right end only
+			yy <- c(bot, bot, bot + p*h, top - p*h, top, top)
+			polygon(c(start, last-delta, last, last, last-delta, start),
+				yy,col=color)
+		} else {
+			##Rectangle
+			polygon(c(start, last, last, start),
+				c(bot, bot, top, top), col=color)
+		}
+	}
+	my.x <- (cytoband[, "start"] + cytoband[, "end"])/2
+	if(label.cytoband){
+		if(is.null(label.y)){
+			##if plotting on a new device
+			axis(1,
+			     at=my.x,
+			     labels=rownames(cytoband),
+			     outer=outer,
+			     cex.axis=cex.axis,
+			     line=1,
+			     las=3)
+		} else{
+			##put cytoband labels at height label.y
+			if(!is.numeric(label.y)){
+				warning("label.y must be numeric -- using default y coordinates for cytoband labels")
+				label.y <- bot - p*h
+			}
+			if(missing(srt)) srt <- 90
+			text(x=my.x,
+			     y=rep(label.y, length(my.x)),
+			     labels=rownames(cytoband),
+			     srt=srt)
+		}
+	}
+	return()
 }

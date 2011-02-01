@@ -625,37 +625,34 @@ combine.data.frames <- function(dist.df, penn.df){
 }
 
 getPennDenovo <- function(penn.joint){
-	isOffspring <- substr(penn.joint$id, 6, 8) == "_01"
-	penn.joint <- penn.joint[isOffspring, ]
-
-	penn.rd <- as(penn.joint, "RangedData")
-	chr <- as.character(space(penn.rd))
-	penn.rd$chrom <- as.integer(substr(chr, 4, nchar(chr)))
-	colnames(penn.rd)[4] <- "state"
-	colnames(penn.rd)[2] <- "num.mark"
-	penn.rd <- penn.rd[, -5]
-	index.multiple.states <- grep("-", penn.rd$state)
-	ms <- penn.rd$state[index.multiple.states]
-	ms <- sapply(ms, function(x) unique(strsplit(x, "-")[[1]]))
-	l2 <- which(sapply(ms, length) > 1)
-	ms[l2] <- sapply(ms[l2], function(x) paste(x, collapse="-"))
-	ms <- unlist(ms)
-	penn.rd$state[index.multiple.states] <- ms
-	index.multiple.states <- grep("-", penn.rd$state)
-	penn.rd <- penn.rd[-index.multiple.states, ]
-	## 4 is copy neutral LOH.  Replace 4's with 3's (normal CN).
-	## Replace any 5s and 6s (duplications) with 4
-	state <- penn.rd$state
-	state <- gsub("4", "3", state)
-	state <- gsub("5", "4", state)
-	state <- gsub("6", "4", state)
-	index1 <- substr(state, 1, 1)
-	index2 <- substr(state, 2, 2)
-	index3 <- substr(state, 3, 3)
-	not.denovo <- index1 == index3 | index2 == index3
-	state <- state[!not.denovo]
-	del.states <- c("332", "331", "321", "231", "221", "431", "341", "432", "342", "441", "442", "421")
+	del.states <- c("332", "331", "321", "231", "431", "341", "432", "342", "441", "442", "421")
 	amp.states <- c("334", "224", "114", "124", "214", "324", "234", "124", "214", "314", "134")
-	penn.rd <- penn.rd[penn.rd$state %in% c(del.states, amp.states), ] ##68,472
-	return(penn.rd)
+	alt.states <- c(del.states, amp.states)
+	if(!all(penn.joint$pedId == "offspring")) stop("only offspring ranges can be in the object")
+	colnames(penn.joint)[c(4, 2)] <- c("state", "num.mark")
+	penn.joint <- penn.joint[, -5] ## redundant
+	warning("Treating LOH state as 'normal'")
+	penn.joint$state <- gsub("4", "3", penn.joint$state)
+	penn.joint$state <- gsub("5", "4", penn.joint$state)
+	penn.joint$state <- gsub("6", "4", penn.joint$state)
+
+	index.multiple.states <- grep("-", penn.joint$state)
+	multi.state <- penn.joint$state[index.multiple.states]
+	if(length(multi.state) > 0){
+		message("Several regions have multiple states assigned... returning the first denovo state in the list")
+		##multi.state <- sapply(multi.state, function(x) unique(strsplit(x, "-")[[1]]))
+		checkMultiState <- function(x){
+			state <- strsplit(x, "-")[[1]]
+			if(any(state %in% alt.states)){
+				state <- state[which(state %in% alt.states)[1]]
+			} else{
+				state <- state[1]
+			}
+			return(state)
+		}
+		state.cat <- sapply(multi.state, checkMultiState)
+		penn.joint$state[index.multiple.states] <- state.cat
+	}
+	penn.joint <- penn.joint[penn.joint$state %in% alt.states, ] ##68,472
+	return(penn.joint)
 }

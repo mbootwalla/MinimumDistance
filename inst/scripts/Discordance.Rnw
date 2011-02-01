@@ -1,0 +1,104 @@
+<<>>=
+library(Beaty)
+ldPath(beadstudiodir())
+data(deletion.ranges)
+data(amp.ranges)
+data(minDistanceRanges)
+data(minDistanceSet)
+data(bsSet)
+featureData(minDistanceSet) <- featureData(bsSet)
+data(rf); data(cnv)
+ranges.all <- combineRanges(deletion.ranges, amp.ranges)
+penn.joint <- checkExists("penn.joint", .path=ldPath(), .FUN=readPennCnv, penndir="/thumper/ctsa/beaty/holger/penncnv/trioDat")
+penn.joint <- do.call("c", penn.joint)
+data(bsSet)
+penn.joint <- penn.joint[penn.joint$id %in% sampleNames(bsSet), ]
+penn.rd <- getPennDenovo(penn.joint)
+@
+
+<<chr17>>=
+dist17 <- rangesInXlim(ranges.all, CHR=17, c(40.5e6, 42.5e6))
+penn17 <- rangesInXlim(penn.rd, CHR=17, c(40.5e6, 42.5e6))
+notInPenn <- dist17$id[!dist17$id %in% penn17$id]
+@
+
+Plot the data for ranges inferred by distance but not by PennCNV:
+
+<<>>=
+x <- dist17[dist17$id %in% notInPenn, ]
+trellis.device(device="pdf", file="figures/chr22_%02d.pdf",
+	       width=8, height=6,
+	       onefile=FALSE)
+pars <- trellis.par.get()
+pars$axis.text$cex <- 0.6
+pars$xlab.text$cex <- 0.8
+trellis.par.set("axis.text", pars$axis.text)
+trellis.par.set("axis.text", pars$xlab.text)
+## add arrows to indicate where the taqman probes would hit
+for(i in 1:nrow(x)){
+	xlim <- c(40, 43)
+	##trace(grid.trioBaf, browser)
+	grid.newpage()
+	trace(grid.trioLogR, browser)
+	trace(grid.trio2, browser)
+	trace(constructTrioSetFromRanges, browser)
+	grid.trio2(ranges.object=x[i, ],
+		   distanceRanges=minDistanceRanges,
+		   distanceSet=minDistanceSet,
+		   bsSet=bsSet,
+		   xlimit=xlim,
+		   ylim=c(-3,2),
+		   CHR=x$chrom[i],
+		   rf=rf,
+		   cnv=cnv,
+		   cex.genes=0.5,
+		   par.strip.text=list(lines=0.7, cex=0.6),
+		   highlight=TRUE,
+		   ##other.ranges=taq.ir,
+		   cex=0.5)
+}
+dev.off()
+
+}
+@
+
+
+For the vertical stripes, tabulate the following 3 x 3 table:
+               denovo del P  normal P denovo amp P
+denovo del D
+normal D
+denovo amp D
+
+1.  Define a function that plots the frequencies of denovo events for
+each chromosome.  Extract the chromosomes and loci with hotspots.  Do
+this for both penncnv and distance.
+
+
+
+<<frequency>>=
+for(CHR in 1:22){
+	rd <- ranges.all[ranges.all$chrom == CHR, ]
+	ir <- IRanges(start(rd), end(rd))
+	djr <- disjointRanges(rd)
+	## count overlaps
+	freq <- countOverlaps(query=djr, subject=ir)
+}
+## plot the disjoint Ranges at the bottom
+##dist.df <- data.frame.for.rectangles(ranges.all, palette=palette)
+##dist.djr <- data.frame.for.rectangles(djr, palette=palette)
+@
+
+
+2.  For hotspot that are identified by both, calculate the above 3 x 3
+matrix.   There are 2 types of discordance:
+
+- found by distance, but not by penncnv
+
+- found by penncnv, but not by distance
+
+Plot the lower level data and see whether penncnv has many false
+positives, or whether the distance approach may be too conservative.
+
+3.  Plot regions that appear to be false positives in PennCNV.
+
+

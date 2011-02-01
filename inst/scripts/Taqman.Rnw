@@ -1,0 +1,184 @@
+<<taqman>>=
+fn <- list.files("~/projects2/Beaty/inst/extdata", full.names=TRUE)
+fn <- fn[grep("Taqman", fn)]
+tq <- read.csv(fn, header=TRUE, stringsAsFactors=FALSE)[, 1:5]
+## parse locations
+start.stop <- tq[1:6, 5]
+tmp <- sapply(start.stop, function(x) strsplit(x, "-"))
+tmp <- do.call(rbind, tmp)
+starts <- as.integer(gsub(",","", tmp[,1]))
+ends <- as.integer(gsub(",","", tmp[,2]))
+taq <- data.frame(geneName=tq$Gene.name[1:6],
+		  start=starts,
+		  end=ends)
+@
+
+<<plot22>>=
+library(Beaty)
+ldPath(beadstudiodir())
+data(deletion.ranges)
+data(amp.ranges)
+data(rf)
+data(cnv)
+id.table <- read.csv("~/projects2/Beaty/inst/extdata/gwas_to_local_id.csv", stringsAsFactors=FALSE)
+@
+
+<<eval=FALSE>>=
+##trace(combineRanges, browser)
+ranges.all <- combineRanges(deletion.ranges, amp.ranges)
+##palette <- brewer.pal(9, "Set1")[1:3]
+palette <- c("black", "grey40", "grey70")
+dist.df <- data.frame.for.rectangles(ranges.all, palette=palette)
+mykey <- simpleKey(c("homo-del", "hemi-del", "amp"), points=FALSE,
+		   rectangles=TRUE, col=palette[1:3], space="right")
+mykey$rectangles$col <- palette
+mykey$rectangles$border <- palette
+dist22 <- dist.df[as.character(dist.df$chr)=="22", ]
+if(TRUE){
+	id.table <- id.table[id.table$cidr_name %in% dist22$id, ]
+	uids <- unique(as.character(dist22$id))
+	id.table <- id.table[match(uids, id.table$cidr_name), ]
+	stopifnot(all.equal(id.table$cidr_name, uids))
+	for(i in seq_along(uids)){
+		dist22$id <- gsub(uids[i], id.table$local_id2[i], dist22$id)
+	}
+	dist22$id <- as.factor(dist22$id)
+}
+
+pdf("figures/taq_22.pdf", width=8, height=6)
+chr22fig <- xyplot(id~midpoint,
+		       data=dist22,
+		       panel=my.rectangle,
+		       x0=dist22$x0,
+		       x1=dist22$x1,
+		       y0=dist22$y0,
+		       y1=dist22$y1,
+		       col=dist22$col,
+		       border=dist22$col,
+		       alpha=1,
+		       chr.size=dist22$chr.size,
+		       ##scales=list(y="free", x="free", rot=0),
+		       coverage=dist22$coverage,
+		       xlab="Mb", ylab="offspring id",
+		       show.coverage=FALSE,
+		       key=mykey,
+		       par.strip.text=list(lines=0.7, cex=0.6),
+		   xlim=c(15,25))
+print(chr22fig)
+trellis.focus("panel", 1, 1)
+alpha <- 0.5
+col <- "royalblue"
+bg2 <- col2rgb(col)/255
+fill <- rgb(bg2[1, ], bg2[2,], bg2[3,], alpha=alpha)
+for(i in 1:nrow(taq)){
+	lrect(xleft=taq[i, "start"]/1e6,
+	      xright=taq[i, "end"]/1e6,
+	      ybottom=0,
+	      ytop=20,
+	      col=fill, border=fill)
+}
+dev.off()
+dist22Table <- dist22[, c(1, 2, 5, 6, 7, 8)]
+colnames(dist22Table)[1:2] <- c("start", "end")
+write.csv(dist22Table, "figures/dist22Table.csv", quote=F, row.names=FALSE)
+
+## Make the same plot for penn cnv
+penn.joint <- checkExists("penn.joint", .path=ldPath(), .FUN=readPennCnv, penndir="/thumper/ctsa/beaty/holger/penncnv/trioDat")
+penn.joint <- do.call("c", penn.joint)
+data(bsSet)
+penn.joint <- penn.joint[penn.joint$id %in% sampleNames(bsSet), ]
+penn.rd <- getPennDenovo(penn.joint)
+palette <- c("black", "grey40", "grey70")
+
+penn.df <- data.frame.for.rectangles(penn.rd, palette)
+penn.df <- penn.df[penn.df$coverage >= 10, ]
+penn22 <- penn.df[as.character(penn.df$chr)=="22", ]
+mykey <- simpleKey(c("homo-del", "hemi-del", "amp"), points=FALSE,
+		   rectangles=TRUE, col=palette[1:3], space="right")
+mykey$rectangles$col <- palette
+mykey$rectangles$border <- palette
+chr22fig <- xyplot(id~midpoint,
+		   data=penn22,
+		   panel=my.rectangle,
+		   x0=penn22$x0,
+		   x1=penn22$x1,
+		   y0=penn22$y0,
+		   y1=penn22$y1,
+		   col=penn22$col,
+		   border=penn22$col,
+		   alpha=1,
+		   chr.size=penn22$chr.size,
+		   coverage=penn22$coverage,
+		   xlab="Mb",
+		   ylab="offspring index",
+		   show.coverage=FALSE,
+		   key=mykey,
+		   par.strip.text=list(lines=0.7, cex=0.6),
+		   xlim=c(15,25))
+pdf("figures/taq_penn_22.pdf", width=8, height=6)
+print(chr22fig)
+trellis.focus("panel", 1, 1)
+alpha <- 0.5
+col <- "royalblue"
+bg2 <- col2rgb(col)/255
+fill <- rgb(bg2[1, ], bg2[2,], bg2[3,], alpha=alpha)
+for(i in 1:nrow(taq)){
+	lrect(xleft=taq[i, "start"]/1e6,
+	      xright=taq[i, "end"]/1e6,
+	      ybottom=0,
+	      ytop=length(chr22fig$y.limits),
+	      col=fill, border=fill)
+}
+dev.off()
+@
+
+Highlight the taqman probes.
+
+<<>>=
+data(minDistanceRanges)
+data(minDistanceSet)
+data(bsSet)
+xlim <- c(15, 25)
+featureData(minDistanceSet) <- featureData(bsSet)
+selectedRanges <- rangesInXlim(deletion.ranges, CHR=22, xlim=xlim*1e6)
+index <- trioIndices(deletion.ranges, selectedRanges, xlim=xlim*1e6)
+index <- index[match(c("21184_01", "21165_01"), names(index))]
+open(logR(bsSet)); open(baf(bsSet))
+open(bsSet$MAD)
+
+taq.ir <- IRanges(taq$start, taq$end)
+xlimits <- cbind(start(taq.ir)-750e3, end(taq.ir)+750e3)
+trellis.device(device="pdf", file="figures/chr22_%02d.pdf",
+	       width=8, height=6,
+	       onefile=FALSE)
+pars <- trellis.par.get()
+pars$axis.text$cex <- 0.6
+pars$xlab.text$cex <- 0.8
+trellis.par.set("axis.text", pars$axis.text)
+trellis.par.set("axis.text", pars$xlab.text)
+## add arrows to indicate where the taqman probes would hit
+for(i in unlist(index)){
+	for(j in 1:nrow(xlimits)){
+		xlim <- xlimits[j, ]/1e6
+		##trace(grid.trioBaf, browser)
+		grid.newpage()
+		grid.trio2(ranges.object=deletion.ranges[i, ],
+			   distanceRanges=minDistanceRanges,
+			   distanceSet=minDistanceSet,
+			   bsSet=bsSet,
+			   xlim=xlim,
+			   ylim=c(-3,2),
+			   CHR=22,
+			   rf=rf,
+			   cnv=cnv,
+			   cex.genes=0.5,
+			   par.strip.text=list(lines=0.7, cex=0.6),
+			   highlight=FALSE,
+			   other.ranges=taq.ir,
+			   cex=0.5)
+	}
+}
+dev.off()
+@
+
+

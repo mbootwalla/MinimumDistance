@@ -5,26 +5,22 @@ data(deletion.ranges)
 data(amp.ranges)
 data(rf)
 data(cnv)
-w <- cnv$txEnd-cnv$txStart
-cnv <- cnv[w >= 10e3, ]
-w <- rf$txEnd-rf$txStart
-rf <- rf[w >= 10e3, ]
+data(bsSet)
+data(penn.joint)
 @
 
 
 <<data>>=
-trace(combineRanges, browser)
+##trace(combineRanges, browser)
 ranges.all <- combineRanges(deletion.ranges, amp.ranges)
 palette <- brewer.pal(9, "Set1")[1:3]
-dat <- data.frame.for.rectangles(ranges.all, palette=palette)
-penn.joint <- checkExists("penn.joint", .path=ldPath(), .FUN=readPennCnv, penndir="/thumper/ctsa/beaty/holger/penncnv/trioDat")
-penn.joint <- do.call("c", penn.joint)
-data(bsSet)
-penn.joint <- penn.joint[penn.joint$id %in% sampleNames(bsSet), ]
-penn.rd <- getPennDenovo(penn.joint)
-penn.df <- data.frame.for.rectangles(penn.rd, palette)
-penn.df <- penn.df[penn.df$coverage >= 10, ]
-combined.df <- combine.data.frames(dat, penn.df)
+dist.df <- data.frame.for.rectangles(ranges.all, palette=palette)
+##trace(getPennDenovo, browser)
+penn.denovo <- getPennDenovo(penn.joint)
+##trace(data.frame.for.rectangles, browser)
+penn.df <- data.frame.for.rectangles(penn.denovo, palette)
+penn.df$id[penn.df$chr == 22 & penn.df$coverage > 200]
+combined.df <- combine.data.frames(dist.df, penn.df)
 @
 
 <<trellis>>=
@@ -32,21 +28,21 @@ mykey <- simpleKey(c("homo-del", "hemi-del", "amp"), points=FALSE,
 		   rectangles=TRUE, col=palette[1:3], space="right")
 mykey$rectangles$col <- palette
 mykey$rectangles$border <- palette
-dist.chr.lim <- xyplot(y~midpoint|chr, data=dat, panel=my.rectangle,
-			 x0=dat$x0,
-			 x1=dat$x1,
-			 y0=dat$y0,
-			 y1=dat$y1,
-			 col=dat$col,
-			 border=dat$col,
+dist.chr.lim <- xyplot(y~midpoint|chr, data=dist.df,
+		       panel=my.rectangle,
+			 x0=dist.df$x0,
+			 x1=dist.df$x1,
+			 y0=dist.df$y0,
+			 y1=dist.df$y1,
+			 col=dist.df$col,
+			 border=dist.df$col,
 			 alpha=1,
-			 chr.size=dat$chr.size,
+			 chr.size=dist.df$chr.size,
 			 scales=list(y="free", x="free", rot=0),
-			 coverage=dat$coverage, xlab="Mb", ylab="offspring index",
+			 coverage=dist.df$coverage, xlab="Mb", ylab="offspring index",
 			 show.coverage=FALSE, key=mykey,
 			 par.strip.text=list(lines=0.7, cex=0.6),
 			 prepanel=prepanel.fxn)
-
 penn.chr.lim <- xyplot(y~midpoint|chr, data=penn.df, panel=my.rectangle,
 		       x0=penn.df$x0,
 		       x1=penn.df$x1,
@@ -55,6 +51,7 @@ penn.chr.lim <- xyplot(y~midpoint|chr, data=penn.df, panel=my.rectangle,
 		       col=penn.df$col,
 		       border=penn.df$col,
 		       alpha=1,
+		       chr=penn.df$chr,
 		       chr.size=penn.df$chr.size,
 		       scales=list(y="free", x="free", rot=0),
 		       coverage=penn.df$coverage, xlab="Mb", ylab="offspring index",
@@ -62,21 +59,22 @@ penn.chr.lim <- xyplot(y~midpoint|chr, data=penn.df, panel=my.rectangle,
 		       par.strip.text=list(lines=0.7, cex=0.6),
 		       prepanel=prepanel.fxn)
 
-dist.packet.lim <- xyplot(y~midpoint|chr, data=dat, panel=my.rectangle,
-			  x0=dat$x0,
-			  x1=dat$x1,
-			  y0=dat$y0,
-			  y1=dat$y1,
-			  col=dat$col,
-			  border=dat$col,
+dist.packet.lim <- xyplot(y~midpoint|chr, data=dist.df, panel=my.rectangle,
+			  x0=dist.df$x0,
+			  x1=dist.df$x1,
+			  y0=dist.df$y0,
+			  y1=dist.df$y1,
+			  col=dist.df$col,
+			  border=dist.df$col,
 			  alpha=1,
-			  chr.size=dat$chr.size,
+			  chr.size=dist.df$chr.size,
 			  scales=list(y="free", x="free", rot=0),
-			  coverage=dat$coverage, xlab="Mb", ylab="offspring index",
+			  coverage=dist.df$coverage, xlab="Mb", ylab="offspring index",
 			  show.coverage=FALSE, key=mykey,
 			  par.strip.text=list(lines=0.7, cex=0.6))
 
-penn.packet.lim <- xyplot(y~midpoint|chr, data=penn.df, panel=my.rectangle,
+penn.packet.lim <- xyplot(y~midpoint|chr, data=penn.df,
+			  panel=my.rectangle,
 			  x0=penn.df$x0,
 			  x1=penn.df$x1,
 			  y0=penn.df$y0,
@@ -90,21 +88,51 @@ penn.packet.lim <- xyplot(y~midpoint|chr, data=penn.df, panel=my.rectangle,
 			  show.coverage=FALSE, key=mykey,
 			  par.strip.text=list(lines=0.7, cex=0.6))
 
-by.chrom <- xyplot(y~midpoint|method+chr, data=combined.df, panel=my.rectangle,
-		   x0=combined.df$x0,
-		   x1=combined.df$x1,
-		   y0=combined.df$y0,
-		   y1=combined.df$y1,
-		   col=combined.df$col,
-		   border=combined.df$col,
-		   alpha=1,
-		   chr.size=combined.df$chr.size,
-		   scales=list(y="free", x="free", rot=0),
-		   coverage=combined.df$coverage, xlab="Mb", ylab="offspring index",
-		   show.coverage=FALSE, key=mykey,
-		   par.strip.text=list(lines=0.7, cex=0.6),
-		   layout=c(1, 2, 22), prepanel=prepanel.fxn2,
-		   min=combined.df$min, max=combined.df$max) ##columns, rows, pages
+	by.chrom <- xyplot(y~midpoint|method+chr, data=combined.df, panel=my.rectangle,
+			   x0=combined.df$x0,
+			   x1=combined.df$x1,
+			   y0=combined.df$y0,
+			   y1=combined.df$y1,
+			   col=combined.df$col,
+			   border=combined.df$col,
+			   alpha=1,
+			   chr.size=combined.df$chr.size,
+			   scales=list(y="free", x="free", rot=0),
+			   coverage=combined.df$coverage, xlab="Mb", ylab="offspring index",
+			   show.coverage=FALSE, key=mykey,
+			   par.strip.text=list(lines=0.7, cex=0.6),
+			   layout=c(1, 2, 22),
+			   ##		   layout=c(22, 2),
+			   prepanel=prepanel.fxn2,
+			   min=combined.df$min, max=combined.df$max,
+			   chr=combined.df$chr,
+			   plot.cytoband=TRUE)
+
+chrom.fig <- list()
+for(CHR in 1:22){
+	combined.chr <- combined.df[combined.df$chr == CHR, ]
+	chrom.fig[[CHR]] <- xyplot(y~midpoint|method+chr, data=combined.chr, panel=my.rectangle,
+			   x0=combined.chr$x0,
+			   x1=combined.chr$x1,
+			   y0=combined.chr$y0,
+			   y1=combined.chr$y1,
+			   col=combined.chr$col,
+			   border=combined.chr$col,
+			   alpha=1,
+			   chr.size=combined.chr$chr.size,
+			   scales=list(y="free", x="same", rot=0),
+			   coverage=combined.chr$coverage, xlab="Mb", ylab="offspring index",
+			   show.coverage=FALSE, key=mykey,
+			   par.strip.text=list(lines=0.7, cex=0.6),
+				  ##layout=c(1, 2, 22),
+				  layout=c(1, 2),
+			   ##		   layout=c(22, 2),
+			   prepanel=prepanel.fxn2,
+			   min=combined.chr$min, max=combined.chr$max,
+			   chr=combined.chr$chr,
+			   plot.cytoband=TRUE) ##columns, rows, pages
+
+}
 @
 
 <<device>>=
@@ -120,7 +148,8 @@ print(dist.chr.lim)
 print(penn.chr.lim)
 print(dist.packet.lim)
 print(penn.packet.lim)
-print(by.chrom)
+##print(by.chrom)
+for(i in 1:22) print(chrom.fig[[i]])
 dev.off()
 @
 
