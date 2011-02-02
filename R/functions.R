@@ -385,26 +385,37 @@ constructTrioSetFromRanges <- function(ranges1, ## top hit ranges
 
 collectAllRangesOfSize <- function(SIZE, bsSet, minDistanceSet,
 				   minDistanceRanges,
-				   outdir, MIN=1, MAX=4, lambda=0.1){
+				   outdir, MIN=1, MAX=4, lambda=0.1,
+				   MIN.THR=0.1,
+				   denovo.deletion=TRUE){
 	library(SNPchip)
 	data(chromosomeAnnotation)
 	centromere.ranges <- GRanges(seqnames=Rle(paste("chr", 1:22, sep=""), rep(1,22)),
 				     ranges=IRanges(chromosomeAnnotation[1:22, "centromereStart"],
 				     chromosomeAnnotation[1:22, "centromereEnd"]))
-	ranges2 <- minDistanceRanges[minDistanceRanges$seg.mean > 0 & minDistanceRanges$num.mark >= SIZE, ]
+	if(denovo.deletion){
+		ranges2 <- minDistanceRanges[minDistanceRanges$seg.mean > 0 & minDistanceRanges$num.mark >= SIZE, ]
+	} else {
+		ranges2 <- minDistanceRanges[minDistanceRanges$seg.mean < 0 & minDistanceRanges$num.mark >= SIZE, ]
+	}
 	index <- match(ranges2$id, sampleNames(minDistanceSet))
 	open(minDistanceSet$MAD)
 	mads <- minDistanceSet$MAD[index]
-	x <- ranges2$num.mark
-	p <- lambda*exp(-lambda*x)
-	MIN <- 1; MAX <- 4
+	coverage <- ranges2$num.mark
+	p <- lambda*exp(-lambda*coverage)
 	b <- 1/(MAX - MIN)
 	a <- MIN * b
 	numberMads <- ((p-min(p))/(max(p)-min(p)) + a)/b
 	thr <- numberMads * mads
-	thr[thr < 0.2] <- 0.2
-	ranges2$is.deletion <- ifelse(ranges2$seg.mean >= thr, TRUE, FALSE)
-	deletion.RD <- ranges2[ranges2$is.deletion, ]
+	thr[thr < MIN.THR] <- MIN.THR
+	if(denovo.deletion){
+		ranges2$is.deletion <- ifelse(ranges2$seg.mean >= thr, TRUE, FALSE)
+		deletion.RD <- ranges2[ranges2$is.deletion, ]
+	} else {
+		thr <- -1*thr
+		ranges2$is.amp <- ifelse(ranges2$seg.mean <= thr, TRUE, FALSE)
+		deletion.RD <- ranges2[ranges2$is.amp, ]
+	}
 	deletion.RD$pHet <- NA
 	deletion.RD$noCentromere.overlap <- NA
 	deletion.ir <- IRanges(start(deletion.RD), end(deletion.RD))
@@ -424,13 +435,22 @@ collectAllRangesOfSize <- function(SIZE, bsSet, minDistanceSet,
 		fns.list <- lapply(index.list, function(i, fns) fns[i], fns=rownames(fD))
 
 		marker.index <- i1[unique(as.integer(unlist(index.list)))]
+		if(length(marker.index) == 0) next()
 		sample.index <- match(deletion.RD$id[i2], sampleNames(bsSet))
 		B <- as.matrix(baf(bsSet)[marker.index, sample.index])
 		pHet <- rep(NA, length(sample.index))
-		for(i in seq_along(index.list)){
-			ii <- match(fns.list[[i]], rownames(B))
-			b <- B[ii, i]
-			pHet[i] <- mean(b > 0.2 & b < 0.8, na.rm=TRUE)
+		if(denovo.deletion){
+			for(i in seq_along(index.list)){
+				ii <- match(fns.list[[i]], rownames(B))
+				b <- B[ii, i]
+				pHet[i] <- mean(b > 0.2 & b < 0.8, na.rm=TRUE)
+			}
+		} else {
+			for(i in seq_along(index.list)){
+				ii <- match(fns.list[[i]], rownames(B))
+				b <- B[ii, i]
+				pHet[i] <- mean(b > 0.45 & b < 0.55, na.rm=TRUE)
+			}
 		}
 		deletion.RD$pHet[i2] <- pHet
 		deletion.RD$noCentromere.overlap[i2] <- !(overlapsCentromere(deletion.RD[i2, ], centromere.ranges, CHR))
@@ -625,7 +645,8 @@ combine.data.frames <- function(dist.df, penn.df){
 }
 
 getPennDenovo <- function(penn.joint){
-	del.states <- c("332", "331", "321", "231", "431", "341", "432", "342", "441", "442", "421")
+	## note: 221 is denovo in the sense that neither parent had a homozygous deletion
+	del.states <- c("332", "331", "321", "221", "231", "431", "341", "432", "342", "441", "442", "421")
 	amp.states <- c("334", "224", "114", "124", "214", "324", "234", "124", "214", "314", "134")
 	alt.states <- c(del.states, amp.states)
 	if(!all(penn.joint$pedId == "offspring")) stop("only offspring ranges can be in the object")
@@ -655,4 +676,23 @@ getPennDenovo <- function(penn.joint){
 	}
 	penn.joint <- penn.joint[penn.joint$state %in% alt.states, ] ##68,472
 	return(penn.joint)
+}
+
+callRange <- function(rd.object, bsSet){
+	if(!"pedId" %in% varLabels(bsSet)) bsSet$pedId <- who(sampleNames(bsSet))
+	stopifnot(nrow(rd.object) == 1)
+	CHR <- rd.object$chrom[[1]]
+	marker.index <- which(chromosome(bsSet) == CHR & position(bsSet) >= start(rd.object) & position(bsSet) <= end(rd.object))
+	family <- substr(sampleNames(bsSet), 1, 5)
+	sample.index <- which(family == substr(rd.object$id, 1, 5))
+	pedId <- bsSet$pedId[sample.index]
+	sample.index <- sample.index[match(pedId, c("father", "mother", "offspring"))]
+	meds <- apply(logR(bsSet)[marker.index, sample.index], 2, "median", na.rm=T)
+	homo.deletion <- meds <= -1
+	hemi.deletion <- meds < -0.2 & meds > -1
+	normal <- meds > -0.2 & meds < 0.1
+	amp <- meds > 0.1
+	calls <- rbind(homo.deletion, hemi.deletion, normal, amp)
+	state <- paste(apply(calls, 2, which), collapse="")
+	return(state)
 }

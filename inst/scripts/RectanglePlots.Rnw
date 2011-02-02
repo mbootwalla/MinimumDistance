@@ -1,8 +1,10 @@
 <<>>=
 library(Beaty)
 ldPath(beadstudiodir())
-data(deletion.ranges)
-data(amp.ranges)
+##data(deletion.ranges)
+##data(amp.ranges)
+data(deletion.ranges_test)
+data(amp.ranges_test)
 data(rf)
 data(cnv)
 data(bsSet)
@@ -11,21 +13,20 @@ data(penn.joint)
 
 
 <<data>>=
-##trace(combineRanges, browser)
 ranges.all <- combineRanges(deletion.ranges, amp.ranges)
+ranges.all <- ranges.all[ranges.all$num.mark >= 5, ]
 palette <- brewer.pal(9, "Set1")[1:3]
 dist.df <- data.frame.for.rectangles(ranges.all, palette=palette)
-##trace(getPennDenovo, browser)
 penn.denovo <- getPennDenovo(penn.joint)
-##trace(data.frame.for.rectangles, browser)
+##penn.denovo <- penn.denovo[penn.denovo$num.mark >= 10, ]
+penn.denovo <- penn.denovo[penn.denovo$num.mark >= 5, ]
 penn.df <- data.frame.for.rectangles(penn.denovo, palette)
-penn.df$id[penn.df$chr == 22 & penn.df$coverage > 200]
 combined.df <- combine.data.frames(dist.df, penn.df)
 @
 
 <<trellis>>=
 mykey <- simpleKey(c("homo-del", "hemi-del", "amp"), points=FALSE,
-		   rectangles=TRUE, col=palette[1:3], space="right")
+		   rectangles=TRUE, col=palette[1:3], space="top")
 mykey$rectangles$col <- palette
 mykey$rectangles$border <- palette
 dist.chr.lim <- xyplot(y~midpoint|chr, data=dist.df,
@@ -43,6 +44,7 @@ dist.chr.lim <- xyplot(y~midpoint|chr, data=dist.df,
 			 show.coverage=FALSE, key=mykey,
 			 par.strip.text=list(lines=0.7, cex=0.6),
 			 prepanel=prepanel.fxn)
+
 penn.chr.lim <- xyplot(y~midpoint|chr, data=penn.df, panel=my.rectangle,
 		       x0=penn.df$x0,
 		       x1=penn.df$x1,
@@ -131,15 +133,14 @@ for(CHR in 1:22){
 			   min=combined.chr$min, max=combined.chr$max,
 			   chr=combined.chr$chr,
 			   plot.cytoband=TRUE) ##columns, rows, pages
-
 }
+
 @
 
 <<device>>=
-hist(penn.df$coverage, breaks=10000, xlim=c(0,20), xaxt="n")
-axis(1, at=1:20, labels=1:20)
-## x-limit is size of chromosome
-trellis.device(device="pdf", file="figures/rectangles_distance_%02d.pdf", width=10, height=8,
+##trellis.device(device="pdf", file="figures/rectangles_distance_%02d.pdf", width=10, height=10,
+##	       onefile=FALSE)
+trellis.device(device="pdf", file="figures/rectangles_distance_test_%02d.pdf", width=10, height=10,
 	       onefile=FALSE)
 pars <- trellis.par.get()
 pars$axis.text$cex <- 0.5
@@ -148,9 +149,9 @@ print(dist.chr.lim)
 print(penn.chr.lim)
 print(dist.packet.lim)
 print(penn.packet.lim)
-##print(by.chrom)
 for(i in 1:22) print(chrom.fig[[i]])
 dev.off()
+stop()
 @
 
 

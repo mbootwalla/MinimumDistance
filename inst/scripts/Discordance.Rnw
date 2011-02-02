@@ -5,28 +5,153 @@ data(deletion.ranges)
 data(amp.ranges)
 data(minDistanceRanges)
 data(minDistanceSet)
+data(maxDistanceRanges)
+data(maxDistanceSet)
 data(bsSet)
-featureData(minDistanceSet) <- featureData(bsSet)
+featureData(maxDistanceSet) <- featureData(minDistanceSet) <- featureData(bsSet)
 data(rf); data(cnv)
 ranges.all <- combineRanges(deletion.ranges, amp.ranges)
-penn.joint <- checkExists("penn.joint", .path=ldPath(), .FUN=readPennCnv, penndir="/thumper/ctsa/beaty/holger/penncnv/trioDat")
-penn.joint <- do.call("c", penn.joint)
-data(bsSet)
-penn.joint <- penn.joint[penn.joint$id %in% sampleNames(bsSet), ]
-penn.rd <- getPennDenovo(penn.joint)
+data(penn.joint)
 @
 
-<<chr17>>=
-dist17 <- rangesInXlim(ranges.all, CHR=17, c(40.5e6, 42.5e6))
-penn17 <- rangesInXlim(penn.rd, CHR=17, c(40.5e6, 42.5e6))
-notInPenn <- dist17$id[!dist17$id %in% penn17$id]
+<<data>>=
+ranges.all <- combineRanges(deletion.ranges, amp.ranges)
+palette <- brewer.pal(9, "Set1")[1:3]
+dist.df <- data.frame.for.rectangles(ranges.all, palette=palette)
+penn.denovo <- getPennDenovo(penn.joint)
+penn.denovo <- penn.denovo[penn.denovo$num.mark >= 10, ]
+penn.df <- data.frame.for.rectangles(penn.denovo, palette)
+combined.df <- combine.data.frames(dist.df, penn.df)
+@
+
+
+<<disc>>=
+xlimList <- list(c(100,110),
+		 c(145,150),
+		 c(175,200),
+		 c(67, 72),
+		 c(60, 70),
+		 c(30, 40),
+		 c(40,50),
+		 c(30,40),
+		 c(45,70),
+		 c(55,65),
+		 c(70,80),
+		 c(60,75),
+		 c(0, 100),
+		 c(20,25),
+		 c(15,20),
+		 c(30,35),
+		 c(40,45),
+		 c(30,40),
+		 c(20,22),
+		c(0,60),
+		 c(0,20),
+		 c(0,30))
+combined.df <- combine.data.frames(dist.df, penn.df)
+disc.fig <- vector("list", 22)
+conc.fig <- vector("list", 22)
+mykey <- simpleKey(c("homo-del", "hemi-del", "amp"), points=FALSE,
+		   rectangles=TRUE, col=palette[1:3], space="top")
+mykey$rectangles$col <- palette
+mykey$rectangles$border <- palette
+for(CHR in 1:22){
+	dist <- rangesInXlim(ranges.all, CHR=CHR, xlimList[[CHR]]*1e6)
+	penn <- rangesInXlim(penn.denovo, CHR=CHR, xlimList[[CHR]]*1e6)
+	notInPenn <- dist$id[!dist$id %in% penn$id]
+	notInDist <- penn$id[!penn$id %in% dist$id]
+	##plot only the discordant samples
+	combined.chr <- combined.df[combined.df$chr == CHR, ]
+	combined.chr$id <- factor(combined.chr$id)
+	combined.chr <- combined.chr[combined.chr$id %in% c(notInPenn, notInDist), ]
+	disc.fig[[CHR]] <- xyplot(id~midpoint|method+chr, data=combined.chr, panel=my.rectangle,
+				  x0=combined.chr$x0,
+				  x1=combined.chr$x1,
+				  y0=combined.chr$y0,
+				  y1=combined.chr$y1,
+				  col=combined.chr$col,
+				  border=combined.chr$col,
+				  alpha=1,
+				  chr.size=combined.chr$chr.size,
+				  scales=list(y="free", x="same", rot=0, tick.number=10),
+				  coverage=combined.chr$coverage, xlab="Mb", ylab="offspring id",
+				  show.coverage=FALSE, key=mykey,
+				  par.strip.text=list(lines=0.7, cex=0.6),
+				  layout=c(1, 2),
+				  min=combined.chr$min, max=combined.chr$max,
+				  chr=combined.chr$chr,
+				  plot.cytoband=TRUE, xlim=xlimList[[CHR]])
+
+	inPenn <- dist$id[dist$id %in% penn$id]
+	inDist <- penn$id[penn$id %in% dist$id]
+	ids <- intersect(inPenn, inDist)
+	if(length(ids)==0) next()
+	##plot only the discordant samples
+	combined.chr <- combined.df[combined.df$chr == CHR & combined.df$id %in% ids, ]
+	combined.chr$id <- factor(combined.chr$id)
+	conc.fig[[CHR]] <- xyplot(id~midpoint|method+chr, data=combined.chr, panel=my.rectangle,
+				  x0=combined.chr$x0,
+				  x1=combined.chr$x1,
+				  y0=combined.chr$y0,
+				  y1=combined.chr$y1,
+				  col=combined.chr$col,
+				  border=combined.chr$col,
+				  alpha=1,
+				  chr.size=combined.chr$chr.size,
+				  scales=list(y="free", x="same", rot=0, tick.number=10),
+				  coverage=combined.chr$coverage, xlab="Mb", ylab="offspring id",
+				  show.coverage=FALSE,
+				  key=mykey,
+				  par.strip.text=list(lines=0.7, cex=0.6),
+				  layout=c(1, 2),
+				  min=combined.chr$min, max=combined.chr$max,
+				  chr=combined.chr$chr,
+				  plot.cytoband=TRUE, xlim=xlimList[[CHR]])
+}
+@
+
+
+<<>>=
+trellis.device(device="pdf", file="figures/discordance_%02d.pdf",
+	       width=8, height=6,
+	       onefile=FALSE)
+pars <- trellis.par.get()
+pars$axis.text$cex <- 0.3
+pars$xlab.text$cex <- 0.8
+trellis.par.set("axis.text", pars$axis.text)
+trellis.par.set("axis.text", pars$xlab.text)
+for(i in 1:22) print(disc.fig[[i]])
+dev.off()
+
+trellis.device(device="pdf", file="figures/concordance_%02d.pdf",
+	       width=8, height=6,
+	       onefile=FALSE)
+pars <- trellis.par.get()
+pars$axis.text$cex <- 0.6
+pars$xlab.text$cex <- 0.8
+trellis.par.set("axis.text", pars$axis.text)
+trellis.par.set("axis.text", pars$xlab.text)
+for(i in 1:22) print(conc.fig[[i]])
+dev.off()
+stop()
 @
 
 Plot the data for ranges inferred by distance but not by PennCNV:
 
 <<>>=
-x <- dist17[dist17$id %in% notInPenn, ]
-trellis.device(device="pdf", file="figures/chr22_%02d.pdf",
+del.states <- c("332", "331", "321", "221", "231", "431", "341", "432", "342", "441", "442", "421")
+CHR <- 4
+dist <- rangesInXlim(ranges.all, CHR=CHR, xlimList[[CHR]]*1e6)
+penn <- rangesInXlim(penn.denovo, CHR=CHR, xlimList[[CHR]]*1e6)
+notInPenn <- dist$id[!dist$id %in% penn$id]
+notInDist <- penn$id[!penn$id %in% dist$id]
+x <- dist[dist$id %in% notInPenn, ]
+x <- penn[penn$id %in% notInDist, ]
+
+## focus on the blue stripe just to the right of the more common alteration, as well as the one big deletion
+## - assess whether any of the genotypes suggest non-mendelian inheritance
+x <- x[x$state %in% del.states & start(x)/1e6 > 69.15, ]
+trellis.device(device="pdf", file="figures/penn_chr4_fp_%02d.pdf",
 	       width=8, height=6,
 	       onefile=FALSE)
 pars <- trellis.par.get()
@@ -35,16 +160,66 @@ pars$xlab.text$cex <- 0.8
 trellis.par.set("axis.text", pars$axis.text)
 trellis.par.set("axis.text", pars$xlab.text)
 ## add arrows to indicate where the taqman probes would hit
+FRAME <- 500e3/1e6
 for(i in 1:nrow(x)){
-	xlim <- c(40, 43)
+	xlim <- c(start(x)[i]/1e6 - FRAME,
+		  end(x)[i]/1e6 + FRAME)
+	xlim[1] <- max(xlim[1], 0)
+	if(x$state[i] %in% del.states){
+		distanceRanges <- minDistanceRanges
+		distanceSet <- minDistanceSet
+	} else {
+		distanceRanges <- maxDistanceRanges
+		distanceSet <- maxDistanceSet
+	}
+	grid.newpage()
+	grid.trio2(ranges.object=x[i, ],
+				   distanceRanges=distanceRanges,
+				   distanceSet=distanceSet,
+				   bsSet=bsSet,
+				   xlimit=xlim,
+				   ylim=c(-3,2),
+				   CHR=x$chrom[i],
+				   rf=rf,
+				   cnv=cnv,
+				   cex.genes=0.5,
+				   par.strip.text=list(lines=0.7, cex=0.6),
+				   highlight=TRUE,
+				   cex=0.5)
+}
+dev.off()
+
+
+## the amplifications not in penncnv are generally false positives.  The rule for calling amplification should be a little /Users/rscharpf/projects2/Beaty/inst/scripts/tougher.
+trellis.device(device="pdf", file="figures/chr4_distance_falseNegatives%02d.pdf",
+	       width=8, height=6,
+	       onefile=FALSE)
+pars <- trellis.par.get()
+pars$axis.text$cex <- 0.6
+pars$xlab.text$cex <- 0.8
+trellis.par.set("axis.text", pars$axis.text)
+trellis.par.set("axis.text", pars$xlab.text)
+for(i in 1:nrow(x)){
+	xlim <- c(start(x)[i]/1e6 - FRAME,
+		  end(x)[i]/1e6 + FRAME)
+	xlim[1] <- max(xlim[1], 0)
+	##xlim <- c(40, 43)
 	##trace(grid.trioBaf, browser)
 	grid.newpage()
-	trace(grid.trioLogR, browser)
-	trace(grid.trio2, browser)
-	trace(constructTrioSetFromRanges, browser)
+##	trace(grid.trioLogR, browser)
+##	trace(grid.trio2, browser)
+##	trace(constructTrioSetFromRanges, browser)
+	if(x$state[i] %in% del.states){
+		distanceRanges <- minDistanceRanges
+		distanceSet <- minDistanceSet
+	} else {
+		distanceRanges <- maxDistanceRanges
+		distanceSet <- maxDistanceSet
+	}
+	##trace(grid.trio2, browser)
 	grid.trio2(ranges.object=x[i, ],
-		   distanceRanges=minDistanceRanges,
-		   distanceSet=minDistanceSet,
+		   distanceRanges=distanceRanges,
+		   distanceSet=distanceSet,
 		   bsSet=bsSet,
 		   xlimit=xlim,
 		   ylim=c(-3,2),
@@ -59,7 +234,6 @@ for(i in 1:nrow(x)){
 }
 dev.off()
 
-}
 @
 
 

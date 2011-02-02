@@ -1319,7 +1319,7 @@ grid.trio2 <- function(ranges.object, distanceRanges, distanceSet,
 			   flatBed.cnv=flatBed.cnv,
 			   rows=5,
 			   cex.genes=cex.genes,
-			   ylim=c(0,1),
+			   ylim=c(-0.02,1.02),
 			   ...)
 	lvp <- viewport(x=0, width=unit(0.5, "npc"), just="left", name="lvp")
 	pushViewport(lvp)
@@ -1520,12 +1520,9 @@ my.rectangle <- function(x, y, x0, x1, y0, y1, alpha, chr.size,
 			 col, border, centromere.col="grey80",
 			 coverage, chr,
 			 show.coverage=TRUE, plot.cytoband=FALSE,
-			 add.annotation=FALSE, ..., subscripts){
-##	if(all(chr[subscripts]==4)) browser()
-	## axis limits and tick labels already present
-	## nothing plotted
-	panel.xyplot(x, as.integer(as.factor(y)), ##xlim=c(0, unique(chr.size[subscript])),
-		     ..., subscripts)
+			 add.annotation=FALSE, y.as.integer=TRUE, ..., subscripts){
+	##panel.xyplot(x, as.integer(as.factor(y)), ..., subscripts)
+	panel.xyplot(x, factor(y, order=TRUE), ..., subscripts)
 	yy <- as.integer(as.factor(y))
 	h <- 0.75
 	lrect(xleft=x0[subscripts],

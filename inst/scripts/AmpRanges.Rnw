@@ -9,104 +9,18 @@ would expect that at other regions we may have inherited 2 copies from
 one parent plus one copy from the other parent, resulting in
 normal-normal-amplification.
 
-Among the candidate regions (see chromosome figures), the following
-trios had a normal-normal-homozygous deletion event: (list gotten by
-manually going throught the candidate regions)
-
-%12041 (chr1)
-%12127 (chr1)
-%12177
-%12179
-%17012
-%12041 (6)
-%12127 (6)
-%12177 (6)
-%12179 (6)
-%12347 (6)
-%15034 (6)
-%17038 (6)
-%19013 (6)
-%19080 (6)
-%19124 (6)
-%20024 (6)
-%20162 (6)
-%20207 (6)
-%21022 (6)
-%21075
-%21174
-%22005
-%22047
-%12087 (8)
-%12108 (8)
-%12128 (8)
-%12140
-%12156
-%12162
-%12205
-%12225
-%12262
-%12271
-%12281
-%12285
-%12307
-%12340
-%12364
-%12373
-%12390
-%12401
-%13040
-%13047
-%13054
-%13069
-%13086
-%13117
-%14008
-%14015
-%14043
-%14053
-%14110
-%14153
-%15032
-%15040
-%15086
-%15101
-%15106
-%17003
-%17083
-%18110
-%19040
-%19182
-%19184
-%20098
-%21008
-%21012
-%21024
-%21114
-%21139
-%21142
-%21208
-%22071
-%22133
-%
-%
 <<loadBeadStudio>>=
 library(Beaty)
 data(bsSet)
-data(minDistanceSet)
-featureData(minDistanceSet) <- featureData(bsSet)
-data(minDistanceRanges)
+data(maxDistanceRanges)
+data(maxDistanceSet)
+featureData(maxDistanceSet) <- featureData(bsSet)
 data(deletion.ranges)
 invisible(open(logR(bsSet)))
 invisible(open(baf(bsSet)))
 open(minDistanceSet$MAD)
 open(bsSet$MAD)
 bsSet$pedId <- who(sampleNames(bsSet))
-@
-
-Trios with normal-normal-homozygous deletion.
-
-<<>>=
-family <- unique(substr(deletion.ranges$id, 1, 5)[deletion.ranges$state == 331])
 @
 
 minDistanceRanges is the results from the segmentation of the minimum
@@ -120,13 +34,14 @@ allowed for regions with higher coverage. The default minimum of the
 segment mean is -0.2).
 
 <<>>=
-amp.ranges <- collectAllRangesOfSize2(SIZE=10,
-				      bsSet=bsSet,
-				      minDistanceSet=minDistanceSet,
-				      minDistanceRanges=minDistanceRanges,
-				      MIN=1, MAX=4,
-				      lambda=0.1,
-				      upper.limit=-0.5)
+amp.ranges <- collectAllRangesOfSize(SIZE=3,
+				     bsSet=bsSet,
+				     minDistanceSet=maxDistanceSet,
+				     minDistanceRanges=maxDistanceRanges,
+				     MIN=1.5,
+				     MAX=10,
+				     lambda=0.1,
+				     MIN.THR=0.1, denovo.deletion=FALSE)
 @
 
 <<adhocCalls>>=
