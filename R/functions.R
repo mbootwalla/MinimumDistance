@@ -175,6 +175,24 @@ wrapperPosteriorProbs <- function(chromosomes){
 	return(TRUE)
 }
 
+wrapperPrune <- function(chromosomes){
+	Stangle("~/Projects/Beaty/inst/scripts/Prune.Rnw")
+	for(i in seq_along(chromosomes)){
+		CHR <- chromosomes[i]
+		sink("temp")
+		cat("CHR <- ", CHR, "\n")
+		sink()
+		fn <- paste("Prune_", CHR, ".R", sep="")
+		if(file.exists(fn)) unlink(fn)
+		system(paste("cat temp Prune.R >", fn))
+		system(paste('cat ~/bin/cluster.template | perl -pe "s/Rprog/Prune_', CHR, '.R/" > Prune_', CHR, '.R.sh', sep=""))
+		system(paste("qsub -m e -r y -cwd -l mem_free=10G,h_vmem=16G Prune_", CHR, ".R.sh", sep=""))
+		##if(CHR %% 15 == 0) Sys.sleep(60*60*5) ## keeps multiple jobs from trying to load minDistanceSet simultaneously
+	}
+	##Sys.sleep(60*60*5)##3 minutes
+	return(TRUE)
+}
+
 
 scaleSnr <- function(snr, min.scale, max.scale){
 	tmp <- (snr-min(snr))/(max(snr)-min(snr))  ## 0 -> 1
@@ -2382,11 +2400,11 @@ pruneThenBayesFactor <- function(CHR,
 	##
 	##  -- a less ad-hoc approach is to collapse and recompute the
 	##     bayes factor, but this is also more time-consuming.
+	ranges.bf <- pruneByFactor(ranges.bf, f=ranges.bf$argmax)
 	if(verbose) message("Collapsing adjacent ranges with same trio state")
-	ranges.bf2 <- pruneByFactor(ranges.bf, f=ranges.bf$argmax)
-	if(is(ranges.bf2, "list")) {
-		tmp <- tryCatch(res <- do.call("rbind", ranges.bf2), error=function(e) NULL)
-		if(is.null(tmp)) res <- ranges.bf2
+	if(is(ranges.bf, "list")) {
+		tmp <- tryCatch(res <- do.call("rbind", ranges.bf), error=function(e) NULL)
+		if(is.null(tmp)) res <- ranges.bf
 	}
 	return(res)
 }
@@ -2471,6 +2489,7 @@ logrpanelfunction2 <- function(x, y,
 			       dranges,
 			       alpha=0.5,
 			       highlight.col=makeTransparent("blue",alpha=alpha),
+			       ylim,
 			       ..., subscripts){
 	stopifnot(nrow(range.object) == 1)
 	if(missing(cbs.segs)){
@@ -2527,6 +2546,8 @@ logrpanelfunction2 <- function(x, y,
 			cbs.sub$seg.mean <- -1*cbs.sub$seg.mean
 		}
 		if(nrow(cbs.sub) > 0){
+			cbs.sub$seg.mean[cbs.sub$seg.mean < ylim[1]] <- ylim[1]
+			cbs.sub$seg.mean[cbs.sub$seg.mean > ylim[2]] <- ylim[2]
 			stopifnot(nrow(cbs.sub) > 0)
 			panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2,col="blue")#gp=gpar("lwd"=2))
 		}
@@ -2560,7 +2581,7 @@ amp22fun <- function(pruned, ranges.bf2, trioList, verbose=TRUE,...){
 	return(amp22)
 }
 
-alt22fun <- function(rd, trioList, ylim=c(-2.5,1),
+gridplot <- function(rd, trioList, ylim=c(-2.5,1),
 		     highlight=FALSE,
 		     alpha=1,
 		     highlight.col="lightblue",
@@ -2576,6 +2597,8 @@ alt22fun <- function(rd, trioList, ylim=c(-2.5,1),
 					   trioList=trioList,
 					   FRAME=1e6,
 					   index.in.chromosome=TRUE)
+		df[df$logR < ylim[1]] <- ylim[1]
+		df[df$logR > ylim[2]] <- ylim[2]
 		f1[[i]] <- list()
 		f1[[i]][[1]] <- xyplot(logR ~ x | subject,
 					data=df,
@@ -2636,6 +2659,25 @@ alt22fun <- function(rd, trioList, ylim=c(-2.5,1),
 	}
 	return(f1)
 }
+
+gridsetup <- function(fig, rd){
+	stopifnot(!missing(rd))
+	chr.name <- paste("chr", rd$chrom[[1]], sep="")
+	for(i in seq_along(fig)){
+		grid.newpage()
+		lvp <- viewport(x=0, width=unit(0.5, "npc"), just="left", name="lvp")
+		pushViewport(lvp)
+		pushViewport(dataViewport(xscale=fig[[i]][[1]]$x.limits,
+					  yscale=c(0,1), clip="on"))
+		print(fig[[i]][[1]], newpage=FALSE, prefix="plot1", more=TRUE)
+		upViewport(0)
+		grid.text("Log R Ratio", x=unit(0.25, "npc"), y=unit(0.97, "npc"), gp=gpar("cex"=0.9))
+		grid.text(paste(chr.name, ", Family", ss(rd$id[i])), x=unit(0.5, "npc"), y=unit(0.98, "npc"), gp=gpar("cex"=0.9))
+		upViewport(0)
+		print(fig[[i]][[2]], position=c(0.5, 0, 1, 1), more=TRUE, prefix="baf")
+	}
+}
+
 
 mypanelfunction <- function(x, y,
 			    highlight,
@@ -2945,3 +2987,6 @@ pennfig8 <- function(penn.denovo, CHR=8, pass.qc=TRUE){
 			   par.strip.text=list(lines=0.7, cex=0.6), main=paste("chromosome", CHR))
 	pennfig
 }
+
+
+
