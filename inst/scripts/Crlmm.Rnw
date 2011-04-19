@@ -1,62 +1,52 @@
-<<>>=
+<<options>>=
+library(cacheSweave)
 library(Beaty)
 library(ff)
-##library(snow)
-##setCluster(4, "SOCK")
 cdfName <- "human610quadv1b"
 data(samplesheet)
 path <- "/thumper/ctsa/beaty/illumina610/Raw_Data/Released_Data/RELEASED_IDATS"
-##crlmmVersion <- sessionInfo(package="crlmm")$otherPkgs$crlmm$Version
-##outdir <- crlmmdir()
-outdir <- "/scratch/temp/beaty"
-##outdir <- "/amber1/archive/ctsa/beaty_crlmm/devel"
+outdir <- "/amber1/archive/ctsa/beaty_crlmm/devel"
 dir.create(outdir, recursive=TRUE, showWarnings=FALSE)
 ldPath(outdir)
-ocProbesets(50e3)
-##ocSamples(100)
+setCacheDir(outdir)
+ocProbesets(25e3)
 ocSamples(200)
-##options("ffbatchbytes"=50e6)
 options("ffcaching"="mmnoflush")
 samplesheet$Sample_ID <- samplesheet$CIDR_Name
-##A=A(callSet)
-##ffrowapply(A[snp.index,][i1:i2, sel] <- res[["A"]][i1:i2, ], X=res[["A"]], BATCHBYTES=bb)
-##index <- 5500:7599
-##ocSamples(10)
-index <- 1:2500
-##		RG <- readIdatFiles(samplesheet,
-##				    path=dirname(arrayNames[1]),
-##				    arrayInfoColNames=list(barcode=NULL, position="SentrixPosition"),
-##				    saveDate=TRUE)
-##		crlmmResult <- crlmmIllumina(RG=RG,
-##					     cdfName="human370v1c",
-##					     sns=pData(RG)$ID,
-##					     returnParams=TRUE,
-##					     cnFile=file.path(outdir, "cnFile.rda"),
-##					     snpFile=file.path(outdir, "snpFile.rda"),
-##					     save.it=TRUE)
-##		protocolData(crlmmResult)$ScanDate <- protocolData(RG)$ScanDate
-##		range(protocolData(crlmmResult)$ScanDate)
-##		save(crlmmResult, file=file.path(outdir, "crlmmResult.rda"))
-##trace(processIDAT, browser)
-##load(file.path(ldPath(), "callSet.rda"))
-##A <- A(callSet)
-##B <- B(callSet)
-##
-##tmpA <- initializeBigMatrix(initdata=0L, name="tmpA", nr=nrow(callSet), nc=ocSamples(), vmode="integer")
-##system.time(
-##for(j in 1:100){
-##	cat('.')
-##	tmpA[, j] <- as.matrix(A[, j])
-##})
-##
-##system.time(
-##	    ffrowapply(tmpA[i1:i2, ] <-  as.matrix(A[i1:i2, ]), X=A)
-##    )
-##
-##system.time(
-##	    ffcolapply(tmpA[, i1:i2] <-  as.matrix(A[, i1:i2]), X=A)
-##    )
+k <- 1
+while(any(duplicated(samplesheet$Sample_ID))){
+	dup.index <- which(duplicated(samplesheet$Sample_ID))
+	samplesheet$Sample_ID[dup.index] <- paste(samplesheet$Sample_ID[dup.index], k, sep="_")
+}
+arrayInfo <- list(barcode=NULL, position="Human610.Quadv1_B.Sentrix.Position")
+@
 
+<<constructCallSet,cache=TRUE>>=
+cnSet <- crlmm:::construct.Illumina(sampleSheet=samplesheet,
+				    arrayNames=samplesheet$filenames,
+				    batch=samplesheet$Sample.Plate,
+				    path="",
+				    arrayInfoColNames=arrayInfo,
+				    cdfName=cdfName,
+				    verbose=TRUE,
+				    saveDate=TRUE) #, outdir=outdir)
+@
+
+
+<<preprocess,cache=TRUE>>=
+mixtureParams <- preprocessInf(cnSet,
+			       sampleSheet=samplesheet,
+			       arrayNames=samplesheet$filenames,
+			       arrayInfoColNames=arrayInfo)
+@
+
+<<genotypeRS,cache=TRUE>>=
+updated <- genotypeInf(cnSet, mixtureParams=mixtureParams)
+updated
+@
+
+<<>>=
+q('no')
 cnSet <- genotype.Illumina(batch=as.factor(rep(1, nrow(samplesheet)))[index],
 			   arrayNames=samplesheet$filenames[index],
 			   gender=samplesheet$Gender[index],

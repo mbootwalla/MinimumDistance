@@ -36,5 +36,21 @@ setAs("MultiSet", "LogRatioSet",
 		  annotation=annotation(bsSet))
       })
 
+setAs("MultiSet", "data.frame",
+	  function(from){
+		  data.frame(logR=c(logR.F(from),
+			     logR.M(from),
+			     logR.O(from),
+			     -mindist(from)),
+			     baf=c(baf.F(from),
+			     baf.M(from),
+			     baf.O(from),
+			     rep(NA, nrow(from))),
+			     x=rep(position(from)/1e6, 4),
+			     subject=factor(rep(1:4, each=nrow(from)),
+			                    labels=c("Father", "Mother", "Offspring", "distance"),
+					    ordered=TRUE))
+	  })
+
 
 setMethod("family", "eSet", function(object) substr(sampleNames(object), 1, 5))

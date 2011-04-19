@@ -1,8 +1,6 @@
 <<>>=
 library(Beaty)
 ldPath(beadstudiodir())
-##data(deletion.ranges)
-##data(amp.ranges)
 data(deletion.ranges_test)
 data(amp.ranges_test)
 data(rf)
@@ -14,37 +12,35 @@ data(penn.joint)
 
 <<data>>=
 ranges.all <- combineRanges(deletion.ranges, amp.ranges)
-ranges.all <- ranges.all[ranges.all$num.mark >= 5, ]
+ranges.all <- ranges.all[ranges.all$num.mark >= 3, ]
 palette <- brewer.pal(9, "Set1")[1:3]
 dist.df <- data.frame.for.rectangles(ranges.all, palette=palette)
 penn.denovo <- getPennDenovo(penn.joint)
 ##penn.denovo <- penn.denovo[penn.denovo$num.mark >= 10, ]
-penn.denovo <- penn.denovo[penn.denovo$num.mark >= 5, ]
+penn.denovo <- penn.denovo[penn.denovo$num.mark >= 3, ]
 penn.df <- data.frame.for.rectangles(penn.denovo, palette)
 combined.df <- combine.data.frames(dist.df, penn.df)
 @
 
 <<trellis>>=
+palette <- brewer.pal(9, "Set1")[1:3]
 mykey <- simpleKey(c("homo-del", "hemi-del", "amp"), points=FALSE,
 		   rectangles=TRUE, col=palette[1:3], space="top")
-mykey$rectangles$col <- palette
-mykey$rectangles$border <- palette
 dist.chr.lim <- xyplot(y~midpoint|chr, data=dist.df,
 		       panel=my.rectangle,
-			 x0=dist.df$x0,
-			 x1=dist.df$x1,
-			 y0=dist.df$y0,
-			 y1=dist.df$y1,
-			 col=dist.df$col,
-			 border=dist.df$col,
-			 alpha=1,
-			 chr.size=dist.df$chr.size,
-			 scales=list(y="free", x="free", rot=0),
-			 coverage=dist.df$coverage, xlab="Mb", ylab="offspring index",
-			 show.coverage=FALSE, key=mykey,
-			 par.strip.text=list(lines=0.7, cex=0.6),
-			 prepanel=prepanel.fxn)
-
+		       x0=dist.df$x0,
+		       x1=dist.df$x1,
+		       y0=dist.df$y0,
+		       y1=dist.df$y1,
+		       col=dist.df$col,
+		       border=dist.df$col,
+		       alpha=1,
+		       chr.size=dist.df$chr.size,
+		       scales=list(y="free", x="free", rot=0),
+		       coverage=dist.df$coverage, xlab="Mb", ylab="offspring index",
+		       show.coverage=FALSE, key=mykey,
+		       par.strip.text=list(lines=0.7, cex=0.6),
+		       prepanel=prepanel.fxn)
 penn.chr.lim <- xyplot(y~midpoint|chr, data=penn.df, panel=my.rectangle,
 		       x0=penn.df$x0,
 		       x1=penn.df$x1,
@@ -164,11 +160,4 @@ range to be 0 (homo-del),1 (hemi-del), 2 (normal), 3 (amp)
 - find the unique marker positions for a chromosome
   create IRanges object with start=snp.position-12, end=snp.position+12
   use findOverlaps to get the indices of the segments.
-
-<<>>=
-
-@
-
-
-
 

@@ -1,6 +1,10 @@
+useDynLib("Beaty", .registration=TRUE)
+importFrom(graphics, abline, axis, layout, legend, mtext, par, plot,
+	   polygon, rect, segments, text)
 importClassesFrom(mybase, "LogRatioSet")
-importMethodsFrom(mybase, "baf")
-importMethodsFrom(mybase, "logR")
+importMethodsFrom(mybase, "baf", "baf<-")
+importMethodsFrom(mybase, "logR", "logR<-")
 exportPattern("^[^\\.]")
+exportMethods("plot")
 
 

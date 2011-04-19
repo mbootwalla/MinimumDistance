@@ -1,0 +1,132 @@
+<<>>=
+fns <- list.files("~/Projects/Beaty/inst/extdata", full.names=TRUE)
+fn <- fns[grep("HS0", fns)]
+dfList <- vector("list", length(fn))
+##options(warn=2)
+for(i in seq_along(fn)){
+	##flds <- count.fields(fn[i], sep="\t")
+	##rows <- which(flds==27)
+	dat <- read.table(fn[i], header=TRUE, as.is=TRUE, sep="\t", fill=TRUE)
+	tmp <- as.matrix(dat[3:5])
+	tmp <- suppressWarnings(matrix(as.numeric(tmp), nrow(tmp), ncol(tmp)))
+	colnames(tmp) <- colnames(dat)[3:5]
+	probename <- dat$Sample.Name
+	df <- data.frame(tmp)
+	if(i > 1){
+		df$probeid <- sapply(dat$Sample.Name, function(x) strsplit(x, "\\.")[[1]][1])
+		df$sampleid <- sapply(dat$Sample.Name, function(x) strsplit(x, "\\.")[[1]][2])
+		##stopifnot(df$sampleid[1] == strsplit(basename(fn)[i], "\\.")[[1]][[1]])
+	} else {
+		df$probeid <- dat$Sample.Name
+		df$sampleid <- strsplit(basename(fn)[i], "\\.")[[1]][[1]]
+	}
+	dfList[[i]] <- df
+}
+df <- do.call("rbind", dfList)
+colnames(df)[4] <- "sampleid"
+colnames(df)[5] <- "probeid"
+@
+
+% FAM/VIC CT Mean – The arithmetic mean of the CT that is calculated
+% for the technical replicates of the associated sample, where the:
+% FAM column displays the mean CT for the signal associated with the
+% FAM dye-labeled probe of the copy number assay.  VIC column displays
+% the mean CT for the signal associated with the VIC dye-labeled probe
+% of the reference assay
+%
+% RQ (relative quantity): 2^-(DeltaDeltaC_T)
+% DeltaDeltaC_T = mean(DeltaC_T)_target - mean(DeltaC_T)_calibrator
+%
+% cn estimate = RQ x cn_calibrator
+<<>>=
+library(lattice)
+(fam <- xyplot(FAM.Ct~as.factor(probeid)|sampleid, df, scales=list(x=list(rot=90)), cex=0.6,
+	      panel=function(x, y, ..., subscripts){
+		      panel.grid(v=-length(unique(df$probeid)), h=0)
+		      ##panel.grid(v=-1, h=0)
+		      panel.xyplot(x, y, ...)
+	      }))
+(vic <- xyplot(VIC.Ct~as.factor(probeid)|sampleid, df, scales=list(x=list(rot=90)), cex=0.6,
+	      panel=function(x, y, ..., subscripts){
+		      panel.grid(v=-length(unique(df$probeid)), h=0)
+		      ##panel.grid(v=-1, h=0)
+		      panel.xyplot(x, y, ...)
+	      }))
+##What is NTC
+deltafig <- xyplot(FAM.Ct-VIC.Ct~as.factor(probeid)|sampleid, df, scales=list(x=list(rot=90)),cex=0.6,
+		   panel=function(x, y, ..., subscripts){
+			   panel.abline(h=0, col="blue")
+			   panel.grid(v=-length(unique(df$probeid)), h=0)
+			   ##panel.grid(v=-1, h=0)
+			   panel.xyplot(x, y, ...)
+		   })
+
+deltafig2 <- xyplot(log2(FAM.Ct/VIC.Ct)~as.factor(probeid)|sampleid, df, scales=list(x=list(rot=90), y=list(relation="free")),cex=0.6,
+		    panel=function(x, y, ..., subscripts){
+			   panel.abline(h=0, col="blue")
+			   panel.grid(v=-length(unique(df$probeid)), h=0)
+			   panel.xyplot(x, y, ...)
+		   })
+@
+
+<<multiplexfigs>>=
+trellis.device("pdf", file="~/Projects/Beaty/figures/multiplex_%02d.pdf",
+	       width=10, height=7)
+pars <- trellis.par.get()
+pars$axis.text$cex <- 0.6
+pars$xlab.text$cex <- 0.8
+pars$ylab.text$cex <- 0.8
+trellis.par.set("axis.text", pars$axis.text)
+trellis.par.set("xlab.text", pars$xlab.text)
+trellis.par.set("ylab.text", pars$xlab.text)
+print(fam)
+print(vic)
+print(deltafig)
+print(deltafig2)
+dev.off()
+@
+
+<<arrayFigs>>=
+map <- read.csv("~/Projects/Beaty/inst/extdata/gwas_to_local_id.csv",as.is=TRUE)
+load("~/Projects/BeatyExperimentData/data/minDistanceSet.rda")
+
+data(bsSet)
+trioList <- initTrioList(bsSet, minDistanceSet)
+df <- constructTrioSetFrom(ranged.data=range.pruned[2, ], trioList=trioList, FRAME=200e3)
+df$logR <- ifelse(df$logR < -2.8, jitter(-2.8, amount=0.1), df$logR)
+
+@
+
+Copycaller software.
+
+Theoretical model:
+
+Delta_CT = K - log[1+E] * CN
+
+1. estimate K -- the mean Delta_CT for copy number 1
+2. calculate DeltaDelta_CT  using the estimate for K in place of the
+calibrator sample
+3. copy number = cn_c * 2^{-DeltaDelta_CT}
+
+where cn_c is the copy number of the target sequence in the calibrator
+sample.
+
+4.  efficiency.  assumed to be 100%
+5. K – Determined by maximizing the likelihood of the observed ΔCT
+ replicate
+means as a function of this parameter. The likelihood of the observations is
+taken to be the sum of probability density across all samples for a given model.
+
+<<>>=
+df <- df[!is.na(df$probeid), ]
+probes <- unique(df$probeid)
+for(i in seq_along(probes)){
+	df2 <- df[df$probeid == probes[i], ]
+	tmp <- split(df2$Delta.Ct, df2$sampleid)
+	mean.DeltaCT <- sapply(tmp, mean)
+	K <- mean(mean.DeltaCT, na.rm=T)
+}
+
+mean.DeltaCT <- mean.DeltaCT[!is.na(mean.DeltaCT)]
+plot(density(mean.DeltaCT))
+@

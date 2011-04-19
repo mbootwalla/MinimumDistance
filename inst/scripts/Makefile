@@ -32,20 +32,20 @@ figs: figs.Rnw
 	cat ~/bin/cluster.template | perl -pe "s/Rprog/PlotSelectedChromosomes.R/" > PlotSelectedChromosomes.R.sh
 	qsub -m e -r y -cwd -l fat -l mem_free=1G,h_vmem=2G PlotSelectedChromosomes.R.sh
 
-PlotAmp: PlotAmplificationRanges.Rnw
-	echo "Stangle(\"PlotAmplificationRanges.Rnw\")"| R-devel --no-save --no-restore;	
-	cat ~/bin/cluster.template | perl -pe "s/Rprog/PlotAmplificationRanges.R/" > PlotAmplificationRanges.R.sh
-	qsub -m e -r y -cwd -l fat -l mem_free=1G,h_vmem=2G PlotAmplificationRanges.R.sh
+RectanglePlots: RectanglePlots.Rnw
+	echo "Stangle(\"RectanglePlots.Rnw\")"| R-devel --no-save --no-restore;	
+	cat ~/bin/cluster.template | perl -pe "s/Rprog/RectanglePlots.R/" > RectanglePlots.R.sh
+	qsub -m e -r y -cwd -l fat -l mem_free=1G,h_vmem=2G RectanglePlots.R.sh
 
 DenovoRanges: DenovoRangesBySize.Rnw
 	echo "Stangle(\"DenovoRangesBySize.Rnw\")"| R-devel --no-save --no-restore;	
 	cat ~/bin/cluster.template | perl -pe "s/Rprog/DenovoRangesBySize.R/" > DenovoRangesBySize.R.sh
 	qsub -m e -r y -cwd -l fat -l mem_free=25G,h_vmem=30G DenovoRangesBySize.R.sh
 
-AmpRanges: AmpRanges.Rnw
-	echo "Stangle(\"AmpRanges.Rnw\")"| R-devel --no-save --no-restore;	
-	cat ~/bin/cluster.template | perl -pe "s/Rprog/AmpRanges.R/" > AmpRanges.R.sh
-	qsub -m e -r y -cwd -l fat -l mem_free=20G,h_vmem=22G AmpRanges.R.sh
+scratch: scratch.Rnw
+	echo "Stangle(\"scratch.Rnw\")"| R-devel --no-save --no-restore;	
+	cat ~/bin/cluster.template | perl -pe "s/Rprog/scratch.R/" > scratch.R.sh
+	qsub -m e -r y -cwd -l fat -l mem_free=10G,h_vmem=15G scratch.R.sh
 
 clean:
 	-rm *.pdf

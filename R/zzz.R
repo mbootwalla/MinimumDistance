@@ -7,7 +7,7 @@ THISPKG <- "Beaty"
 	message("Welcome to Beaty version ", version)
 
 	options(prompt="R> ", continue=" ", width=70)##device=pdf
-	library(Study)
+	##library(Study)
 	library(oligoClasses)
 	library(BeatyExperimentData)
 	library(SNPchip)
@@ -16,14 +16,18 @@ THISPKG <- "Beaty"
 	library(mybase)
 	library(ff)
 	library(crlmm)
-	library(GenomicRanges)
-	library(Study)
+	##library(GenomicRanges)
+	##library(Study)
 	library(lattice)
 	library(grid)
 	library(locuszoom)
 	library(RColorBrewer)
 	ocSamples(100)
 	beatyOptions()
+}
+
+.onUnload <- function(libpath){
+	library.dynam.unload(THISPKG, libpath)
 }
 
 
