@@ -1074,20 +1074,23 @@ deletionStates <- function(){
 offspring.hemizygous <- function() c("332", "432", "342", "442")
 offspring.homozygous <- function() c("331", "321", "231", "431", "341", "441", "221", "421")
 duplicationStates <- function() as.integer(c("335", "334", "224", "225", "115", "114", "124", "125", "214", "215", "324", "325", "234", "235", "124", "125", "214", "215", "314", "315", "134", "135"))
+duplicationStatesPenn <- function() as.integer(c("335", "225", "115", "125", "215", "325", "235", "125", "215", "315", "135"))
 
-getPennDenovo <- function(penn.joint){
+
+
+harmonizeStates <- function(penn.joint){
 	## note: 221 is denovo in the sense that neither parent had a homozygous deletion
 	del.states <- deletionStates()
-	amp.states <- duplicationStates()
+	amp.states <- duplicationStatesPenn()
 	alt.states <- c(del.states, amp.states)
 	if(!all(penn.joint$pedId == "offspring")) stop("only offspring ranges can be in the object")
 	colnames(penn.joint)[2] <- "num.mark"
 	penn.joint <- penn.joint[, -5] ## redundant
 	message("Treating LOH state as 'normal'")
 	penn.joint$state <- gsub("4", "3", penn.joint$triostate)
+	message("Substituting '4' for states 5 and 6'")
 	penn.joint$state <- gsub("5", "4", penn.joint$triostate)
 	penn.joint$state <- gsub("6", "4", penn.joint$triostate)
-
 	index.multiple.states <- grep("-", penn.joint$triostate)
 	multi.state <- penn.joint$state[index.multiple.states]
 	if(length(multi.state) > 0){
@@ -1103,10 +1106,12 @@ getPennDenovo <- function(penn.joint){
 			return(state)
 		}
 		state.cat <- sapply(multi.state, checkMultiState)
-		penn.joint$triostate[index.multiple.states] <- state.cat
+		##penn.joint$triostate[index.multiple.states] <- state.cat
+		penn.joint$state[index.multiple.states] <- state.cat
 	}
-	penn.joint <- penn.joint[penn.joint$triostate %in% alt.states, ] ##68,472
-	return(penn.joint)
+	##penn.joint <- penn.joint[penn.joint$triostate %in% alt.states, ] ##68,472
+	##return(penn.joint)
+	penn.joint$state
 }
 
 
@@ -2901,3 +2906,42 @@ qcFlag <- function(bsSet){
 	sns.flag <- unique(sssampleNames(bsSet)[qcFlag])
 }
 
+pennfig8 <- function(penn.denovo, CHR=8, pass.qc=TRUE){
+	colnames(penn.denovo)[grep("nmarkers", colnames(penn.denovo))] <- "num.mark"
+	index <- which(penn.denovo$chrom==CHR & penn.denovo$MAD < 0.3 & penn.denovo$dna != "WGA")
+	if(pass.qc){
+		index <- which(penn.denovo$chrom==CHR & penn.denovo$pass.qc & penn.denovo$is.denovo)
+	} else index <- which(penn.denovo$chrom==CHR & penn.denovo$is.denovo)
+	penn.df <- data.frame(id=penn.denovo$id[index],
+			      state=penn.denovo$state[index],
+			      start=start(penn.denovo)[index]/1e6,
+			      end=end(penn.denovo)[index]/1e6,
+			      n=penn.denovo$num.mark[index])
+	penn.df$id <- factor(penn.df$id, levels=unique(penn.denovo$id[index]), ordered=TRUE)
+	penn.df$id <- as.integer(penn.df$id)
+	##penn.df$y <- as.integer(penn.df$id)
+	palette <- brewer.pal(9, "Set1")[1:3]
+	mykey <- simpleKey(c("homo-del", "hemi-del", "amp"), points=FALSE,
+			   rectangles=TRUE, col=palette[1:3], space="top")
+	pennfig <- xyplot(id~start, penn.df,
+			   panel=function(x, y, start, end, coverage, label=FALSE, ..., subscripts){
+				   panel.grid(h=-1, v=-1)
+				   panel.xyplot(x, y, ..., subscripts)
+				   h <- 0.75
+				   lrect(xleft=start[subscripts], xright=end[subscripts],
+					 ybottom=as.integer(y)-h/2,
+					 ytop=as.integer(y)+h/2,...)
+				   if(label) ltext(x,y,labels=coverage[subscripts])
+			   },
+			   scales=list(x=list(tick.number=10)),
+			   border=rep("black", nrow(penn.df)),
+			   fill=rep("white", nrow(penn.df)),
+			   start=penn.df$start,
+			   end=penn.df$end,
+			   coverage=penn.df$nm,
+			   xlab="Mb",
+			   ylab="offspring index",
+			  ylim=range(penn.df$id),
+			   par.strip.text=list(lines=0.7, cex=0.6), main=paste("chromosome", CHR))
+	pennfig
+}
