@@ -4,7 +4,8 @@ importFrom(graphics, abline, axis, layout, legend, mtext, par, plot,
 importClassesFrom(mybase, "LogRatioSet")
 importMethodsFrom(mybase, "baf", "baf<-")
 importMethodsFrom(mybase, "logR", "logR<-")
+importFrom(mybase, unique)
 exportPattern("^[^\\.]")
-exportMethods("plot")
+exportMethods(plot)
 
 

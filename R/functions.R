@@ -157,7 +157,7 @@ submitCbsJobs <- function(BATCHSIZE, NN, CHR, undo.splits="'none'"){
 	return(NULL)
 }
 
-wrapperPosteriorProbs <- function(chromosomes){
+wrapperPosteriorProbs <- function(chromosomes, G=10, sleep=FALSE){
 	Stangle("~/Projects/Beaty/inst/scripts/BayesFactor.Rnw")
 	for(i in seq_along(chromosomes)){
 		CHR <- chromosomes[i]
@@ -168,10 +168,10 @@ wrapperPosteriorProbs <- function(chromosomes){
 		if(file.exists(fn)) unlink(fn)
 		system(paste("cat temp BayesFactor.R >", fn))
 		system(paste('cat ~/bin/cluster.template | perl -pe "s/Rprog/bf_', CHR, '.R/" > bf_', CHR, '.R.sh', sep=""))
-		system(paste("qsub -m e -r y -cwd -l mem_free=10G,h_vmem=16G bf_", CHR, ".R.sh", sep=""))
+		system(paste("qsub -m e -r y -cwd -l mem_free=", G, "G,h_vmem=",G+3,"G bf_", CHR, ".R.sh", sep=""))
 		if(CHR %% 15 == 0) Sys.sleep(60*60*5) ## keeps multiple jobs from trying to load minDistanceSet simultaneously
 	}
-	Sys.sleep(60*60*5)##3 minutes
+	if(sleep) Sys.sleep(60*60*5)##3 minutes
 	return(TRUE)
 }
 
@@ -468,7 +468,9 @@ readPennCnv <- function(penndir="/thumper/ctsa/beaty/holger/penncnv/jointDat",
 	penn.joint <- do.call("c", rdList)
 	if(offspring.only){
 		message("Returning only the ranges for the offspring")
-		penn.joint <- penn.joint[penn.joint$pedId=="offspring", ]
+		##penn.joint <- penn.joint[penn.joint$pedId=="offspring", ]
+		fmo <- substr(penn.joint$id, 8, 8)
+		penn.joint <- penn.joint[fmo == 1, ]
 		##chrom <- as.character(space(penn.joint))
 		##chrom <- substr(chrom, 4, nchar(chrom))
 		##penn.joint$chrom <- chromosome2integer(chrom)
@@ -1093,40 +1095,43 @@ offspring.hemizygous <- function() c("332", "432", "342", "442")
 offspring.homozygous <- function() c("331", "321", "231", "431", "341", "441", "221", "421")
 duplicationStates <- function() as.integer(c("335", "334", "224", "225", "115", "114", "124", "125", "214", "215", "324", "325", "234", "235", "124", "125", "214", "215", "314", "315", "134", "135"))
 duplicationStatesPenn <- function() as.integer(c("335", "225", "115", "125", "215", "325", "235", "125", "215", "315", "135"))
+isDenovo <- function(states) states %in% c(duplicationStates(), deletionStates())
 
-
-
-harmonizeStates <- function(penn.joint){
+harmonizeStates <- function(penn.joint, filter.multistate=FALSE){
 	## note: 221 is denovo in the sense that neither parent had a homozygous deletion
 	del.states <- deletionStates()
 	amp.states <- duplicationStatesPenn()
 	alt.states <- c(del.states, amp.states)
-	if(!all(penn.joint$pedId == "offspring")) stop("only offspring ranges can be in the object")
+	##if(!all(penn.joint$pedId == "offspring")) stop("only offspring ranges can be in the object")
+	stopifnot(all(substr(penn.joint$id, 8, 8) == "1"))
 	colnames(penn.joint)[2] <- "num.mark"
 	penn.joint <- penn.joint[, -5] ## redundant
 	message("Treating LOH state as 'normal'")
-	penn.joint$state <- gsub("4", "3", penn.joint$triostate)
+	penn.joint$state <- penn.joint$triostate
+	penn.joint$state <- gsub("4", "3", penn.joint$state)
 	message("Substituting '4' for states 5 and 6'")
-	penn.joint$state <- gsub("5", "4", penn.joint$triostate)
-	penn.joint$state <- gsub("6", "4", penn.joint$triostate)
-	index.multiple.states <- grep("-", penn.joint$triostate)
-	multi.state <- penn.joint$state[index.multiple.states]
-	if(length(multi.state) > 0){
-		message("Several regions have multiple states assigned... returning the first denovo state in the list")
-		##multi.state <- sapply(multi.state, function(x) unique(strsplit(x, "-")[[1]]))
-		checkMultiState <- function(x){
-			state <- strsplit(x, "-")[[1]]
-			if(any(state %in% alt.states)){
-				state <- state[which(state %in% alt.states)[1]]
-			} else{
-				state <- state[1]
+	penn.joint$state <- gsub("5", "4", penn.joint$state)
+	penn.joint$state <- gsub("6", "4", penn.joint$state)
+	index.multiple.states <- grep("-", penn.joint$state)
+	if(!filter.multistate){
+		multi.state <- penn.joint$state[index.multiple.states]
+		if(length(multi.state) > 0){
+			message("Several regions have multiple states assigned... returning the first denovo state in the list")
+			##multi.state <- sapply(multi.state, function(x) unique(strsplit(x, "-")[[1]]))
+			checkMultiState <- function(x){
+				state <- strsplit(x, "-")[[1]]
+				if(any(state %in% alt.states)){
+					state <- state[which(state %in% alt.states)[1]]
+				} else{
+					state <- state[1]
+				}
+				return(state)
 			}
-			return(state)
+			state.cat <- sapply(multi.state, checkMultiState)
+			##penn.joint$triostate[index.multiple.states] <- state.cat
+			penn.joint$state[index.multiple.states] <- state.cat
 		}
-		state.cat <- sapply(multi.state, checkMultiState)
-		##penn.joint$triostate[index.multiple.states] <- state.cat
-		penn.joint$state[index.multiple.states] <- state.cat
-	}
+	} else message("multi-state ranges left as is")
 	##penn.joint <- penn.joint[penn.joint$triostate %in% alt.states, ] ##68,472
 	##return(penn.joint)
 	penn.joint$state
@@ -1612,9 +1617,9 @@ intervalOfAlterations <- function(altered.ranges, bsSet){
 }
 
 ##short
-ssampleNames <- function(object) substr(sampleNames(bsSet), 1, 8)
+ssampleNames <- function(object) substr(sampleNames(object), 1, 8)
 ##short short
-sssampleNames <- function(object) substr(sampleNames(bsSet), 1, 5)
+sssampleNames <- function(object) substr(sampleNames(object), 1, 5)
 
 ##short short names
 ssnames <- function(x) ss(names(x))
@@ -1643,7 +1648,7 @@ prune <- function(genomdat,
 		  ##trimmed.SD, ##
 		  lambda=0.05,
 		  MIN.CHANGE=0.1,
-		  MAX.CHANGE=3,
+		  SCALE.EXP=0.02,
 		  MIN.COVERAGE=3,
 		  weighted=FALSE,
 		  weights=NULL) {
@@ -1656,7 +1661,7 @@ prune <- function(genomdat,
 	stopifnot(length(trimmed.SD)==1)
 	coverage <- coverage[-length(coverage)]
 	if(FALSE){
-		numberSds <- calculateChangeSd(3:100, lambda=lambda, a=MIN.CHANGE, b=MAX.CHANGE)
+		numberSds <- calculateChangeSd(coverage=3:100, lambda=lambda, a=MIN.CHANGE, b=SCALE.EXP)
 		graphics:::plot(3:100, y, ylab="number of MADs", xlab="coverage")
 	}
 	##thrSD <- calculateChangeSd(coverage, lambda, trimmed.SD, change.SD)
@@ -1673,7 +1678,7 @@ prune <- function(genomdat,
 			##  number of sds as a function of coverage
 			##  -- segments with high coverage have small y
 			##
-			requiredNumberSd <- calculateChangeSd(coverage, lambda, MIN.CHANGE, MAX.CHANGE)
+			requiredNumberSd <- calculateChangeSd(coverage=coverage, lambda=lambda, a=MIN.CHANGE, b=SCALE.EXP)
 			##
 			## number of standard deviations
 			##
@@ -1691,7 +1696,7 @@ prune <- function(genomdat,
 			##
 			## absolute copy number difference of adjacent segments
  			##adsegmed <- abs(diff(segmed))
-			adsegmed <- abs(diff(abs(segmed)))  ## put abs in inner parentheses to keep things far from zero
+			adsegmed <- abs(diff(segmed))  ## put abs in inner parentheses to keep things far from zero
 			##
 			##
 			## number of standard deviations of observed shift
@@ -1750,13 +1755,14 @@ pruneRanges <- function(CHR,
 			ids,
 			lambda=0.05,
 			MIN.CHANGE=0.1,
-			MAX.CHANGE=3,
+			SCALE.EXP=0.02,
 			MIN.COVERAGE=3, verbose=TRUE){
 	stopifnot(length(CHR)==1)
 	open(copyNumber(minDistanceSet))
 	open(baf(bsSet))
 	open(logR(bsSet))
 	open(bsSet$MAD)
+	open(minDistanceSet$MAD)
 	range.object <- loadRanges(beadstudiodir(), pattern=paste("md.segs_chr", CHR, "_", sep=""), CHR=CHR, name="md.segs")
 	if(!missing(ids)) range.object <- range.object[ss(range.object$id) %in% ids, ]
 	fD <- featureData(bsSet)[chromosome(bsSet)==CHR, ]
@@ -1778,19 +1784,12 @@ pruneRanges <- function(CHR,
 				      physical.pos=fD$position,
 				      lambda=lambda,
 				      MIN.CHANGE=MIN.CHANGE,
-				      MAX.CHANGE=MAX.CHANGE,
+				      SCALE.EXP=SCALE.EXP,
 				      MIN.COVERAGE=MIN.COVERAGE)
 		rdList[[j]] <- range.pruned
 	}
 	rdList <- rdList[!sapply(rdList, is.null)]
 	range.pruned <- do.call("c", rdList)
-##	id <- do.call(lapply(rdList, function(x) x$id))
-##	num.mark <- do.call(lapply(rdList, function(x) x$num.mark))
-##	seg.mean <- do.call(lapply(rdList, function(x) x$seg.mean))
-##	start.index <- do.call(lapply(rdList, function(x) x$start.index))
-##	end.index <- do.call(lapply(rdList, function(x) x$end.index))
-##	st <- do.call(lapply(rdList, start))
-##	en <- do.call(lapply(rdList, end))
 	range.pruned <- RangedData(IRanges(start(range.pruned), end(range.pruned)),
 				    chrom=range.pruned$chrom,
 				    id=range.pruned$id,
@@ -1798,11 +1797,11 @@ pruneRanges <- function(CHR,
 				    seg.mean=range.pruned$seg.mean,
 				    start.index=range.pruned$start.index,
 				    end.index=range.pruned$end.index)
-	##range.pruned <- do.call("c", rdList)
 	close(copyNumber(minDistanceSet))
 	close(baf(bsSet))
 	close(logR(bsSet))
 	close(bsSet$MAD)
+	close(minDistanceSet$MAD)
 	return(range.pruned)
 }
 
@@ -1995,16 +1994,18 @@ computeLoglik <- function(id,
 	med.all <- median(bsSet$MAD[!bsSet$is.wga], na.rm=TRUE)
 	j <- match(id, ssampleNames(bsSet))
 	sds.sample <- bsSet$MAD[j]
-	scale.sd <- sds.sample
-	scale.sd[sds.sample < med.all] <- 1
-	scale.sd[sds.sample >= med.all] <- sds.sample[sds.sample >= med.all]/med.all
+##	scale.sd <- sds.sample
+##	scale.sd[sds.sample < med.all] <- 1
+##	scale.sd[sds.sample >= med.all] <- sds.sample[sds.sample >= med.all]/med.all
 	##scale.sd <- ifelse(sds.sample < median(sds.sample), 1, sds.sample/median(sds.sample))
-	scale.sd <- matrix(scale.sd, nrow(object), length(j), byrow=TRUE)
+##	scale.sd <- matrix(scale.sd, nrow(object), length(j), byrow=TRUE)
 	##sds.marker <- crlmm:::rowMAD(lR)
 	##marker.index <- which(chromosome(bsSet) == CHR)
+	sds.sample <- matrix(sds.sample, nrow(object), length(j), byrow=TRUE)
 	sds.marker <- fData(object)$MAD
 	sds.marker <- matrix(sds.marker, nrow(object), length(j), byrow=FALSE)
-	sds <- sds.marker*scale.sd
+	## less ad hoc: shrink the marker-specific estimate to the sample-level estimate
+	sds <- (sds.marker+sds.sample)/2
 	lR <- logR(object)
 	##lik <- loglik(object)
 	for(i in seq_along(states)) loglik(object)["logR", , , i] <- dnorm(lR, mu.logr[i], sds)
@@ -2055,14 +2056,19 @@ trioStates <- function(states=0:4){
 	trio.states <- trio.states[-index, ]
 }
 
-transitionProbability <- function(trio.states, epsilon){
-	off.diag <- epsilon/(nrow(trio.states) -1)
-	tpm <- matrix(off.diag, nrow(trio.states), nrow(trio.states))
-	diag(tpm) <- 1-epsilon
-	tpm
+trioStateNames <- function(trio.states){
+	if(missing(trio.states)) trio.states <- trioStates(0:4)
+	paste(paste(trio.states[,1], trio.states[,2], sep=""), trio.states[,3], sep="")
 }
 
-transitionProbability2 <- function(states=0:4, epsilon=1-0.999){
+##transitionProbability <- function(states, epsilon=1-0.999){
+##	off.diag <- epsilon/(nrow(states) -1)
+##	tpm <- matrix(off.diag, nrow(states), nrow(states))
+##	diag(tpm) <- 1-epsilon
+##	tpm
+##}
+
+transitionProbability <- function(states=0:4, epsilon=1-0.999){
 	off.diag <- epsilon/(length(states)-1)
 	tpm <- matrix(off.diag, length(states), length(states))
 	diag(tpm) <- 1-epsilon
@@ -2120,8 +2126,10 @@ lookUpTable1 <- function(table1, state){
 }
 
 readTable3 <- function(a=0.009){
-	results <- .C("calculateCHIT", a=a, M=array(0, dim=c(rep(5,6))))
-	results[["M"]]
+	## initialize with small value to avoid -Inf
+	results <- .C("calculateCHIT", a=a, M=array(1e-9, dim=c(rep(5,6))))
+	## Make sure to transpose!
+	aperm(results[["M"]])
 }
 
 lookUpTable3 <- function(table3, state.prev, state.curr){
@@ -2147,6 +2155,7 @@ joint1 <- function(object,
 		   Prob.DN=1.5e-6,
 		   denovo.prev,
 		   state.prev) {
+	##browser()
 	state <- trio.states[state.index, ]
 	##fmo <- list()
 	fmo <- matrix(NA, nrow(object), 3)
@@ -2216,8 +2225,9 @@ joint1 <- function(object,
 			fmo[3] <- log(tabled.value) + fmo[3]
 		}
 	}
+	## RS: comment 4/29/2011
 	## add the probability of transitioning back to the normal state
-	for(j in 1:3) fmo[j] <- fmo[j] + log(tau[state[j], 3])
+	##for(j in 1:3) fmo[j] <- fmo[j] + log(tau[state[j], 3])
 	##f <- f+log(tau[state[1], 3])
 	##m <- m+log(tau[state[2], 3])
 	##o <- o+log(tau[state[3], 3])
@@ -2260,6 +2270,8 @@ joint4 <- function(bsSet,
 	start.stop <- cbind(ranges$start.index, ranges$end.index)
 	l <- apply(start.stop, 1, function(x) length(x[1]:x[2]))
 	fData(object)$range.index <- rep(seq(length=nrow(ranges)), l)
+	##rtmp <- loglik(object)["logR", range.index(object)==2, ,  ]
+	##btmp <- loglik(object)["baf", range.index(object)==2, ,  ]
 	trio.states <- trioStates(states)
 	tmp <- matrix(NA, nrow(trio.states), 2)
 	colnames(tmp) <- c("DN=0", "DN=1")
@@ -2289,20 +2301,39 @@ joint4 <- function(bsSet,
 						      denovo.prev=denovo.prev)
 			}
 		}
-		argmax1 <- which.max(tmp[, 1])
-		argmax2 <- which.max(tmp[, 2])
-		is.denovo <- ifelse(tmp[argmax1, 1] < tmp[argmax2, 2], TRUE, FALSE)
-		##argmax <- which.max(tmp)
-		if(is.denovo){
-			bf <- tmp[argmax2, 2]-tmp[normal.index, 1]
-			argmax <- argmax2
-		}  else {
-			bf <- tmp[argmax1, 1]-tmp[normal.index, 1]
-			argmax <- argmax1
+		## RS 4/29/2011
+		##integrate out the denovo indicator
+		##one.finite <- which(rowSums(is.finite(tmp))==1)
+		##tmp[!is.finite(tmp)] <- min(tmp[is.finite(tmp)], na.rm=TRUE)
+		## in most cases, a non-mendelian event should always be finite
+		##  -- only the mendelian events will be -Inf
+		##     -Inf + finite = -Inf
+		##     (this will automatically exclude a state when a mendelian mechanism is improbable)
+		##     -> -Inf should only have an effect when the true mechanism is non-mendelian
+		##     -> If in truth the mechanism is non-mendelian, the right answer would be the max of column 2
+		##     -> If using rowSums,  we're choosing the state that could arise by a mendelian mechanism
+		rsums <- rowSums(tmp, na.rm=TRUE)
+		if(all(is.infinite(rsums))){
+			min.val <- min(tmp[is.finite(tmp)], na.rm=TRUE)
+			tmp[is.infinite(tmp)] <- min.val
+			rsums <- rowSums(tmp, na.rm=TRUE)
+			##stop("all -Inf in joint4")
 		}
+		##argmax1 <- which.max(tmp[, 1])
+		##argmax2 <- which.max(tmp[, 2])
+		##argmax <- which.max(tmp)
+		##if(is.denovo){
+		##bf <- tmp[argmax2, 2]-tmp[normal.index, 1]
+		##argmax <- argmax2
+		##}  else {
+		argmax <- which.max(rsums)
+		is.denovo <- ifelse(tmp[argmax, 1] < tmp[argmax, 2], TRUE, FALSE)
+		bf <- rsums[argmax] - rsums[normal.index]
+		##bf <- tmp[argmax1, 1]-tmp[normal.index, 1]
+		##argmax <- argmax1
 		ranges$bayes.factor[i] <- bf
 		ranges$DN[i] <- is.denovo
-		ranges$state.index[i] <- argmax
+		ranges$argmax[i] <- argmax
 		denovo.prev <- is.denovo
 		state.prev <- trio.states[argmax, ]
 	}
@@ -2346,7 +2377,7 @@ computeBayesFactor <- function(range.object,
 			     a=a,
 			     verbose=verbose)##, F=F, M=M, O=O)
 		range.object$bayes.factor[j] <- rd$bayes.factor
-		range.object$argmax[j] <- rd$state.index
+		range.object$argmax[j] <- rd$argmax
 		range.object$DN[j] <- rd$DN
 	}
 	range.object
@@ -2358,7 +2389,7 @@ pruneThenBayesFactor <- function(CHR,
 				 ids,
 				 lambda=0.05,
 				 MIN.CHANGE=0.1,
-				 MAX.CHANGE=3,
+				 SCALE.EXP=0.02,
 				 MIN.COVERAGE=10,
 				 states=0:4,
 				 baf.sds=c(0.02, 0.03, 0.02),
@@ -2379,7 +2410,7 @@ pruneThenBayesFactor <- function(CHR,
 				    ids=ids,
 				    lambda=lambda,
 				    MIN.CHANGE=MIN.CHANGE,
-				    MAX.CHANGE=MAX.CHANGE,
+				    SCALE.EXP=SCALE.EXP,
 				    MIN.COVERAGE=MIN.COVERAGE,
 				    verbose=verbose)
 	if(verbose) message("Computing bayes factors for chromosome ", CHR)
@@ -2403,9 +2434,13 @@ pruneThenBayesFactor <- function(CHR,
 	ranges.bf <- pruneByFactor(ranges.bf, f=ranges.bf$argmax)
 	if(verbose) message("Collapsing adjacent ranges with same trio state")
 	if(is(ranges.bf, "list")) {
-		tmp <- tryCatch(res <- do.call("rbind", ranges.bf), error=function(e) NULL)
-		if(is.null(tmp)) res <- ranges.bf
-	}
+		## each element should be RangedData
+		tmp <- tryCatch(res <- RangedDataList(ranges.bf), error=function(e) NULL)
+		##tmp <- tryCatch(res <- do.call("rbind", ranges.bf), error=function(e) NULL)
+		if(!is.null(tmp)) {
+			res <- stack(res)
+		} else	res <- ranges.bf
+	} else res <- ranges.bf
 	return(res)
 }
 
@@ -2482,6 +2517,9 @@ p1 <- function(df, palette, xlim){
 }
 
 logrpanelfunction2 <- function(x, y,
+			       col,
+			       fill,
+			       ylimit,
 			       highlight,
 			       add.segments=TRUE,
 			       range.object,
@@ -2489,12 +2527,11 @@ logrpanelfunction2 <- function(x, y,
 			       dranges,
 			       alpha=0.5,
 			       highlight.col=makeTransparent("blue",alpha=alpha),
-			       ylim,
 			       ..., subscripts){
 	stopifnot(nrow(range.object) == 1)
 	if(missing(cbs.segs)){
 		CHR <- range.object$chrom
-		cbs.segs <- loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, sep=""), CHR=CHR, name="cbs.segs")
+		cbs.segs <- loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, ".rda", sep=""), CHR=CHR, name="cbs.segs")
 	}
  	stopifnot(nrow(cbs.segs)>0)
 	if(missing(dranges)){
@@ -2505,15 +2542,14 @@ logrpanelfunction2 <- function(x, y,
 	##stopifnot(nrow(cbs.segs) > 0)
 	id <- substr(range.object$id[[1]], 1, 5)
 	panel.grid(h = 10, v = 10, col = "grey", lty = 3)
-	panel.xyplot(x, y, col="grey60", ...)
-	ylim=c(-10, 10)
+	panel.xyplot(x, y, col=col[subscripts], fill=fill[subscripts], ...)
 	if(highlight){
 		st <- start(range.object)/1e6
 		en <- end(range.object)/1e6
 		lrect(xleft=st,
 		      xright=en,
-		      ybottom=ylim[1],
-		      ytop=ylim[2], col=highlight.col, ...)
+		      ybottom=ylimit[1],
+		      ytop=ylimit[2], col=highlight.col, ...)
 	}
 	if("other.ranges" %in% names(list(...))){
 		ranges <- list(...)[["other.ranges"]]
@@ -2522,8 +2558,8 @@ logrpanelfunction2 <- function(x, y,
 			en <- end(ranges)/1e6
 			lrect(xleft=st,
 			      xright=en,
-			      ybottom=ylim[1],
-			      ytop=ylim[2], col=highlight.col, ...)
+			      ybottom=ylimit[1],
+			      ytop=ylimit[2], col=highlight.col, ...)
 		}
 	}
 	##panel.abline(h=0)
@@ -2546,8 +2582,8 @@ logrpanelfunction2 <- function(x, y,
 			cbs.sub$seg.mean <- -1*cbs.sub$seg.mean
 		}
 		if(nrow(cbs.sub) > 0){
-			cbs.sub$seg.mean[cbs.sub$seg.mean < ylim[1]] <- ylim[1]
-			cbs.sub$seg.mean[cbs.sub$seg.mean > ylim[2]] <- ylim[2]
+			cbs.sub$seg.mean[cbs.sub$seg.mean < ylimit[1]] <- ylimit[1] + 0.2
+			cbs.sub$seg.mean[cbs.sub$seg.mean > ylimit[2]] <- ylimit[2] - 0.2
 			stopifnot(nrow(cbs.sub) > 0)
 			panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2,col="blue")#gp=gpar("lwd"=2))
 		}
@@ -2584,41 +2620,59 @@ amp22fun <- function(pruned, ranges.bf2, trioList, verbose=TRUE,...){
 gridplot <- function(rd, trioList, ylim=c(-2.5,1),
 		     highlight=FALSE,
 		     alpha=1,
-		     highlight.col="lightblue",
+		     highlight.fill="lightblue",
+		     highlight.col="grey30",
 		     highlight.border="grey60",
 		     highlight.alpha=0.4,
+		     pch.col="grey60",
 		     cex.genes=0.5,
 		     pch=21,
-		     cex=0.4){
+		     cex=0.4,
+		     cex.scale=0.5,
+		     FRAME=1e6){
 	f1 <- list()
 	chr.name <- paste("chr", rd$chrom[[1]], sep="")
 	for(i in 1:nrow(rd)){
 		df <- constructTrioSetFrom(ranged.data=rd[i,],
 					   trioList=trioList,
-					   FRAME=1e6,
+					   FRAME=FRAME,
 					   index.in.chromosome=TRUE)
-		df[df$logR < ylim[1]] <- ylim[1]
-		df[df$logR > ylim[2]] <- ylim[2]
+		fill <- rep("white", nrow(df))
+		ii <- which(df$x*1e6 >= start(rd)[i] & df$x*1e6 <= end(rd)[i])
+		fill[ii] <- highlight.fill
+		col <- rep(pch.col, nrow(df))
+		col[ii] <- highlight.col
+		if(any(df$logR < ylim[1],na.rm=TRUE)){
+			replace.index <- which(df$logR < ylim[1])
+			df$logR[replace.index] <- ylim[1] + 0.2 + runif(length(replace.index), -0.2, 0.2)
+		}
+		if(any(df$logR > ylim[2], na.rm=TRUE)){
+			replace.index <- which(df$logR > ylim[2])
+			df$logR[replace.index] <- ylim[2] - 0.2 + runif(length(replace.index), -0.2, 0.2)
+		}
 		f1[[i]] <- list()
-		f1[[i]][[1]] <- xyplot(logR ~ x | subject,
-					data=df,
-					layout=c(1,4),
+		f1[[i]][[1]] <- xyplot(logR ~ x | subject, data=df,
+				       panel=logrpanelfunction2,
+				       ylimit=ylim,
+				       layout=c(1,4),
 					index.cond=list(4:1),
 					pch=pch,
 					cex=cex,
 					xlab="Mb",
 					ylab="",
-					fill="lightblue",
+				       ##fill="lightblue",
 					border="grey60",
 					range.object=rd[i,],
 					##this needs to be all of the min-distance ranges
 					##dranges=ranges.bf2[ranges.bf2$id==rd$id[i], ],
-				       scales=list(x=list(tick.number=10)),
-					panel=logrpanelfunction2,
+				       scales=list(x=list(tick.number=10, cex=cex.scale, tck=c(1,0)),
+				       alternating=rep(1, 4),
+				       y=list(cex=cex.scale, tck=c(1,0))),
 				       par.strip.text=list(lines=0.8, cex=0.7),
-					ylim=ylim,
-					alpha=alpha,
-					highlight=highlight)##, main=rd$id[i]))
+				       alpha=alpha,
+				       highlight=highlight,
+				       col=col,
+				       fill=fill)##, main=rd$id[i]))
 		xlimit <- f1[[i]][[1]]$x.limits
 		df$labels <- as.character(df$subject)
 		df$labels[df$labels=="distance"] <- "genes"
@@ -2653,33 +2707,44 @@ gridplot <- function(rd, trioList, ylim=c(-2.5,1),
 				       bed.objects=bed.objects,
 				       rows=5,
 				       cex.genes=cex.genes,
-				       par.strip.text=list(lines=0.8, cex=0.7),
-				       scales=list(x=list(tick.number=10)),
-				       ylim=c(-0.02,1.02))
+				       par.strip.text=list(lines=0.8, cex=cex.scale),
+				       scales=list(x=list(tick.number=10, cex=cex.scale,
+						   tck=c(1,0), alternating=1),
+				                   y=list(cex=cex.scale, tck=c(0,1),
+						   alternating=c(0,0,2,2,2))),
+				       ylim=c(-0.02,1.02),
+				       col=col,
+				       fill=fill)
 	}
 	return(f1)
 }
 
-gridsetup <- function(fig, rd){
+gridsetup <- function(figname, lattice.object, rd, ...){
+	if(!missing(figname))
+		trellis.device(device="pdf", file=figname, onefile=FALSE, ...)
 	stopifnot(!missing(rd))
 	chr.name <- paste("chr", rd$chrom[[1]], sep="")
-	for(i in seq_along(fig)){
+	for(i in seq_along(lattice.object)){
 		grid.newpage()
-		lvp <- viewport(x=0, width=unit(0.5, "npc"), just="left", name="lvp")
+		lvp <- viewport(x=0, width=unit(0.52, "npc"), just="left", name="lvp")
 		pushViewport(lvp)
-		pushViewport(dataViewport(xscale=fig[[i]][[1]]$x.limits,
+		pushViewport(dataViewport(xscale=lattice.object[[i]][[1]]$x.limits,
 					  yscale=c(0,1), clip="on"))
-		print(fig[[i]][[1]], newpage=FALSE, prefix="plot1", more=TRUE)
+		print(lattice.object[[i]][[1]], newpage=FALSE, prefix="plot1", more=TRUE)
 		upViewport(0)
-		grid.text("Log R Ratio", x=unit(0.25, "npc"), y=unit(0.97, "npc"), gp=gpar("cex"=0.9))
+		grid.text("Log R Ratio", x=unit(0.25, "npc"), y=unit(0.96, "npc"), gp=gpar("cex"=0.8))
+		grid.text("B allele frequency", x=unit(0.75, "npc"), y=unit(0.96, "npc"), gp=gpar("cex"=0.8))
 		grid.text(paste(chr.name, ", Family", ss(rd$id[i])), x=unit(0.5, "npc"), y=unit(0.98, "npc"), gp=gpar("cex"=0.9))
 		upViewport(0)
-		print(fig[[i]][[2]], position=c(0.5, 0, 1, 1), more=TRUE, prefix="baf")
+		print(lattice.object[[i]][[2]], position=c(0.48, 0, 1, 1), more=TRUE, prefix="baf")
 	}
+	if(!missing(figname)) dev.off()
+	TRUE
 }
 
 
 mypanelfunction <- function(x, y,
+			    col, fill,
 			    highlight,
 			    highlight.col,
 			    highlight.alpha,
@@ -2692,9 +2757,8 @@ mypanelfunction <- function(x, y,
 			    bed.objects,
 			    ..., subscripts){
 	if(panel.number() > 2){
-		panel.xyplot(x, y, ...)
 		panel.grid(h = 10, v = 10, col = "grey", lty = 3)
-
+		panel.xyplot(x, y, col=col[subscripts], fill=fill[subscripts], ...)
 	}
 	if(panel.number() == 2){
 		flatBed <- bed.objects[["genes"]]
@@ -2741,13 +2805,16 @@ mypanelfunction <- function(x, y,
 }
 
 data.frame.for.rectangles <- function(ranges.all, palette){
+	stopifnot("num.mark" %in% colnames(ranges.all))
+	stopifnot("triostate" %in% colnames(ranges.all))
 	## important to order by chromosome before splitting
 	ranges.all <- ranges.all[order(ranges.all$chrom), ]
 	##del.states <- c("332", "331", "321", "231", "431", "341", "432", "342", "441", "442", "421")
 	##amp.states <- c("334", "224", "114", "124", "214", "324", "234", "124", "214", "314", "134")
 	del.states <- deletionStates()
 	amp.states <- duplicationStates()
-	is.denovo <- ranges.all$triostate %in% c(del.states, amp.states)
+	##is.denovo <- ranges.all$triostate %in% c(del.states, amp.states)
+	is.denovo <- isDenovo(ranges.all$triostate)
 	if(!any(is.denovo)) return(NULL)
 	if(!all(is.denovo)){
 		message("states non-denovo states detected.  Excluding non-denovo states")
@@ -2935,9 +3002,9 @@ isWgaFamily <- function(ids, dna) unique(ids[dna=="WGA"])
 
 trioNames <- function(bsSet, pass.qc=TRUE){
 	if(pass.qc){
-		unique(sssampleNames(bsSet)[bsSet$complete.trio & bsSet$pass.qc])
+		unique(sssampleNames(bsSet)[bsSet$complete.trio & bsSet$pass.qc & !bsSet$is.duplicate])
 	} else{
-		unique(sssampleNames(bsSet)[bsSet$complete.trio])
+		unique(sssampleNames(bsSet)[bsSet$complete.trio & !bsSet$is.duplicate])
 	}
 }
 
@@ -2948,7 +3015,7 @@ qcFlag <- function(bsSet){
 	sns.flag <- unique(sssampleNames(bsSet)[qcFlag])
 }
 
-pennfig8 <- function(penn.denovo, CHR=8, pass.qc=TRUE){
+pennfig8 <- function(penn.denovo, CHR=8, pass.qc=TRUE, ylab="", main=""){
 	colnames(penn.denovo)[grep("nmarkers", colnames(penn.denovo))] <- "num.mark"
 	index <- which(penn.denovo$chrom==CHR & penn.denovo$MAD < 0.3 & penn.denovo$dna != "WGA")
 	if(pass.qc){
@@ -2982,11 +3049,491 @@ pennfig8 <- function(penn.denovo, CHR=8, pass.qc=TRUE){
 			   end=penn.df$end,
 			   coverage=penn.df$nm,
 			   xlab="Mb",
-			   ylab="offspring index",
+			   ylab=ylab,
 			  ylim=range(penn.df$id),
-			   par.strip.text=list(lines=0.7, cex=0.6), main=paste("chromosome", CHR))
+			   par.strip.text=list(lines=0.7, cex=0.6), main=main)
 	pennfig
 }
 
 
 
+getAllBayesFactorRanges <- function(path=beadstudiodir()){
+	ranges.md <- list()
+	for(i in 1:22){
+		fname <- file.path(path, paste("ranges.bf", i, ".rda", sep=""))
+		load(fname)
+		ranges.md[[i]] <- get("ranges.bf")
+		rm(ranges.bf)
+	}
+	ii <- which(sapply(ranges.md, is, "list"))
+	if(length(ii) > 0){
+		for(k in seq_along(ii)){
+			j <- ii[k]
+			tmp <- RangedDataList(ranges.md[[j]])
+			tmp2 <- stack(tmp)
+			## for some reason, the above operation adds an extra column
+			tmp2 <- tmp2[, -ncol(tmp2)]
+			ranges.md[[j]] <- tmp2
+			rm(tmp, tmp2); gc()
+		}
+	}
+	stopifnot(all(sapply(ranges.md, is, "RangedData")))
+	rdlist <- RangedDataList(ranges.md)
+	rd <- stack(rdlist)
+	return(rd)
+}
+
+calculateDenovoFrequency <- function(ranges.md, penn.offspring){
+	## frequency of denovo event
+	trio.states <- trioStates()
+	tmp <- trio.states[ranges.md$argmax, ]
+	calls <- paste(paste(tmp[, 1], tmp[, 2], sep=""), tmp[,3], sep="")
+	calls <- gsub("5", "4", calls)
+	not.normal <- which(calls != "333")
+	df <- as.data.frame(table(calls[not.normal]))
+	df$method <- "mindist"
+	penn.index <- which(penn.offspring$pass.qc & penn.offspring$nmarkers >= 10)
+	df2 <- as.data.frame(table(penn.offspring$state[penn.index]))
+	df2$method <- "PennCNV"
+	colnames(df2) <- colnames(df) <- c("call", "Freq", "method")
+	df <- rbind(df, df2)
+	##df$is.denovo <- df$call %in% c(deletionStates(), duplicationStates())
+	df$is.denovo <- isDenovo(df$call)
+	##df <- df[isDenovo(df$call), ]
+	df$col <- rep("white", nrow(df))
+	df$col[df$is.denovo] <- "blue"
+	i1 <- df$method=="mindist" & df$is.denovo
+	f1 <- df$Freq[i1]
+	names(f1) <- as.character(df$call[i1])
+	i2 <- df$method=="PennCNV" & df$is.denovo
+	f2 <- df$Freq[i2]
+	names(f2) <- as.character(df$call[i2])
+	f1 <- f1[order(names(f1))]
+	f2 <- f2[order(names(f2))]
+	f1 <- f1[names(f1) %in% names(f2)]
+	f2 <- f2[names(f2) %in% names(f1)]
+	stopifnot(all.equal(names(f1), names(f2)))
+	df <- data.frame(mindist=f1, penn=f2)
+	rownames(df) <- names(f1)
+	return(df)
+}
+
+matchingDiscordantRanges <- function(penn.offspring, ranges.md, top=1:100, state=332, min.coverage=10){
+	##colnames(penn.offspring)
+	penn.offspring$state <- harmonizeStates(penn.offspring, filter.multistate=TRUE)
+	penn332 <- penn.offspring[penn.offspring$state==state & penn.offspring$pass.qc & penn.offspring$nmarkers >= min.coverage, ]
+	penn332 <- penn332[order(penn332$nmarkers, decreasing=TRUE), ]
+	penn332 <- penn332[top, ]
+	mind <- ranges.md[ranges.md$argmax != 61, ]
+	mdMatch <- vector("list", length(top))
+	##mind33 <- ranges.md[ranges.md$state == 332 | ranges.md$state ==
+	## exclude the ranges that overlap with mindist
+	chrom <- unique(penn332$chrom)
+	m <- 1
+	for(i in 1:nrow(penn332)){
+		query <- IRanges(start(penn332)[i], end(penn332)[i])
+		md <- mind[mind$id == penn332$id[i] & mind$chrom == penn332$chrom[i], ]
+		if(nrow(md) == 0) next()
+		md$pennIndex <- i
+		subj <- IRanges(start(md), end(md))
+		mm <- matchMatrix(findOverlaps(query, subj))
+		##stopifnot(nrow(mm) <= 1)
+		if(nrow(mm) == 0) next()
+		ii <- unique(as.integer(mm[, "subject"]))
+		mdMatch[[i]] <- md[ii, ]
+	}
+	return(list(penn=penn332, md.matching=mdMatch))
+}
+
+discordant332Figs <- function(file, triolist, index, pch=21, cex=1, ylim=c(-3,1.5),
+			      alpha=1,
+			      highlight.fill="lightblue",
+			      highlight.col="grey30",
+			      highlight.border="grey60",
+			      pch.col="grey", ...){
+	if(!missing(file)) trellis.device(device="pdf", file=file, onefile=FALSE)
+	for(i in seq_along(index)){
+		j <- index[i]
+		penn[j, ]
+		##md[[j]]
+		CHR <- penn$chrom[j]
+		load(file.path(beadstudiodir(), paste("ranges.bf", CHR, ".rda", sep="")))
+		##rd <- ranges.bf[ss(ranges.bf$id)=="12307", ]
+		##trace(gridplot, browser)
+		fig <- gridplot(rd=penn[j, ], trioList=trioList, pch=pch,
+				ylim=ylim, cex=cex,
+				highlight.fill=highlight.fill,
+				highlight.border=highlight.border,
+				highlight.col=highlight.col,
+				pch.col=pch.col)
+		gridsetup(lattice.object=fig, rd=penn[j, ], width=8, height=5)
+	}
+	if(!missing(file)) dev.off()
+	TRUE
+}
+
+readMultiplexData <- function(filenames){
+	fn <- filenames
+	dfList <- vector("list", length(fn))
+	##options(warn=2)
+	for(i in seq_along(fn)){
+		##flds <- count.fields(fn[i], sep="\t")
+		##rows <- which(flds==27)
+		dat <- read.table(fn[i], header=TRUE, as.is=TRUE, sep="\t", fill=TRUE)
+		cols <- c(3:5, 12)
+		tmp <- as.matrix(dat[cols])
+		tmp <- suppressWarnings(matrix(as.numeric(tmp), nrow(tmp), ncol(tmp)))
+		colnames(tmp) <- colnames(dat)[cols]
+		probename <- dat$Sample.Name
+		df <- data.frame(tmp)
+		if(i > 1){
+			df$probeid <- sapply(dat$Sample.Name, function(x) strsplit(x, "\\.")[[1]][1])
+			df$sampleid <- sapply(dat$Sample.Name, function(x) strsplit(x, "\\.")[[1]][2])
+			##stopifnot(df$sampleid[1] == strsplit(basename(fn)[i], "\\.")[[1]][[1]])
+		} else {
+			df$probeid <- dat$Sample.Name
+			df$sampleid <- strsplit(basename(fn)[i], "\\.")[[1]][[1]]
+		}
+		dfList[[i]] <- df
+	}
+	df <- do.call("rbind", dfList)
+	colnames(df)[5] <- "sampleid"
+	colnames(df)[6] <- "probeid"
+	return(df)
+}
+
+probeCoordinates <- function(){
+	##extdata/Taqman pre_designed CNV assay*.xlsx
+	fd <- matrix(c(16040192, 16080463,
+		       17280294, 17303840,
+		       18124226, 18151112,
+		       18124226, 18151112,
+		       19047911, 19061542,
+		       19047911, 19061542,
+		       19601714, 19637890,
+		       20641403, 20667147), byrow=TRUE, ncol=2)
+	fd <- as.data.frame(fd)
+	fd$probeids <- c("HS01502562",
+			 "HS00122839",
+			 "HS02053540",
+			 "HS02374030",
+			 "HS04085807",
+			 "HS04082205",
+			 "HS02102421",
+			 "HS01512766")
+	colnames(fd)[1:2] <- c("st", "en")
+	return(fd)
+}
+
+
+mapTaqmanSampleIds <- function(multiplex){
+	sample.hash <- matrix(c("19225_01", "TW227-01",
+				"19225_02", "TW227-02",
+				"19225_03", "TW227-03",
+				"22169_01", "wc079-01",
+				"22169_02", "wc079-02",
+				"22169_03", "wc079-03",
+				"22040_01", "wc134-01",
+				"22040_02", "wc134-02",
+				"22040_03", "wc134-03",
+				"21153_01", "pu262-01",
+				"21153_02", "pu262-02",
+				"21153_03", "pu262-03",
+				"21184_01", "pu293-01",
+				"21184_02", "pu293-02",
+				"21184_03", "pu293-03",
+				"19053_01", "tw054-01",
+				"19053_02", "tw054-02",
+				"19053_03", "tw054-03",
+				"21165_01", "pu274-01",
+				"21165_02", "pu274-02",
+				"21165_03", "pu274-03",
+				"21155_01", "pu264-01",
+				"21155_02", "pu264-02",
+				"21155_03", "pu264-03")
+			      , ncol=2, byrow=TRUE)
+	colnames(sample.hash) <- c("gwasid", "taqmanid")
+	sample.hash <- as.data.frame(sample.hash)
+	index <- match(multiplex$sampleid, sample.hash$taqman)
+	not.missing.index <- which(!is.na(index))
+	index <- index[!is.na(index)]
+	gwas.id <- rep(NA, nrow(multiplex))
+	gwas.id[not.missing.index] <- as.character(sample.hash$gwasid[index])
+	gwas.id
+}
+
+updateWithGwasFindings <- function(multiplex, fd){
+	multiplex$seg.mean <- NA
+	multiplex$triostate <- NA
+	query <- IRanges(fd$st, fd$en)
+	CHR <- 22
+	cbs.segs <- loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, ".rda", sep=""), CHR=CHR, name="cbs.segs")
+	fname <- file.path(beadstudiodir(), paste("ranges.bf", CHR, ".rda", sep=""))
+	load(fname)
+	ranges.bf <- get("ranges.bf")
+	## unique defined in mybase package
+	ids <- unique(multiplex$gwas.id, na.rm=TRUE)
+	for(i in seq_along(ids)){
+		rd2 <- cbs.segs[cbs.segs$id==ids[i], ]
+		subj <- IRanges(start(rd2), end(rd2))
+		mm <- matchMatrix(findOverlaps(query, subj))
+		frame <- 50e3
+		while(length(unique(mm[, 1])) != length(query)){
+			##if(nrow(mm) != length(query)){
+			message("There's a gap in the WGA data that doesn't cover one of the markers")
+			missing.range <- seq(length=length(query))[-mm[, "query"]]
+			## make the missing.range slightly larger
+			query2 <- query
+			start(query2)[missing.range] <- start(query)[missing.range]-frame
+			end(query2)[missing.range] <- end(query)[missing.range]+frame
+			mm <- matchMatrix(findOverlaps(query2, subj))
+			frame <- frame+50e3
+		}
+		segmeans2 <- sapply(split(rd2$seg.mean[mm[, 2]], mm[, 1]), mean)
+		## each row corresponds to the segment mean for a specific probe for that sample
+		## -- put the segment means in the corresponding rows of the table
+		##table.index <- which(gwas.df$gwas.id == ids[i])
+		table.index <- which(multiplex$gwas.id==ids[i])
+		## among the rows given by table.index, which ones correspond to the probes in the query
+		row.index <- match(fd$probeid, multiplex$probeid[table.index])
+		##row.index is an index of an index
+		jj <- table.index[row.index]
+		##check that its right
+		stopifnot(all(multiplex$gwas.id[jj] == ids[i]))
+		stopifnot(all(multiplex$probeid[jj] == fd$probeid))
+		multiplex$seg.mean[jj] <- segmeans2
+
+		rd3 <- ranges.bf[ss(ranges.bf$id) == ss(ids[i]), ]
+		subj <- IRanges(start(rd3), end(rd3))
+		mm <- matchMatrix(findOverlaps(query, subj))
+		frame <- 50e3
+		##while(length(unique(mm[, 1])) != length(query)){
+		while(length(unique(mm[, 1])) != length(query)){
+			missing.range <- seq(length=length(query))[-mm[, "query"]]
+			query2 <- query
+			start(query2)[missing.range] <- start(query)[missing.range]-frame
+			end(query2)[missing.range] <- end(query)[missing.range]+frame
+			mm <- matchMatrix(findOverlaps(query2, subj))
+			frame <- frame+50e3
+		}
+		argmax <- sapply(split(rd3$argmax[mm[,2]], mm[, 1]), function(x) paste(unique(x), collapse="-"))
+		tmp <- trioStateNames()
+		multiplex$triostate[jj] <- tmp[as.integer(argmax)]
+	}
+	multiplex$family <- ss(multiplex$gwas.id)
+	return(multiplex)
+}
+
+taqmanFigs <- function(multiplex, xlim=c(0,5), ylim=c(0,5)){
+	tmp <- multiplex[!is.na(multiplex$family) & !is.na(multiplex$triostate), ]
+	df <- tmp[tmp$triostate==332, ]
+	df2 <- tmp[tmp$triostate==333, ]
+	taqmanfigs <- list()
+	index1 <- which(multiplex$CN.Calculated > ylim[2])
+	index2 <- which(multiplex$seg.mean > ylim[2])
+	if(length(index1) > 0)
+		multiplex$CN.Calculated[index1] <- ylim[2]
+	if(length(index2) > 0)
+		multiplex$seg.mean[index2] <- ylim[2]
+	taqmanfigs[[1]] <- xyplot(CN.Calculated~seg.mean | probeid + family,
+				  df,
+				  panel=function(x,y, probeid, sampleid, familyid, ..., subscripts){
+					  panel.grid(h=5,v=5)
+					  panel.abline(0,1, col="grey", lty=2)
+					  col <- makeTransparent("grey")
+					  panel.xyplot(x, y, pch=21, cex=1.5, col=col, ...)
+					  subs <- function(x) substr(x, 7, 8)
+					  ids <- sampleid[subscripts]
+					  F <- which(subs(ids) == "03")
+					  M <- which(subs(ids) == "02")
+					  O <- which(subs(ids) == "01")
+					  if(length(F) > 0){
+						  panel.points(x[F], y[F], pch="F", col="black", cex=1)
+					  }
+					  if(length(M) > 0){
+						  panel.points(x[M], y[M], pch="M", col="black", cex=1)
+					  }
+					  if(length(O) > 0){
+						  panel.points(x[O], y[O], pch="O", col="blue", cex=1)
+					  }
+					  sampleid[subscripts]
+				  }, probeid=df$probeid, sampleid=df$sampleid,
+				  familyid=df$family,
+				  par.strip.text=list(cex=0.6),
+				  xlab="segment mean from CBS",
+				  ylab="TaqMan estimate",
+				  ##main="Candidate de novo hemizygous deletions",
+				  xlim=xlim,
+				  aspect="xy",
+				  ylim=ylim)
+	taqmanfigs[[2]] <- xyplot(CN.Calculated~seg.mean | probeid + family,
+				  df2,
+				  panel=function(x,y, probeid, sampleid,
+				  familyid, ..., subscripts){
+					  ##print(subscripts)
+					  panel.grid(h=5,v=5)
+					  panel.xyplot(x, y, pch=21, cex=1.2, col="grey", ...)
+					  subs <- function(x) substr(x, 7, 8)
+					  ids <- sampleid[subscripts]
+					  F <- which(subs(ids) == "03")
+					  M <- which(subs(ids) == "02")
+					  O <- which(subs(ids) == "01")
+					  if(length(F) > 0){
+						  panel.points(x[F], y[F], pch="F", col="black", cex=0.8)
+					  }
+					  if(length(M) > 0){
+						  panel.points(x[M], y[M], pch="M", col="black", cex=0.8)
+					  }
+					  if(length(O) > 0){
+						  panel.points(x[O], y[O], pch="O", col="black", cex=0.8)
+					  }
+					  sampleid[subscripts]
+				  }, probeid=df2$probeid, sampleid=df2$sampleid,
+				  familyid=df2$family,
+				  par.strip.text=list(cex=0.6),
+				  xlab="segment mean from CBS",
+				  ylab="TaqMan estimate", ##main="Normal regions predicted from high-throughput platform")
+				  xlim=xlim,
+				  aspect="xy",
+				  ylim=ylim)
+	return(taqmanfigs)
+}
+load12307 <- function(path=beadstudiodir()){
+	load(file.path(path, "ranges.bf8.rda"))
+	rd <- RangedDataList(ranges.bf)
+	rd <- stack(rd)
+	rd <- rd[ss(rd$id)=="12307", ]
+	return(rd)
+}
+
+printMadFig <- function(madfig, dna){
+	pars <- trellis.par.get()
+	pars$axis.text$cex <- 0.6
+	pars$xlab.text$cex <- 0.8
+	pars$ylab.text$cex <- 0.8
+	trellis.par.set("axis.text", pars$axis.text)
+	trellis.par.set("xlab.text", pars$xlab.text)
+	trellis.par.set("ylab.text", pars$xlab.text)
+	print(madfig)
+	trellis.focus("panel", 1, 1, highlight = FALSE)
+	grid.text(x=unit(seq(length=length(table(dna))), "native"), y=unit(0.03, "npc"),
+		  label=table(dna), gp=gpar(cex=0.8))#paste("n = ", ns, sep=""))
+}
+
+pennDenovoRateBwplot <- function(penn.df){
+	tab <- table(penn.df$dna)
+	drop.category <- names(tab)[tab  < 10]
+	if(length(drop.category) > 0) {
+		penn.df <- penn.df[!penn.df$dna %in% drop.category, ]
+		tab <- table(penn.df$dna)
+	}
+	fill <- rep("grey90", length(names(tab)))
+	##fill[names(tab) == "HapMap"] <- "grey40"
+	fig <- bwplot(log10(number) ~ dna, data=penn.df,
+				    panel=function(...){
+					    panel.grid(h=10,v=0)
+					    panel.bwplot(...)
+				    },
+				    xlab="DNA source", ylab=expression(log[10]("number denovo")),
+				    fill=fill, main = "PennCNV (chr 1-22)")
+	return(list(fig=fig,tab=tab))
+}
+
+printDenovoRateFig <- function(drfig){
+	pars <- trellis.par.get()
+	pars$axis.text$cex <- 0.6
+	pars$xlab.text$cex <- 0.8
+	pars$ylab.text$cex <- 0.8
+	pars$main.text$cex <- 0.9
+	trellis.par.set("axis.text", pars$axis.text)
+	trellis.par.set("xlab.text", pars$xlab.text)
+	trellis.par.set("ylab.text", pars$ylab.text)
+	trellis.par.set("main.text", pars$main.text)
+	print(drfig[[1]])
+	trellis.focus("panel", 1,1, highlight=FALSE)
+	grid.text(x=unit(seq_along(drfig[[2]]), "native"), y=unit(-0.15, "native"), gp=gpar("cex"=0.9),
+		  label=as.integer(drfig[[2]]))
+	NULL
+}
+
+printDenovoFreq <- function(object,...){
+	par(las=1)
+	black <- makeTransparent("black", alpha=0.3)
+	suppressWarnings(graphics:::plot(log10(as.integer(object$mindist)), log10(as.integer(object$penn)), pch=21,
+					 cex=3,
+					 xlab="min dist", ylab="PennCNV", #pty="s",
+					 xlim=c(0,3.5), ylim=c(0,3.5), main=expression(log[10]("frequency")),
+					 col=black,...))
+	abline(0, 1, col="grey", lty=2)
+	text(log10(as.integer(object$mindist)), log10(as.integer(object$penn)), labels=rownames(object), cex=0.7)
+	box(col="grey")
+}
+
+
+printchr8fig <- function(pennfig, pennfig.all){
+	pars <- trellis.par.get()
+	pars$axis.text$cex <- 0.6
+	pars$xlab.text$cex <- 0.8
+	pars$ylab.text$cex <- 0.8
+	pars$main.text$cex <- 0.9
+	trellis.par.set("axis.text", pars$axis.text)
+	trellis.par.set("xlab.text", pars$xlab.text)
+	trellis.par.set("ylab.text", pars$ylab.text)
+	trellis.par.set("main.text", pars$main.text)
+	grid.newpage()
+	lvp <- viewport(x=0, width=unit(0.5, "npc"), just="left", name="lvp")
+	pushViewport(lvp)
+	pushViewport(dataViewport(xscale=pennfig.all$x.limits,
+				  yscale=c(0,1), clip="on"))
+	print(pennfig.all, newpage=FALSE, prefix="plot1", more=TRUE)
+	upViewport(0)
+	print(pennfig, position=c(0.5, 0, 1, 1), more=TRUE, prefix="afterQC")
+	upViewport(0)
+	grid.text("Chromosome 8", x=unit(0.5, "npc"), y=unit(0.97, "npc"), gp=gpar("cex"=0.9))
+}
+
+
+getPennOffspringRanges <- function(penn.all, bsSet){
+	fmo <- substr(penn.all$id, 8, 8)
+	penn.offspring <- penn.all[fmo==1, ]
+
+	complete.ids <- unique(sssampleNames(bsSet)[bsSet$complete.trio])
+	##penn.offspring <- penn.offspring[ss(penn.offspring$id) %in% complete.ids, ]
+	penn.offspring$complete.trio <- ss(penn.offspring$id) %in% complete.ids
+	penn.offspring$state <- harmonizeStates(penn.offspring)
+	penn.offspring$is.denovo <- penn.offspring$triostate %in% as.character(c(duplicationStatesPenn(), deletionStates()))
+	penn.offspring$dna <- bsSet$dna[match(penn.offspring$id, ssampleNames(bsSet))]
+	open(bsSet$MAD)
+	penn.offspring$MAD <- bsSet$MAD[match(penn.offspring$id, ssampleNames(bsSet))]
+	penn.offspring$pass.qc <- bsSet$pass.qc[match(penn.offspring$id, ssampleNames(bsSet))]
+	penn.offspring$plate <- bsSet$Sample.Plate[match(penn.offspring$id, ssampleNames(bsSet))]
+	wga.families <- unique(sssampleNames(bsSet)[bsSet$is.wga])
+	penn.offspring$dna[ss(penn.offspring$is) %in% wga.families] <- "WGA"
+	return(penn.offspring)
+}
+
+
+dfPennFreq <- function(penn.offspring, bsSet){
+	##penn.offspring$is.denovo <- penn.offspring$triostate %in% as.character(c(duplicationStatesPenn(), deletionStates()))
+	if(any(!penn.offspring$complete.trio))
+		penn.offspring <- penn.offspring[penn.offspring$complete.trio, ]
+	denovo.index <- which(penn.offspring$is.denovo & penn.offspring$nmarkers >= MIN.COV)
+	is.denovo.split <- split(denovo.index, penn.offspring$id[denovo.index])
+	denovo.freq <- sapply(is.denovo.split, length)
+	dna.source <- bsSet$dna[match(names(is.denovo.split), ssampleNames(bsSet))]
+	plate <- bsSet$Sample.Plate[match(names(is.denovo.split), ssampleNames(bsSet))]
+	wga.families <- unique(sssampleNames(bsSet)[bsSet$is.wga])
+	dna.source[ss(names(is.denovo.split)) %in% wga.families] <- "WGA"
+	open(bsSet$MAD)
+	mad.offspring <- bsSet$MAD[match(names(is.denovo.split), ssampleNames(bsSet))]
+	close(bsSet$MAD)
+	wga <- ifelse(dna.source=="WGA", "WGA", "other")
+	##graphics:::plot(dat2$mad, log10(dat2$number))
+	dat2 <- data.frame(list(number=denovo.freq,
+				dna=dna.source,
+				wga=wga,
+				mad=mad.offspring,
+				plate=plate,
+				id=names(is.denovo.split)), stringsAsFactors=FALSE)##sampleNames(bsSet)[index]))
+	return(dat2)
+}

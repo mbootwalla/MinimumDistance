@@ -1,30 +1,75 @@
 <<>>=
+library(Beaty)
 fns <- list.files("~/Projects/Beaty/inst/extdata", full.names=TRUE)
 fn <- fns[grep("HS0", fns)]
-dfList <- vector("list", length(fn))
-##options(warn=2)
-for(i in seq_along(fn)){
-	##flds <- count.fields(fn[i], sep="\t")
-	##rows <- which(flds==27)
-	dat <- read.table(fn[i], header=TRUE, as.is=TRUE, sep="\t", fill=TRUE)
-	tmp <- as.matrix(dat[3:5])
-	tmp <- suppressWarnings(matrix(as.numeric(tmp), nrow(tmp), ncol(tmp)))
-	colnames(tmp) <- colnames(dat)[3:5]
-	probename <- dat$Sample.Name
-	df <- data.frame(tmp)
-	if(i > 1){
-		df$probeid <- sapply(dat$Sample.Name, function(x) strsplit(x, "\\.")[[1]][1])
-		df$sampleid <- sapply(dat$Sample.Name, function(x) strsplit(x, "\\.")[[1]][2])
-		##stopifnot(df$sampleid[1] == strsplit(basename(fn)[i], "\\.")[[1]][[1]])
-	} else {
-		df$probeid <- dat$Sample.Name
-		df$sampleid <- strsplit(basename(fn)[i], "\\.")[[1]][[1]]
-	}
-	dfList[[i]] <- df
-}
-df <- do.call("rbind", dfList)
-colnames(df)[4] <- "sampleid"
-colnames(df)[5] <- "probeid"
+##trace(readMultiplexData, browser)
+multiplex <- readMultiplexData(fn)
+##
+@
+
+<<>>=
+fd <- probeCoordinates()
+uid <- unique(multiplex$probeid, na.rm=TRUE)
+fd <- fd[fd$probeid %in% uid, ]
+multiplex$start <- fd$st[match(multiplex$probeid, fd$probeids)]
+multiplex$end <- fd$en[match(multiplex$probeid, fd$probeids)]
+trace(mapTaqmanSampleIds, browser)
+multiplex$gwas.id <- mapTaqmanSampleIds(multiplex)
+multiplex <- updateWithGwasFindings(multiplex, fd)
+## make plot for positive controls
+multiplex$seg.mean <- 2*2^(multiplex$seg.mean) ## put on same scale
+save(multiplex, file="~/Papers/2011/CleftCnv/data/multiplex.rda")
+df <- multiplex[!is.na(multiplex$family) & !is.na(multiplex$triostate), ]
+df <- df[df$triostate==332, ]
+xyplot(CN.Calculated~seg.mean | probeid + family,
+       df[df$triostate==332, ],
+       panel=function(x,y, probeid, sampleid, familyid, ..., subscripts){
+	       print(subscripts)
+	       panel.grid(h=5,v=5)
+	       panel.xyplot(x, y, pch=21, cex=2.5, col="grey", ...)
+	       subs <- function(x) substr(x, 7, 8)
+	       ids <- sampleid[subscripts]
+	       F <- which(subs(ids) == "03")
+	       M <- which(subs(ids) == "02")
+	       O <- which(subs(ids) == "01")
+	       if(length(F) > 0){
+		       panel.points(x[F], y[F], pch="F", col="black", cex=1.2)
+	       }
+	       if(length(M) > 0){
+		       panel.points(x[M], y[M], pch="M", col="black", cex=1.2)
+	       }
+	       if(length(O) > 0){
+		       panel.points(x[O], y[O], pch="O", col="black", cex=1.2)
+	       }
+	       sampleid[subscripts]
+       }, probeid=df$probeid, sampleid=df$sampleid,
+       familyid=df$family,
+       par.strip.text=list(cex=0.6),
+       xlab="segment mean from CBS",
+       ylab="TaqMan estimate", main="De novo hemizygous deletions predicted from high-throughput platform")
+
+
+
+
+
+
+## make the following data.frame
+## start, end, gene name, probe id, sample id, trio call, trio call penn cnv, min distance, segment mean
+
+
+##
+## assayData matrices
+## probeid x father (segment means)
+## probeid x mother (segment means)
+## probeid x offspring (segment means)
+## probeid x father (multiplex est)
+## probeid x mother (multiplex est)
+## probeid x offspring (multiplex est)
+##
+##
+plot(logRF(), logRF.multiplex(), pch=".")
+
+##segment mean from mindist, mean of segment containing probe (FMO), multiplex estimate (FMO), trio call, trio call penncnv
 @
 
 % FAM/VIC CT Mean – The arithmetic mean of the CT that is calculated
@@ -53,7 +98,7 @@ library(lattice)
 		      panel.xyplot(x, y, ...)
 	      }))
 ##What is NTC
-deltafig <- xyplot(FAM.Ct-VIC.Ct~as.factor(probeid)|sampleid, df, scales=list(x=list(rot=90)),cex=0.6,
+deltafig <- xyplot(FAM.Ct-VIC.Ct~as.factor(sampleid)|probeid, multiplex, scales=list(x=list(rot=90)),cex=0.6,
 		   panel=function(x, y, ..., subscripts){
 			   panel.abline(h=0, col="blue")
 			   panel.grid(v=-length(unique(df$probeid)), h=0)
@@ -61,7 +106,7 @@ deltafig <- xyplot(FAM.Ct-VIC.Ct~as.factor(probeid)|sampleid, df, scales=list(x=
 			   panel.xyplot(x, y, ...)
 		   })
 
-deltafig2 <- xyplot(log2(FAM.Ct/VIC.Ct)~as.factor(probeid)|sampleid, df, scales=list(x=list(rot=90), y=list(relation="free")),cex=0.6,
+deltafig2 <- xyplot(log2(FAM.Ct/VIC.Ct)~as.factor(sampleid)| as.factor(probeid), multiplex, scales=list(x=list(rot=90), y=list(relation="free")),cex=0.6,
 		    panel=function(x, y, ..., subscripts){
 			   panel.abline(h=0, col="blue")
 			   panel.grid(v=-length(unique(df$probeid)), h=0)
@@ -94,7 +139,6 @@ data(bsSet)
 trioList <- initTrioList(bsSet, minDistanceSet)
 df <- constructTrioSetFrom(ranged.data=range.pruned[2, ], trioList=trioList, FRAME=200e3)
 df$logR <- ifelse(df$logR < -2.8, jitter(-2.8, amount=0.1), df$logR)
-
 @
 
 Copycaller software.
@@ -126,7 +170,6 @@ for(i in seq_along(probes)){
 	mean.DeltaCT <- sapply(tmp, mean)
 	K <- mean(mean.DeltaCT, na.rm=T)
 }
-
 mean.DeltaCT <- mean.DeltaCT[!is.na(mean.DeltaCT)]
 plot(density(mean.DeltaCT))
 @

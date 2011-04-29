@@ -3,39 +3,24 @@ stopifnot(exists("CHR"))
 library(Beaty)
 data(bsSetAll)
 outdir <- beadstudiodir()
-##ldPath(beadstudiodir())
-##srcdir <- "~/projects2/BeatyExperimentData/data"
+ldPath(beadstudiodir())
 if(!exists("minDistanceSet")) load("~/Projects/BeatyExperimentData/data/minDistanceSet.rda")
 if(!exists("minDistanceRanges")) load("~/Projects/BeatyExperimentData/data/minDistanceRanges.rda")
-tau <- transitionProbability2(states=0:4, epsilon=0.5)
+tau <- transitionProbability(states=0:4, epsilon=0.5)
 log.pi <- log(initialStateProbs(states=0:4, epsilon=0.5))
-
-dna <- getDnaSource(bsSet)
-wga.in.family <- lapply(split(sssampleNames(bsSet), dna=="WGA"), unique)
-index.denovo <- which(penn.joint$triostate == 332 | penn.joint$triostate==331)## & isOffspring)
-denovo.subject <- split(index.denovo, penn.joint$id[index.denovo])
-family.ids <- substr(names(denovo.subject), 1, 5)
-N.denovo <- sapply(denovo.subject, length)
-index <- match(names(denovo.subject), ssampleNames(bsSet))
-## Set dna source to WGA if any member in family was WGA
-dna.offspring <- dna[index]
-dna.offspring[family.ids %in% wga.in.family[[2]]] <- "WGA"
-bsSet$is.wga <- sssampleNames(bsSet) %in% wga.in.family[[2]]
-
-
 stopifnot(sum(exp(log.pi))==1)
 ranges.bf <- pruneThenBayesFactor(CHR=CHR,
 				  bsSet=bsSet,
 				  minDistanceSet=minDistanceSet,
 				  lambda=0.05,
-				  ##ids="22048",
+				  ##ids=sssampleNames(bsSet)[1:50], ##for testing
 				  MIN.CHANGE=0.5,
-				  MAX.CHANGE=3,
+				  SCALE.EXP=0.02,
 				  MIN.COVERAGE=10,
 				  states=0:4,
 				  baf.sds=c(0.02, 0.03, 0.02),
 				  THR=-50,
-				  mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
+				  mu.logr=c(-2, -0.4, 0, 0.3, 0.75),
 				  log.pi=log.pi,
 				  tau=tau,
 				  a=0.0009,
