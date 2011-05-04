@@ -19,3 +19,7 @@ setGeneric("baf.O", function(object) standardGeneric("baf.O"))
 setGeneric("mindist", function(object) standardGeneric("mindist"))
 setGeneric("family", function(object) standardGeneric("family"))
 setGeneric("plot", function(object, ...) standardGeneric("plot"))
+
+setGeneric("loglik", function(object) standardGeneric("loglik"))
+setGeneric("loglik<-", function(object, value) standardGeneric("loglik<-"))
+setGeneric("range.index", function(object) standardGeneric("range.index"))

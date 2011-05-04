@@ -120,22 +120,38 @@ constructMinDistanceContainer <- function(bsSet){
 	minDistanceSet
 }
 
-segmentBatchWithCbs <- function(minDistanceSet, BATCH, BATCHSIZE, CHR, ...){
+segmentBatchWithCbs <- function(minDistanceSet, BATCH, BATCHSIZE, CHR, family.id, verbose=FALSE, ...){
 	if("undo.splits" %in% names(list(...))) message("undo.splits = ", list(...)[["undo.splits"]])
-	j <- splitIndicesByLength(1:ncol(minDistanceSet), BATCHSIZE)[[BATCH]]
+	if(!missing(BATCH) & !missing(BATCHSIZE)){
+		j <- splitIndicesByLength(1:ncol(minDistanceSet), BATCHSIZE)[[BATCH]]
+	} else {
+		stopifnot(!missing(family.id))
+		j <- match(family.id, ss(sampleNames(minDistanceSet)))
+		stopifnot(length(j) > 0)
+	}
 	marker.index <- which(chromosome(minDistanceSet) == CHR)
 	marker.index <- marker.index[!duplicated(position(minDistanceSet)[marker.index])]
+	marker.index <- which(chromosome(minDistanceSet) == CHR & position(minDistanceSet) > 31e6 & position(minDistanceSet) < 33e6)
 	stopifnot(all(diff(order(chromosome(minDistanceSet)[marker.index], position(minDistanceSet)[marker.index])) >= 0))
 	invisible(open(copyNumber(minDistanceSet)))
-	CNA.object <- CNA(genomdat=as.matrix(copyNumber(minDistanceSet)[marker.index, j]),
-			  chrom=chromosome(minDistanceSet)[marker.index],
-			  maploc=position(minDistanceSet)[marker.index],
-			  data.type="logratio",
-			  sampleid=sampleNames(minDistanceSet)[j])
-	close(copyNumber(minDistanceSet))
-	smu.object <- smooth.CNA(CNA.object)
-	tmp <- segment(smu.object, verbose=0, ...)
-	md.segs <- cbind(tmp$output, tmp$segRows)
+	arm <- getChromosomeArm(chromosome(minDistanceSet)[marker.index], position(minDistanceSet)[marker.index])
+	marker.index <- split(marker.index, arm)
+	md.segs <- list()
+	if(verbose) message("Running CBS by chromosome arm")
+	for(i in seq_along(marker.index)){
+		CNA.object <- CNA(genomdat=as.matrix(copyNumber(minDistanceSet)[marker.index[[i]], j]),
+				  chrom=chromosome(minDistanceSet)[marker.index[[i]]],
+				  maploc=position(minDistanceSet)[marker.index[[i]]],
+				  data.type="logratio",
+				  sampleid=sampleNames(minDistanceSet)[j])
+		close(copyNumber(minDistanceSet))
+		smu.object <- smooth.CNA(CNA.object)
+		tmp <- segment(smu.object, verbose=0, ...)
+		md.segs[[i]] <- cbind(tmp$output, tmp$segRows)
+	}
+	if(length(md.segs) > 1){
+		md.segs <- do.call("rbind", md.segs)
+	} else md.segs=md.segs[[1]]
 	md.segs
 }
 
@@ -169,7 +185,7 @@ wrapperPosteriorProbs <- function(chromosomes, G=10, sleep=FALSE){
 		system(paste("cat temp BayesFactor.R >", fn))
 		system(paste('cat ~/bin/cluster.template | perl -pe "s/Rprog/bf_', CHR, '.R/" > bf_', CHR, '.R.sh', sep=""))
 		system(paste("qsub -m e -r y -cwd -l mem_free=", G, "G,h_vmem=",G+3,"G bf_", CHR, ".R.sh", sep=""))
-		if(CHR %% 15 == 0) Sys.sleep(60*60*5) ## keeps multiple jobs from trying to load minDistanceSet simultaneously
+		##if(CHR %% 15 == 0) Sys.sleep(60*60*5) ## keeps multiple jobs from trying to load minDistanceSet simultaneously
 	}
 	if(sleep) Sys.sleep(60*60*5)##3 minutes
 	return(TRUE)
@@ -1976,7 +1992,13 @@ computeLoglik <- function(id,
 			  mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
 			  states=0:4,
 			  baf.sds=c(0.02, 0.03, 0.02),
-			  THR=-50){
+			  THR=-50,
+			  prGtCorrect=0.999){ ##prob genotype is correct
+	p1 <- prGtCorrect; rm(prGtCorrect)
+	##
+	## one obvious thing that p1 could depend on is the
+	## minor allele frequency.  If rare, p1 is smaller
+	##
 	##i <- index.list[[stratum]]
 	##k <- chr.index[[stratum]]
 	stopifnot(all(!is.na(match(id, ssampleNames(bsSet)))))
@@ -2026,14 +2048,19 @@ computeLoglik <- function(id,
 	## binomial probability of the genotype as per Wang.
 	##  -- could use estimates of the allele frequency for the p parameter
 	bf <- baf(object)
+	## model emission as a mixture of normals (genotype is correct) and a uniform (error)
+	perr <- (1-p1)*runif(bf)
 	## Wang et al. use mixture probabilities from a binomial
+	##
 	##   pi ~ binomial(C(z), allele freq)
-	##   Here, I'm just using a uniform
-	loglik(object)["baf", , , 1] <- 1
-	loglik(object)["baf", , , 2] <- 1/2*tnorm(bf, 0, sd0) + 1/2*tnorm(bf, 1, sd1)
-	loglik(object)["baf", , , 3] <- 1/3*tnorm(bf, 0, sd0) + 1/3*tnorm(bf, 0.5, sd.5) + 1/3*tnorm(bf, 1, sd1)
-	loglik(object)["baf", , , 4] <- 1/4*tnorm(bf, 0, sd0) + 1/4*tnorm(bf, 1/3, sd.5) + 1/4*tnorm(bf, 2/3, sd.5) + 1/4*tnorm(bf, 1, sd1)
-	loglik(object)["baf", , , 5] <- 1/5*tnorm(bf, 0, sd0) + 1/5*tnorm(bf, 1/4, sd.5) + 1/5*tnorm(bf, 0.5, sd.5) + 1/5*tnorm(bf, 3/4, sd.5) + 1/5*tnorm(bf, 1, sd1)
+	##   and integrates out the number of copies of the B allele.
+	##
+	##   Below, I,ve just used a mixture model.  I have not integrated out the	#      copy number of the B allele, nor do I make use of MAF estimates.
+	loglik(object)["baf", , , 1] <-  1
+	loglik(object)["baf", , , 2] <- p1*(1/2*tnorm(bf, 0, sd0) + 1/2*tnorm(bf, 1, sd1)) + perr
+	loglik(object)["baf", , , 3] <- p1*(1/3*tnorm(bf, 0, sd0) + 1/3*tnorm(bf, 0.5, sd.5) + 1/3*tnorm(bf, 1, sd1))+perr
+	loglik(object)["baf", , , 4] <- p1*(1/4*tnorm(bf, 0, sd0) + 1/4*tnorm(bf, 1/3, sd.5) + 1/4*tnorm(bf, 2/3, sd.5) + 1/4*tnorm(bf, 1, sd1)) + perr
+	loglik(object)["baf", , , 5] <- p1*(1/5*tnorm(bf, 0, sd0) + 1/5*tnorm(bf, 1/4, sd.5) + 1/5*tnorm(bf, 0.5, sd.5) + 1/5*tnorm(bf, 3/4, sd.5) + 1/5*tnorm(bf, 1, sd1)) + perr
 	loglik(object) <- log(loglik(object))
 	loglik(object)[loglik(object) < THR] <- THR
 	##ll[ll < THR] <- THR
@@ -2127,9 +2154,9 @@ lookUpTable1 <- function(table1, state){
 
 readTable3 <- function(a=0.009){
 	## initialize with small value to avoid -Inf
-	results <- .C("calculateCHIT", a=a, M=array(1e-9, dim=c(rep(5,6))))
+	results <- .C("calculateCHIT", a=a, M=array(0, dim=c(rep(5,6))))$M
 	## Make sure to transpose!
-	aperm(results[["M"]])
+	aperm(results)
 }
 
 lookUpTable3 <- function(table3, state.prev, state.curr){
@@ -2139,10 +2166,10 @@ lookUpTable3 <- function(table3, state.prev, state.curr){
 	m2 <- state.curr[2]
 	o1 <- state.prev[3]
 	o2 <- state.curr[3]
-	table3[f1, f2, m1, m2, o1, o2]
+	return(table3[f1, f2, m1, m2, o1, o2])
 }
 
-joint1 <- function(object,
+joint1 <- function(LLT, ##object,
 		   trio.states,
 		   tau,
 		   log.pi,
@@ -2158,12 +2185,12 @@ joint1 <- function(object,
 	##browser()
 	state <- trio.states[state.index, ]
 	##fmo <- list()
-	fmo <- matrix(NA, nrow(object), 3)
+	##fmo <- matrix(NA, nrow(object), 3)
 	##tmp <- as.matrix(do.call("cbind", fmo))
-	for(i in 1:3) fmo[, i] <- loglik(object)["logR", , i, state[i]] + loglik(object)["baf", , i, state[i]]
-	fmo <- fmo[rowSums(is.na(fmo)) == 0, ]
-	##fmo <- fmo[[1]]+fmo[[2]]+fmo[[3]]
-	##f.m.o <- sum(fmo, na.rm=TRUE)
+	##for(i in 1:3) fmo[, i] <- loglik(object)["logR", , i, state[i]] + loglik(object)["baf", , i, state[i]]
+	##fmo <- fmo[rowSums(is.na(fmo)) == 0, ]
+	##LLT is 3 x 5
+	fmo <- c(LLT[1, state[1]], LLT[2, state[2]], LLT[3, state[3]])
 	if(segment.index == 1){
 		## assume Pr(z_1,f | lambda) = Pr(z_2,m | lambda) = pi
 		## For offspring, we have Pr(z_1,o | z_1,f, z_1,m, DN=0, 1)
@@ -2176,7 +2203,7 @@ joint1 <- function(object,
 		pi.offspring <- pi.offspring[[is.denovo+1]]
 		## could log.pi just have length(0:4)??
 		log.pi <- c(log.pi[state[1]], log.pi[state[2]], log(pi.offspring))
-		fmo <- apply(fmo, 2, sum, na.rm=TRUE)
+		##fmo <- apply(fmo, 2, sum, na.rm=TRUE)
 		fmo <- fmo + log.pi
 ##		for(j in 1:2) fmo[j] <- fmo[j]+log.pi[state.index]
 ##		f <- sum(fmo[[1]])+log.pi[state.index]
@@ -2193,7 +2220,7 @@ joint1 <- function(object,
 		##
 		##for k = normal.index, it would do the right thing
 		## prob. leaving normal state to state k
-		fmo <- apply(fmo, 2, sum, na.rm=TRUE)
+		##fmo <- apply(fmo, 2, sum, na.rm=TRUE)
 		for(j in 1:2) fmo[j] <- fmo[j]+log(tau[state.prev[j], state[j]])
 
 		##f <- log(tau[state.prev[1], state[1]]) + sum(fmo[[1]])
@@ -2252,7 +2279,8 @@ joint4 <- function(bsSet,
 		   tau,
 		   normal.index,
 		   a=0.0009,
-		   verbose=TRUE){
+		   verbose=TRUE,
+		   prGtCorrect=0.999){
 	stopifnot(states == 0:4)
 	##ids <- unique(ss(ranges$id))
 	##sample.id <- ids[family.index]
@@ -2265,7 +2293,8 @@ joint4 <- function(bsSet,
 				mu.logr=mu.logr,
 				states=states,
 				baf.sds=baf.sds,
-				THR=THR)
+				THR=THR,
+				prGtCorrect=prGtCorrect)
 	##ll <- loglik(object)
 	start.stop <- cbind(ranges$start.index, ranges$end.index)
 	l <- apply(start.stop, 1, function(x) length(x[1]:x[2]))
@@ -2283,12 +2312,43 @@ joint4 <- function(bsSet,
 	denovo.prev <- NULL
 	table1 <- readTable1(a=a)
 	table3 <- readTable3(a=a)
+	weightR <- 1/3
 	for(i in seq(length=nrow(ranges))){
 		obj <- object[range.index(object) == i, ]
+		LLR <- loglik(obj)["logR", , ,  ]
+		LLB <- loglik(obj)["baf", , , ]
+		LL <- weightR * LLR + (1-weightR)*LLB
+		##
+##		## recenter and scale each
+##		LLR.c <- LLR
+##		LLB.c <- LLB
+##		for(j in 1:3){
+##			## centering and scaling the rows gives each probe equal weight
+##			## gives the approx. BAF equal importance
+##			x <- t(LLR[, j, ])
+##			tx <- t(scale(x))
+##			LLR.c[, j, ] <- tx
+##			x <- t(LLB[, j, ])
+##			tx <- t(scale(x))
+##			LLB.c[, j, ] <- tx
+##		}
+##		LL.c <- LLR.c+LLB.c
+		##
+		## Does it make sense to give the logR and BAFs emission probs equal weight?
+		## - The logR emission probs are much more variable and can dominate
+		##
+		##
+##		LL <-  LLR + LLB
+##		LL[is.na(LL)] <- log(1e-10)
+		## nr x 3, S
+		## sum over rows -> 3 x S
+		LLT <- matrix(NA, 3, 5)
+		for(j in 1:3) LLT[j, ] <- apply(LL[, j, ], 2, sum, na.rm=TRUE)
 		for(j in 1:nrow(trio.states)){
 			for(DN in c(FALSE, TRUE)){
-				tmp[j, DN+1] <- joint1(object=obj,
-						      trio.states=trio.states,
+				tmp[j, DN+1] <- joint1(##object=obj,
+						       LLT=LLT,
+						       trio.states=trio.states,
 						      tau=tau,
 						      log.pi=log.pi,
 						      normal.index=normal.index,
@@ -2304,31 +2364,50 @@ joint4 <- function(bsSet,
 		## RS 4/29/2011
 		##integrate out the denovo indicator
 		##one.finite <- which(rowSums(is.finite(tmp))==1)
-		##tmp[!is.finite(tmp)] <- min(tmp[is.finite(tmp)], na.rm=TRUE)
-		## in most cases, a non-mendelian event should always be finite
-		##  -- only the mendelian events will be -Inf
-		##     -Inf + finite = -Inf
-		##     (this will automatically exclude a state when a mendelian mechanism is improbable)
-		##     -> -Inf should only have an effect when the true mechanism is non-mendelian
-		##     -> If in truth the mechanism is non-mendelian, the right answer would be the max of column 2
-		##     -> If using rowSums,  we're choosing the state that could arise by a mendelian mechanism
-		rsums <- rowSums(tmp, na.rm=TRUE)
-		if(all(is.infinite(rsums))){
-			min.val <- min(tmp[is.finite(tmp)], na.rm=TRUE)
-			tmp[is.infinite(tmp)] <- min.val
-			rsums <- rowSums(tmp, na.rm=TRUE)
-			##stop("all -Inf in joint4")
+		argmax1 <- which.max(tmp[,1])
+		argmax2 <- which.max(tmp[,2])
+		if(argmax1 != argmax2){
+			lik1 <- tmp[argmax1, 1]
+			lik2 <- tmp[argmax2, 2]
+			if(lik1 >= lik2){
+				argmax <- argmax1
+				is.denovo <- FALSE
+				bf <- tmp[argmax1, 1]
+			} else{
+				is.denovo <- TRUE
+				argmax <- argmax2
+				bf <- tmp[argmax2, 2]
+			}
+		} else{
+			argmax <- argmax1
+			is.denovo <- FALSE
+			bf <- tmp[argmax1, 1]
 		}
-		##argmax1 <- which.max(tmp[, 1])
-		##argmax2 <- which.max(tmp[, 2])
-		##argmax <- which.max(tmp)
-		##if(is.denovo){
-		##bf <- tmp[argmax2, 2]-tmp[normal.index, 1]
-		##argmax <- argmax2
-		##}  else {
-		argmax <- which.max(rsums)
-		is.denovo <- ifelse(tmp[argmax, 1] < tmp[argmax, 2], TRUE, FALSE)
-		bf <- rsums[argmax] - rsums[normal.index]
+##		##tmp[!is.finite(tmp)] <- min(tmp[is.finite(tmp)], na.rm=TRUE)
+##		## in most cases, a non-mendelian event should always be finite
+##		##  -- only the mendelian events will be -Inf
+##		##     -Inf + finite = -Inf
+##		##     (this will automatically exclude a state when a mendelian mechanism is improbable)
+##		##     -> -Inf should only have an effect when the true mechanism is non-mendelian
+##		##     -> If in truth the mechanism is non-mendelian, the right answer would be the max of column 2
+##		##     -> If using rowSums,  we're choosing the state that could arise by a mendelian mechanism
+##		rsums <- rowSums(tmp, na.rm=TRUE)
+##		if(all(is.infinite(rsums))){
+##			min.val <- min(tmp[is.finite(tmp)], na.rm=TRUE)
+##			tmp[is.infinite(tmp)] <- min.val
+##			rsums <- rowSums(tmp, na.rm=TRUE)
+##			##stop("all -Inf in joint4")
+##		}
+##		##argmax1 <- which.max(tmp[, 1])
+##		##argmax2 <- which.max(tmp[, 2])
+##		##argmax <- which.max(tmp)
+##		##if(is.denovo){
+##		##bf <- tmp[argmax2, 2]-tmp[normal.index, 1]
+##		##argmax <- argmax2
+##		##}  else {
+##		argmax <- which.max(rsums)
+##		is.denovo <- ifelse(tmp[argmax, 1] < tmp[argmax, 2], TRUE, FALSE)
+##		bf <- rsums[argmax] - rsums[normal.index]
 		##bf <- tmp[argmax1, 1]-tmp[normal.index, 1]
 		##argmax <- argmax1
 		ranges$bayes.factor[i] <- bf
@@ -2350,6 +2429,7 @@ computeBayesFactor <- function(range.object,
 			       tau,
 			       normal.index=61,
 			       a=0.0009,
+			       prGtCorrect=0.999,
 			       verbose=TRUE){
 	stopifnot(!missing(tau))
 	stopifnot(!missing(log.pi))
@@ -2375,6 +2455,7 @@ computeBayesFactor <- function(range.object,
 			     tau=tau,
 			     normal.index=normal.index,
 			     a=a,
+			     prGtCorrect=prGtCorrect,
 			     verbose=verbose)##, F=F, M=M, O=O)
 		range.object$bayes.factor[j] <- rd$bayes.factor
 		range.object$argmax[j] <- rd$argmax
@@ -2399,6 +2480,7 @@ pruneThenBayesFactor <- function(CHR,
 				 tau,
 				 normal.index=61,
 				 a=0.0009,
+				 prGtCorrect=0.999,
 				 verbose=TRUE){
 	stopifnot(!missing(CHR))
 	##minDistanceRanges <- minDistanceRanges[minDistanceRanges$chrom == CHR, ]
@@ -2424,6 +2506,7 @@ pruneThenBayesFactor <- function(CHR,
 					tau=tau,
 					normal.index=normal.index,
 					a=a,
+					prGtCorrect=prGtCorrect,
 					verbose=verbose)
 	## consecutive ranges that have the same state can be
 	## collapsed into 1 range with the posterior odds added (or
@@ -2585,7 +2668,7 @@ logrpanelfunction2 <- function(x, y,
 			cbs.sub$seg.mean[cbs.sub$seg.mean < ylimit[1]] <- ylimit[1] + 0.2
 			cbs.sub$seg.mean[cbs.sub$seg.mean > ylimit[2]] <- ylimit[2] - 0.2
 			stopifnot(nrow(cbs.sub) > 0)
-			panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2,col="blue")#gp=gpar("lwd"=2))
+			panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2,col="black")#gp=gpar("lwd"=2))
 		}
 	}
 }
@@ -2862,6 +2945,7 @@ data.frame.for.rectangles <- function(ranges.all, palette){
 	return(dat)
 }
 
+## rewrite this in C
 joint1c <- function(loglik,##object,
 		   trio.states,
 		   tau,
@@ -3462,7 +3546,7 @@ printDenovoFreq <- function(object,...){
 	suppressWarnings(graphics:::plot(log10(as.integer(object$mindist)), log10(as.integer(object$penn)), pch=21,
 					 cex=3,
 					 xlab="min dist", ylab="PennCNV", #pty="s",
-					 xlim=c(0,3.5), ylim=c(0,3.5), main=expression(log[10]("frequency")),
+					 main=expression(log[10]("frequency")),
 					 col=black,...))
 	abline(0, 1, col="grey", lty=2)
 	text(log10(as.integer(object$mindist)), log10(as.integer(object$penn)), labels=rownames(object), cex=0.7)

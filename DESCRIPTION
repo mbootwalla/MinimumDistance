@@ -1,4 +1,4 @@
-Package: Beaty 
+Package: Beaty
 Type: Package
 Title: Analysis of trios on the Illumina platform
 Version: 0.0.2
@@ -16,8 +16,9 @@ collate: AllClasses.R
 	 methods-MultiSet.R
 	 methods-GRanges.R
 	 methods-RangedData.R
+	 methods-LikSet.R
 	 functions.R
-	 utils.R	 
+	 utils.R
 	 plot-functions.R
 	 tdt-functions.R
 	 phenodata-functions.R
