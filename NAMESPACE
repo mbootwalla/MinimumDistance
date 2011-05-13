@@ -5,7 +5,9 @@ importClassesFrom(mybase, "LogRatioSet")
 importMethodsFrom(mybase, "baf", "baf<-")
 importMethodsFrom(mybase, "logR", "logR<-")
 importFrom(mybase, unique)
-exportPattern("^[^\\.]")
+##exportPattern("^[^\\.]")
 exportMethods(plot)
+export(ssampleNames, sssampleNames, ss, s)
+export(beadstudiodir, completeTrios, getAllBayesFactorRanges)
 
 

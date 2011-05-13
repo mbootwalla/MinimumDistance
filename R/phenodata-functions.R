@@ -64,35 +64,35 @@ getFamilyId <- function(object) substr(object$Sample.Name, 1, 5)
 getIndividualId <- function(object) substr(object$Sample.Name, 7, 8)
 getIndividualId2 <- function(object) substr(object$Sample.Name, 1, 8)
 
-addPhenoData <- function(fns){
-	fns <- fns[-c(grep("23", fns), grep("24", fns))]
-	##ped <- hapmapPedFile()  ##where is this function???
-	ped <- read.csv("~/projects/Beaty/inst/extdata/HapMap_samples.csv")
-	for(i in seq(along=fns)){
-		cat(".")
-		load(fns[i])
-		fileExt <- strsplit(fns[i], "_")[[1]][2]
-		sns <- sapply(sampleNames(cnSet), function(x) strsplit(x, "_")[[1]][[1]])
-		ped <- ped[ped[, "coriellId"] %in% sns, ]
-		stopifnot(nrow(ped) == ncol(cnSet))
-		ped <- ped[match(sns, ped[, "coriellId"]), ]
-		stopifnot(identical(ped[, "coriellId"], as.character(sns)))
-		rownames(ped) <- sampleNames(cnSet)
-		pD <- pData(cnSet)[, 1:3]
-		pD2 <- cbind(pD, ped)
-		pData(cnSet) <- pD2
-		save(cnSet, file=fns[i])
-	}
-	if(file.exists(".RData")) unlink(".RData")
-
-##	pD <- pData(cnSet)
-##	pD2 <- pData(cnSet21)
-##	pD <- cbind(pD2, pD[,4:8])
-##	pD <- new("AnnotatedDataFrame", data=data.frame(pD), varMetadata=data.frame(labelDescription=colnames(pD), row.names=colnames(pD)))
-##	phenoData(cnSet21) <- pD
-##	cnSet <- cnSet21
-##	save(cnSet, file=file.path(cnOpts[["outdir"]], "cnSet_21.rda"))
-}
+##addPhenoData <- function(fns){
+##	fns <- fns[-c(grep("23", fns), grep("24", fns))]
+##	##ped <- hapmapPedFile()  ##where is this function???
+##	ped <- read.csv("~/projects/Beaty/inst/extdata/HapMap_samples.csv")
+##	for(i in seq(along=fns)){
+##		cat(".")
+##		load(fns[i])
+##		fileExt <- strsplit(fns[i], "_")[[1]][2]
+##		sns <- sapply(sampleNames(cnSet), function(x) strsplit(x, "_")[[1]][[1]])
+##		ped <- ped[ped[, "coriellId"] %in% sns, ]
+##		stopifnot(nrow(ped) == ncol(cnSet))
+##		ped <- ped[match(sns, ped[, "coriellId"]), ]
+##		stopifnot(identical(ped[, "coriellId"], as.character(sns)))
+##		rownames(ped) <- sampleNames(cnSet)
+##		pD <- pData(cnSet)[, 1:3]
+##		pD2 <- cbind(pD, ped)
+##		pData(cnSet) <- pD2
+##		save(cnSet, file=fns[i])
+##	}
+##	if(file.exists(".RData")) unlink(".RData")
+##
+####	pD <- pData(cnSet)
+####	pD2 <- pData(cnSet21)
+####	pD <- cbind(pD2, pD[,4:8])
+####	pD <- new("AnnotatedDataFrame", data=data.frame(pD), varMetadata=data.frame(labelDescription=colnames(pD), row.names=colnames(pD)))
+####	phenoData(cnSet21) <- pD
+####	cnSet <- cnSet21
+####	save(cnSet, file=file.path(cnOpts[["outdir"]], "cnSet_21.rda"))
+##}
 
 getFamilyInfo <- function(phenoData){
 	pheno <- read.csv2("~/projects/Beaty/inst/extdata/may_peds.csv", as.is=TRUE)
