@@ -1,13 +1,25 @@
 useDynLib("Beaty", .registration=TRUE)
 importFrom(graphics, abline, axis, layout, legend, mtext, par, plot,
 	   polygon, rect, segments, text)
-importClassesFrom(mybase, "LogRatioSet")
-importMethodsFrom(mybase, "baf", "baf<-")
-importMethodsFrom(mybase, "logR", "logR<-")
+importClassesFrom(mybase, LogRatioSet)
+importMethodsFrom(Biobase, annotatedDataFrameFrom)
+importMethodsFrom(mybase, baf, "baf<-")
+importMethodsFrom(mybase, logR, "logR<-")
 importFrom(mybase, unique)
+importClassesFrom(IRanges, RangedData, IRanges, DataTable, Vector, Annotated, List, DataTableORNULL)
+importMethodsFrom(IRanges, start, end)
+importMethodsFrom(oligoClasses, open, close)
+importFrom(oligoClasses, isFF)
 ##exportPattern("^[^\\.]")
-exportMethods(plot)
+exportClasses(RangedDataCNV, TrioSet)
+exportMethods(plot, nMarkers, state, copyNumber, open, close)
 export(ssampleNames, sssampleNames, ss, s)
-export(beadstudiodir, completeTrios, getAllBayesFactorRanges)
+export(beadstudiodir,
+       calculateMinimumDistance,
+       completeTrios, getAllBayesFactorRanges,
+       isDenovo, readPennCnv, harmonizeStates, pennStats,
+       pennDenovoFreq, readCbsBatchFiles, readPedfile,
+       segmentMD,
+       wrapperPosteriorProbs)
 
 

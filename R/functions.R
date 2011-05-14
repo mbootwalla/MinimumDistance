@@ -45,6 +45,23 @@ populateAssayData <- function(path, readScriptFilename="ReadBsScript2.R"){
 	}
 }
 
+readPedfile <- function(fnames, pedfile="~/Projects/Beaty/inst/extdata/may_peds.csv"){
+	mayped <- read.csv(pedfile, sep=";", as.is=TRUE)
+	is.father <- which(mayped$father != "0")
+	is.mother <- which(mayped$mother != "0")
+	## a complete trio would be the length of is.father and is.mother
+	stopifnot(all.equal(is.father, is.mother))
+	i <- is.father
+	trio.matrix <- cbind(mayped$father[i],
+			     mayped$mother[i],
+			     mayped$cidr_name[i])
+	rownames(trio.matrix) <- ss(trio.matrix[,1])
+	index <- which(trio.matrix[, 1] %in% fnames & trio.matrix[, 2] %in% fnames & trio.matrix[, 3] %in% fnames)
+	trio.matrix <- trio.matrix[index, ]
+	colnames(trio.matrix) <- c("F", "M", "O")
+	return(trio.matrix)
+}
+
 addPhenoData <- function(bsSet,
 			 pedfile="~/Projects/Beaty/inst/extdata/may_peds.csv"){
 	##
@@ -133,7 +150,7 @@ constructFeatureData <- function(file, cdfName){
 	dat <- read.delim(file, colClasses=c("character", "numeric", "numeric"))
 	mito.index <- grep("Mito", dat$Name)
 	dat <- dat[-mito.index, ]
-	featureData <- oligoClasses:::featureDataFrom(paste(cdfName, "Crlmm", sep=""))
+ 	featureData <- oligoClasses:::featureDataFrom(paste(cdfName, "Crlmm", sep=""))
 	stopifnot(nrow(featureData) == nrow(dat))
 	return(featureData)
 }
@@ -280,11 +297,11 @@ constructMinDistanceContainer <- function(bsSet){
 	offspring.index <- match(trios[, "O"], ssampleNames(bsSet))
 	ldPath(beadstudiodir())
 	min.dist <- initializeBigMatrix("min.dist2", nr=nrow(bsSet), nc=length(offspring.index), vmode="double")
-	cnConf <- initializeBigMatrix("cnConf2", nr=nrow(bsSet), nc=length(offspring.index), vmode="integer")
-	dimnames(min.dist) <- dimnames(cnConf) <- list(featureNames(bsSet), sampleNames(bsSet)[offspring.index])
-	minDistanceSet <- new("CopyNumberSet",
-			      copyNumber=min.dist,
-			      cnConfidence=cnConf,
+	##cnConf <- initializeBigMatrix("cnConf2", nr=nrow(bsSet), nc=length(offspring.index), vmode="integer")
+	dimnames(min.dist) <- list(featureNames(bsSet), sampleNames(bsSet)[offspring.index])
+	minDistanceSet <- new("MinDistanceSet",
+			      mindist=min.dist,
+			      ##cnConfidence=cnConf,
 			      phenoData=phenoData(bsSet)[offspring.index, ],
 			      annotation=annotation(bsSet))
 	mads <- initializeBigVector(name="mindist.mads", n=ncol(minDistanceSet), vmode="double")
@@ -293,61 +310,101 @@ constructMinDistanceContainer <- function(bsSet){
 	minDistanceSet
 }
 
-segmentBatchWithCbs <- function(minDistanceSet, BATCH, BATCHSIZE, CHR, family.id, verbose=FALSE, ...){
-	if("undo.splits" %in% names(list(...))) message("undo.splits = ", list(...)[["undo.splits"]])
-	if(!missing(BATCH) & !missing(BATCHSIZE)){
-		j <- splitIndicesByLength(1:ncol(minDistanceSet), BATCHSIZE)[[BATCH]]
-	} else {
-		stopifnot(!missing(family.id))
-		j <- match(family.id, ss(sampleNames(minDistanceSet)))
-		stopifnot(length(j) > 0)
+segmentMD <- function(minDistanceSet,
+		      id,
+		      verbose=FALSE, ...){
+	## needs to be ordered
+	ix <- order(chromosome(minDistanceSet), position(minDistanceSet))
+	stopifnot(all(diff(ix) > 0))
+	##
+	##
+	dfl <- vector("list", 22) ## data.frame list
+	ix <- match(s(id), ssampleNames(minDistanceSet))
+	stopifnot(length(ix) > 0)
+	open(minDistanceSet)
+	##
+	##
+	marker.index.list <- split(seq(length=nrow(minDistanceSet)), chromosome(minDistanceSet))
+	for(CHR in 1:22){
+		dfl[[CHR]] <- segmentBatchWithCbs(minDistanceSet=minDistanceSet,
+						  marker.index=marker.index.list[[CHR]],
+						  sample.index=ix,
+						  CHR=CHR,
+						  verbose=verbose)
 	}
-	marker.index <- which(chromosome(minDistanceSet) == CHR)
-	marker.index <- marker.index[!duplicated(position(minDistanceSet)[marker.index])]
-	marker.index <- which(chromosome(minDistanceSet) == CHR & position(minDistanceSet) > 31e6 & position(minDistanceSet) < 33e6)
-	stopifnot(all(diff(order(chromosome(minDistanceSet)[marker.index], position(minDistanceSet)[marker.index])) >= 0))
-	invisible(open(copyNumber(minDistanceSet)))
-	arm <- getChromosomeArm(chromosome(minDistanceSet)[marker.index], position(minDistanceSet)[marker.index])
-	marker.index <- split(marker.index, arm)
+	close(minDistanceSet)
+	df <- do.call("rbind", dfl)
+	return(df)
+}
+
+segmentBatchWithCbs <- function(minDistanceSet,
+				marker.index,
+				sample.index,
+				CHR,
+				verbose=FALSE, ...){
+	if("undo.splits" %in% names(list(...))) message("undo.splits = ", list(...)[["undo.splits"]])
+	stopifnot(!missing(CHR))
+	fns <- featureNames(minDistanceSet)  ## Do not subset!!
+	##
+	pos <- position(minDistanceSet)[marker.index]
+	marker.index <- marker.index[!duplicated(pos)]
+	pos <- position(minDistanceSet)[marker.index]
+	chrom <- chromosome(minDistanceSet)[marker.index]
+	CN <- copyNumber(minDistanceSet)[marker.index, sample.index, drop=FALSE]
+	id <- sampleNames(minDistanceSet)[sample.index]
+	arm <- getChromosomeArm(chrom, pos)
+	index.list <- split(seq_along(marker.index), arm)
 	md.segs <- list()
 	if(verbose) message("Running CBS by chromosome arm")
-	for(i in seq_along(marker.index)){
-		CNA.object <- CNA(genomdat=as.matrix(copyNumber(minDistanceSet)[marker.index[[i]], j]),
-				  chrom=chromosome(minDistanceSet)[marker.index[[i]]],
-				  maploc=position(minDistanceSet)[marker.index[[i]]],
+	for(i in seq_along(index.list)){
+		j <- index.list[[i]]
+		CNA.object <- CNA(genomdat=CN[j, , drop=FALSE],
+				  chrom=chrom[j],
+				  maploc=pos[j],
 				  data.type="logratio",
-				  sampleid=sampleNames(minDistanceSet)[j])
-		close(copyNumber(minDistanceSet))
+				  sampleid=id)
 		smu.object <- smooth.CNA(CNA.object)
 		tmp <- segment(smu.object, verbose=0, ...)
-		md.segs[[i]] <- cbind(tmp$output, tmp$segRows)
+		df <- tmp$output
+		sr <- tmp$segRows
+		##df <- cbind(tmp$output, tmp$segRows)
+		##md.segs[[i]] <-
+		firstMarker <- rownames(CNA.object)[sr$startRow]
+		endMarker <- rownames(CNA.object)[sr$endRow]
+		df$start.index <- match(firstMarker, fns)
+		df$end.index <- match(endMarker, fns)
+		md.segs[[i]] <- df
 	}
 	if(length(md.segs) > 1){
 		md.segs <- do.call("rbind", md.segs)
 	} else md.segs=md.segs[[1]]
+	## md.segs is a data.frame
 	md.segs
 }
 
-submitCbsJobs <- function(BATCHSIZE, NN, CHR, undo.splits="'none'"){
+submitCbsJobs <- function(BATCHSIZE, NN, CHR, undo.splits="'none'", outdir){
 	for(BATCH in 1:NN){
 		sink("tempMD")
 		cat("BATCH <- ", BATCH, "\n")
 		cat("BATCHSIZE <- ", BATCHSIZE, "\n")
 		cat("CHR <- ", CHR, "\n")
-		cat("undo.splits <-", undo.splits, "\n")
+		##cat("undo.splits <-", undo.splits, "\n")
+		cat("outdir <- '", outdir, "'\n", sep="")
 		sink()
 		fn <- paste("mds_c", CHR, "_", BATCH, ".R", sep="")
 		if(file.exists(fn)) unlink(fn)
 		system(paste("cat tempMD RunMinDistanceSegmentation.R >", fn))
 		system(paste('cat ~/bin/cluster.template | perl -pe "s/Rprog/mds_c', CHR, "_", BATCH, '.R/" > mds_c', CHR, "_", BATCH, '.R.sh', sep=""))
-		system(paste("qsub -m e -r y -cwd -l mem_free=10G,h_vmem=16G mds_c", CHR, "_", BATCH, ".R.sh", sep=""))
+		system(paste("qsub -m e -r y -cwd -l mem_free=2G,h_vmem=3G mds_c", CHR, "_", BATCH, ".R.sh", sep=""))
 		Sys.sleep(60*1) ## keeps multiple jobs from trying to load minDistanceSet simultaneously
 	}
 	return(NULL)
 }
 
-wrapperPosteriorProbs <- function(chromosomes, G=10, sleep=FALSE){
-	Stangle("~/Projects/Beaty/inst/scripts/BayesFactor.Rnw")
+wrapperPosteriorProbs <- function(filename="~/Projects/Beaty/inst/scripts/BayesFactor.Rnw",
+				  chromosomes, G=10, sleep=FALSE){
+	stopifnot(file.exists(filename))
+	Stangle(filename)
 	for(i in seq_along(chromosomes)){
 		CHR <- chromosomes[i]
 		sink("temp")
@@ -480,37 +537,47 @@ loadRangesCbs <- function(outdir, pattern, CHR, name){
 }
 
 
-loadRanges <- function(outdir, pattern, CHR, name){
+##loadRanges <- function(outdir, pattern, CHR, name){
+readCbsBatchFiles <- function(outdir, pattern, CHR, name){
 	fnames <- list.files(outdir, pattern=pattern, full.name=TRUE)
-	if(missing(name)) stop("must specify object name")
+	if(missing(name)) stop("must specify R object name when saved.")
 	if(length(fnames) == 0) stop(paste("There are no segmentation files for chrom", CHR))
 	segmeans <- vector("list", length(fnames))
 	for(i in seq_along(segmeans)){
 		load(fnames[i])
 		cbs.segs <- get(name)
-		rd <- RangedData(IRanges(start=cbs.segs$startRow,
-					 end=cbs.segs$endRow),
-				 pos.start=cbs.segs$loc.start,
-				 pos.end=cbs.segs$loc.end,
-				 num.mark=cbs.segs$num.mark,
-				 seg.mean=cbs.segs$seg.mean,
+##		rd <- RangedData(IRanges(start=cbs.segs$startRow,
+##					 end=cbs.segs$endRow),
+##				 pos.start=cbs.segs$loc.start,
+		rd <- RangedData(IRanges(cbs.segs$loc.start,
+					 cbs.segs$loc.end),
+				 ##pos.end=cbs.segs$loc.end,
+				 ##num.mark=cbs.segs$num.mark,
 				 id=cbs.segs$ID,
-				 chrom=cbs.segs$chrom)
+				 num.mark=cbs.segs$num.mark,
+				 chrom=cbs.segs$chrom,
+				 seg.mean=cbs.segs$seg.mean)
 		segmeans[[i]] <- rd
 	}
-	segmean_ranges <- do.call("c", segmeans)
-	if(substr(segmean_ranges$id[1], 1, 1) == "X"){
-		segmean_ranges$id <- substr(segmean_ranges$id, 2, 9)
-	}
-	segmean_ranges <- RangedData(IRanges(segmean_ranges$pos.start,
-					     segmean_ranges$pos.end),
-				     space=rep(CHR, nrow(segmean_ranges)),
-				     id=segmean_ranges$id,
-				     chrom=segmean_ranges$chrom,
-				     num.mark=width(segmean_ranges), ## would be number of markers that were not NAs (I think)
-				     seg.mean=segmean_ranges$seg.mean,
-				     pedId=who(segmean_ranges$id))
-	segmean_ranges
+	rdlist <- RangedDataList(segmeans)
+	rd <- stack(rdlist)
+	ix <- match("sample", colnames(rd))
+	if(length(ix) > 0) rd <- rd[, -ix]
+	rd$id <- substr(rd$id, 2, 9)
+	return(rd)
+##	segmean_ranges <- do.call("c", segmeans)
+##	if(substr(segmean_ranges$id[1], 1, 1) == "X"){
+##		segmean_ranges$id <- substr(segmean_ranges$id, 2, 9)
+##	}
+##	segmean_ranges <- RangedData(IRanges(segmean_ranges$pos.start,
+##					     segmean_ranges$pos.end),
+##				     space=rep(CHR, nrow(segmean_ranges)),
+##				     id=segmean_ranges$id,
+##				     chrom=segmean_ranges$chrom,
+##				     num.mark=width(segmean_ranges), ## would be number of markers that were not NAs (I think)
+##				     seg.mean=segmean_ranges$seg.mean,
+##				     pedId=who(segmean_ranges$id))
+##	segmean_ranges
 }
 
 excludeRanges <- function(segmeans, lrSet){
@@ -631,8 +698,7 @@ beatyPkgLoader <- function(objectname, filename, loadedName, envir){
 }
 
 
-readPennCnv <- function(penndir="/thumper/ctsa/beaty/holger/penncnv/jointDat",
-			offspring.only=TRUE){
+readPennCnv <- function(penndir="/thumper/ctsa/beaty/holger/penncnv/jointDat"){
 	if(length(grep("trioDat", penndir))==1) warning("this is not the recommended aproach")
 	fnames <- list.files(penndir, full.names=TRUE)
 	tmp <- read.delim(fnames[1], nrows=5, header=TRUE, sep="\t", stringsAsFactors=FALSE)
@@ -650,31 +716,36 @@ readPennCnv <- function(penndir="/thumper/ctsa/beaty/holger/penncnv/jointDat",
 		rd <- RangedData(IRanges(penn.joint$StartPosition,
 					 penn.joint$EndPosition),
 				 chrom=penn.joint$Chromosome,
-				 nmarkers=penn.joint$NumberSNPs,
+				 num.mark=penn.joint$NumberSNPs,
 				 id=penn.joint$ID,
-				 triostate=penn.joint$TrioState,
-				 pedId=penn.joint$FamilyMember,
-				 filename=basename(fnames[i]))
+				 triostate=penn.joint$TrioState)
+				 ##pedId=penn.joint$FamilyMember,
+				 ##filename=basename(fnames[i]))
 		rdList[[i]] <- rd
 	}
-	penn.joint <- do.call("c", rdList)
-	if(offspring.only){
-		message("Returning only the ranges for the offspring")
-		##penn.joint <- penn.joint[penn.joint$pedId=="offspring", ]
-		fmo <- substr(penn.joint$id, 8, 8)
-		penn.joint <- penn.joint[fmo == 1, ]
-		##chrom <- as.character(space(penn.joint))
-		##chrom <- substr(chrom, 4, nchar(chrom))
-		##penn.joint$chrom <- chromosome2integer(chrom)
-	}
-	penn.joint2 <- RangedData(IRanges(start(penn.joint), end(penn.joint)),
-				  chrom=penn.joint$chrom,
-				  nmarkers=penn.joint$nmarkers,
-				  id=penn.joint$id,
-				  triostate=penn.joint$triostate,
-				  pedId=penn.joint$pedId,
-				  filename=penn.joint$filename)
-	return(penn.joint2)
+	rdl <- RangedDataList(rdList)
+	rd <- stack(rdl)
+	ix <- match("sample", colnames(rd))
+	if(length(ix) > 0) rd <- rd[, -ix]
+##	penn.joint <- do.call("c", rdList)
+##	if(offspring.only){
+##		message("Returning only the ranges for the offspring")
+##		##penn.joint <- penn.joint[penn.joint$pedId=="offspring", ]
+##		fmo <- substr(penn.joint$id, 8, 8)
+##		penn.joint <- penn.joint[fmo == 1, ]
+##		##chrom <- as.character(space(penn.joint))
+##		##chrom <- substr(chrom, 4, nchar(chrom))
+##		##penn.joint$chrom <- chromosome2integer(chrom)
+##	}
+##	penn.joint2 <- RangedData(IRanges(start(penn.joint), end(penn.joint)),
+##				  chrom=penn.joint$chrom,
+##				  num.mark=penn.joint$num.mark,
+##				  id=penn.joint$id,
+##				  triostate=penn.joint$triostate,
+##				  pedId=penn.joint$pedId,
+##				  filename=penn.joint$filename)
+##	return(penn.joint2)
+	return(rd)
 }
 
 
@@ -777,6 +848,72 @@ statisticsForRanking <- function(deletion.ranges, disjoint.ranges, CHR){
 		      median.coverage=median.coverage,
 		      region=region)
 }
+
+askHolger <- function(trios){
+	trio.ids <- as.character(trios)
+	I <- !(trio.ids %in%  sampleNames(penn.all))
+	I <- matrix(I, ncol=3)
+	index <- which(rowSums(I) > 0)
+	incomplete <- trios[index, ]
+	if(FALSE) save(incomplete, file="~/Projects/Beaty/data/askHolger.rda")
+	return(incomplete)
+}
+
+pennStats <- function(penn.all, penn.offspring){
+	id <- penn.all$id
+	nSamples.penn <- length(unique(id))
+	nTrios.penn <- length(unique(ss(id)))
+	stopifnot(nSamples.penn/3 == nTrios.penn)
+	triostates <- penn.all$triostate
+	MIN.COV <- 10
+	##fmo <- substr(penn.all$id, 8, 8)
+	nM <- nMarkers(penn.all)
+	is.o <- sampleNames(penn.all) %in% trios[, "O"]
+
+	del.o <- which(substr(triostates, 3, 3) < 3 & nM >=MIN.COV & is.o)
+	amp.o <- which(substr(triostates, 3, 3) > 3 & nM >=MIN.COV & is.o)
+	ndel.all <- sum(substr(triostates, 3, 3) < 3 & is.o)
+	namp.all <- sum(substr(triostates, 3, 3) > 3 & is.o)
+	ndel.o <- length(del.o)
+	namp.o <- length(amp.o)
+	avgndel.o <- median(sapply(split(del.o, id[del.o]), length))
+	avgnamp.o <- median(sapply(split(amp.o, id[amp.o]), length))
+	cov.o <- median(nM[del.o])
+	## for offspring
+	nMo <- nMarkers(penn.offspring)
+	tstate <- penn.offspring$triostate
+	id <- sampleNames(penn.offspring)
+	denovo.hemi <- which(tstate %in% Beaty:::offspring.hemizygous() & nMo >= MIN.COV)
+	ndenovo.hemi <- length(denovo.hemi)
+	avgndenovo.hemi <- median(sapply(split(denovo.hemi, id[denovo.hemi]), length))
+	denovo.hom <- which(tstate %in% Beaty:::offspring.homozygous() & nMo >= MIN.COV)
+	ndenovo.hom <- length(denovo.hom)
+	avgndenovo.hom <- median(sapply(split(denovo.hom, id[denovo.hom]), length))
+	denovo.dup <- which(tstate %in% Beaty:::duplicationStates() & nMo >= MIN.COV)
+	ndenovo.dup <- length(denovo.dup)
+	avgndenovo.dup <- median(sapply(split(denovo.dup, id[denovo.dup]), length))
+	stats <- c(ndel.all,
+		   namp.o,
+		   ndel.o,
+		   namp.all,
+		   avgndel.o,
+		   avgnamp.o,
+		   ndenovo.hemi,
+		   ndenovo.dup,
+		   ndenovo.hom)
+	names(stats) <- c("ndel.all",
+			  "namp.o",
+			  "ndel.o",
+			  "namp.all",
+			  "avgndel.o",
+			  "avgnamp.o",
+			  "ndenovo.hemi",
+			  "ndenovo.dup",
+			  "ndenovo.hom")
+	return(stats)
+}
+
+
 
 
 minDistanceDeletion <- function(ranges, minDistanceSet, offspring.rule, CHR){
@@ -1297,9 +1434,9 @@ harmonizeStates <- function(penn.joint, filter.multistate=FALSE){
 	amp.states <- duplicationStatesPenn()
 	alt.states <- c(del.states, amp.states)
 	##if(!all(penn.joint$pedId == "offspring")) stop("only offspring ranges can be in the object")
-	stopifnot(all(substr(penn.joint$id, 8, 8) == "1"))
-	colnames(penn.joint)[2] <- "num.mark"
-	penn.joint <- penn.joint[, -5] ## redundant
+	##stopifnot(all(substr(penn.joint$id, 8, 8) == "1"))
+	##colnames(penn.joint)[2] <- "num.mark"
+	##penn.joint <- penn.joint[, -5] ## redundant
 	message("Treating LOH state as 'normal'")
 	penn.joint$state <- penn.joint$triostate
 	penn.joint$state <- gsub("4", "3", penn.joint$state)
@@ -1518,10 +1655,10 @@ madVsCoverage <- function(lambda=0.1, MIN=1, MAX=4, coverage=3:100){
 	list(x=coverage, y=numberMads)
 }
 
-calculateMinimumDistance <- function(bsSet, minDistanceSet){
+calculateMinimumDistance <- function(trios, bsSet, minDistanceSet){
 	sns <- ssampleNames(bsSet)
 	##sns.all <- sampleNames(bsSet)
-	trios <- completeTrios(bsSet)
+	##trios <- completeTrios(bsSet)
 	father <- match(trios[, "F"], sns)
 	mother <- match(trios[, "M"], sns)
 	offspring <- match(trios[, "O"], sns)
@@ -1858,19 +1995,9 @@ snames <- function(x) s(names(x))
 ss <- function(x) substr(x, 1, 5)
 s <- function(x) substr(x, 1, 8)
 
-calculateChangeSd <- function(coverage=1:500, lambda, a=0.2, b=0.025){
-	##this gives a range of MIN.CHANGE - MAX.CHANGE to the
-	## supplied coverage vector.  adding 1 and 100e3 ensures that
-	## the result does not vary by the supplied input
-	##coverage <- c(1, coverage, 100e3)
-	##drop.index <- c(1, length(coverage))
-	##p <- lambda*exp(-lambda*coverage)
-	##b <- 1/(MAX.CHANGE - MIN.CHANGE)
-	##a <- MIN.CHANGE*b
-	##res <- ((p-min(p))/(max(p)-min(p)) + a)/b
-	##res[-drop.index]
+calculateChangeSd <- function(coverage=1:500, lambda, a=0.2, b=0.025)
 	a + lambda*exp(-lambda*coverage)/b
-}
+
 
 prune <- function(genomdat,
 		  range.object,
@@ -2320,11 +2447,6 @@ initialStateProbs <- function(states=0:4, normal.index=3, epsilon=0.01){
 	initial.state.probs <- rep(epsilon/(length(states)-1), length(states))
 	initial.state.probs[normal.index] <- 1-epsilon
 	initial.state.probs
-##	normal.index <- which(apply(trio.states, 1, function(x) all(x == 3)))
-##	initial.state.probs <- rep(NA, nrow(trio.states))
-##	initial.state.probs[normal.index] <- 0.99
-##	initial.state.probs[-normal.index] <- (1-0.99)/(nrow(trio.states)-1)
-##	initial.state.probs
 }
 
 readTable1 <- function(states=0:4, a=0.0009){
@@ -3282,7 +3404,6 @@ joint1c <- function(loglik,##object,
 
 
 completeTrios <- function(bsSet){
-	browser()
 	is.father <- which(bsSet$father != "0")
 	is.mother <- which(bsSet$mother != "0")
 	dup.index <- grep("240", sssampleNames(bsSet)[is.father])
@@ -3417,6 +3538,7 @@ getAllBayesFactorRanges <- function(path=beadstudiodir()){
 	stopifnot(all(sapply(ranges.md, is, "RangedData")))
 	rdlist <- RangedDataList(ranges.md)
 	rd <- stack(rdlist)
+	rd$state <- argmax2state(rd$argmax)
 	return(rd)
 }
 
@@ -3880,11 +4002,8 @@ getPennOffspringRanges <- function(penn.all, bsSet){
 }
 
 
-dfPennFreq <- function(penn.offspring, bsSet){
-	##penn.offspring$is.denovo <- penn.offspring$triostate %in% as.character(c(duplicationStatesPenn(), deletionStates()))
-	if(any(!penn.offspring$complete.trio))
-		penn.offspring <- penn.offspring[penn.offspring$complete.trio, ]
-	denovo.index <- which(penn.offspring$is.denovo & penn.offspring$nmarkers >= MIN.COV)
+pennDenovoFreq <- function(penn.offspring, bsSet, MIN.COV=10){
+	denovo.index <- which(penn.offspring$is.denovo & nMarkers(penn.offspring) >= MIN.COV)
 	is.denovo.split <- split(denovo.index, penn.offspring$id[denovo.index])
 	denovo.freq <- sapply(is.denovo.split, length)
 	dna.source <- bsSet$dna[match(names(is.denovo.split), ssampleNames(bsSet))]
@@ -3920,6 +4039,7 @@ harmonizeRangedData <- function(penn.object){
 	##penn.object$state <- harmonizeStates(penn.object)
 	penn.object
 }
+
 argmax2state <- function(argmax){
 	trio.states <- trioStates()
 	trio.states <- paste(trio.states[,1], trio.states[,2], trio.states[,3], sep="")

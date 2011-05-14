@@ -9,6 +9,7 @@ setGeneric("mendelian", function(object) standardGeneric("mendelian"))
 setGeneric("isBiparental", function(object, ...) standardGeneric("isBiparental"))
 ##setGeneric("callDeletion", function(object, ...) standardGeneric(object))
 
+##setGeneric("[", function(x, i, j, k, ..., drop=FALSE) standardGeneric("["))
 
 setGeneric("logR.M", function(object) standardGeneric("logR.M"))
 setGeneric("logR.F", function(object) standardGeneric("logR.F"))
@@ -23,3 +24,6 @@ setGeneric("plot", function(object, ...) standardGeneric("plot"))
 setGeneric("loglik", function(object) standardGeneric("loglik"))
 setGeneric("loglik<-", function(object, value) standardGeneric("loglik<-"))
 setGeneric("range.index", function(object) standardGeneric("range.index"))
+
+setGeneric("nMarkers", function(object) standardGeneric("nMarkers"))
+setGeneric("state", function(object) standardGeneric("state"))

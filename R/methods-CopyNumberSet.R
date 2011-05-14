@@ -3,3 +3,35 @@ setReplaceMethod("copyNumber", signature(object="CopyNumberSet",
 						 assayDataElementReplace(object, "copyNumber", value)
 					 })
 
+setReplaceMethod("copyNumber", signature(object="MinDistanceSet",
+					 value="ff_matrix"), function(object, value){
+						 assayDataElementReplace(object, "mindist", value)
+					 })
+
+setMethod("copyNumber", signature(object="MinDistanceSet"), function(object) assayDataElement(object, "mindist"))
+
+setMethod("open", "eSet", function(con, ...){
+	object <- con
+	if(!isFF(object)) return()
+	names <- ls(assayData(object))
+	L <- length(names)
+	for(i in 1:L) open(eval(substitute(assayData(object)[[NAME]], list(NAME=names[i]))))
+	L <- length(names)
+	if("MAD" %in% varLabels(object)){
+		if(is(object$MAD, "ff")) open(object$MAD)
+	}
+	return(TRUE)
+})
+
+setMethod("close", "eSet", function(con, ...){
+	##con is just to keep the same generic arguments
+	object <- con
+	if(!isFF(object)) return()
+	names <- ls(assayData(object))
+	L <- length(names)
+	for(i in 1:L) close(eval(substitute(assayData(object)[[NAME]], list(NAME=names[i]))))
+	if("MAD" %in% varLabels(object)){
+		if(is(object$MAD, "ff")) close(object$MAD)
+	}
+	return()
+})
