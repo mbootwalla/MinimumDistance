@@ -13,10 +13,10 @@ importMethodsFrom(oligoClasses, open, close)
 importFrom(oligoClasses, isFF)
 ##exportPattern("^[^\\.]")
 exportClasses(RangedDataCNV, TrioSet)
-exportMethods(plot, nMarkers, state, copyNumber, open, close)
+exportMethods(plot, nMarkers, state, copyNumber, open, close,
+	      calculateMindist)
 export(ssampleNames, sssampleNames, ss, s, fullId)
 export(beadstudiodir,
-       calculateMinimumDistance,
        completeTrios, getAllBayesFactorRanges,
        isDenovo, readPennCnv, harmonizeStates, pennStats,
        pennDenovoFreq, readCbsBatchFiles, readPedfile,

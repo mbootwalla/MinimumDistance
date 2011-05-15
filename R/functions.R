@@ -1655,60 +1655,8 @@ madVsCoverage <- function(lambda=0.1, MIN=1, MAX=4, coverage=3:100){
 	list(x=coverage, y=numberMads)
 }
 
-calculateMinimumDistance <- function(trios, bsSet, minDistanceSet){
-	sns <- ssampleNames(bsSet)
-	##sns.all <- sampleNames(bsSet)
-	##trios <- completeTrios(bsSet)
-	father <- match(trios[, "F"], sns)
-	mother <- match(trios[, "M"], sns)
-	offspring <- match(trios[, "O"], sns)
-	stopifnot(identical(sns[offspring], ssampleNames(minDistanceSet)))
-	invisible(open(logR(bsSet)))
-	invisible(open(copyNumber(minDistanceSet)))
-	##min.resid <- rep(NA, nrow(bsSet))
-	for(j in seq_along(father)){ ## column by column so as not to swamp RAM
-		if(j %% 100 == 0) cat(".")
-		f <- father[j]
-		m <- mother[j]
-		o <- offspring[j]
-		logR.f <- logR(bsSet)[, f]
-		logR.m <- logR(bsSet)[, m]
-		logR.o <- logR(bsSet)[, o]
-		d1 <- logR.f - logR.o
-		d2 <- logR.m - logR.o
-		I <- as.numeric(abs(d1) <= abs(d2))
-		md <- I*d1 + (1-I)*d2
-		copyNumber(minDistanceSet)[,j] <- md
-		minDistanceSet$MAD[j] <- mad(md, na.rm=TRUE)
-	}
-	##mindist[index, j] <- d2[-index]
-##	for(j in seq_along(sns)){
-##		offspring.name <- sns[j]
-##		family <- substr(offspring.name, 1, 5)
-##		father.name <- paste(family, "03", sep="_")
-##		father.index <- match(father.name, sns.all)
-##		mother.name <- paste(family, "02", sep="_")
-##		mother.index <- match(mother.name, sns.all)
-##		offspring.index <- match(offspring.name, sns.all)
-##		lR <- as.matrix(logR(bsSet)[, c(mother.index, father.index)])
-##		resid <- lR - logR(bsSet)[, offspring.index]
-##		na.index <- which(rowSums(is.na(resid)) > 0)
-##		##resid[is.na(resid)] <- 0
-##		sign.resid <- sign(resid)
-##		min.resid[-na.index] <- rowMin(abs(resid[-na.index, ]))
-##		## now give the appropriate sign
-##		column.index <- ifelse(abs(resid[,1]) < abs(resid[, 2]), 1, 2)
-##		col2 <- which(column.index == 2)
-##		col1 <- which(column.index == 1)
-##		min.resid[col2] <- min.resid[col2] * sign.resid[col2, 2]
-##		min.resid[col1] <- min.resid[col1] * sign.resid[col1, 1]
-##		##min.resid <- rowMin(resid)
-##		copyNumber(minDistanceSet)[, j] <- min.resid
-##		if(j %% 100 == 0) cat(j, " ")
-##		minDistanceSet$MAD[j] <- mad(min.resid, na.rm=TRUE)
-##	}
-	return(minDistanceSet)
-}
+##calculateMinimumDistance <- function(trios, bsSet, minDistanceSet){
+
 
 callTrioState <- function(ranges.object, subj.stat=c("F.median", "M.median", "O.median")){
 	stopifnot(all(subj.stat %in% colnames(ranges.object)))

@@ -1,4 +1,7 @@
 ##setClass("TrioSet", contains="SnpCallSetPlus", representation(isBiparental="logical"))
+setOldClass("ffdf")
+setOldClass("ff_matrix")
+setOldClass("ff_array")
 setClass("LikSet",
 	 contains="LogRatioSet",
 	 representation(loglik="array",

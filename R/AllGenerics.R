@@ -27,3 +27,4 @@ setGeneric("range.index", function(object) standardGeneric("range.index"))
 
 setGeneric("nMarkers", function(object) standardGeneric("nMarkers"))
 setGeneric("state", function(object) standardGeneric("state"))
+setGeneric("mindist<-", function(object,value) standardGeneric("mindist<-"))
