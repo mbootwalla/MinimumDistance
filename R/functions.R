@@ -1655,8 +1655,6 @@ madVsCoverage <- function(lambda=0.1, MIN=1, MAX=4, coverage=3:100){
 	list(x=coverage, y=numberMads)
 }
 
-##calculateMinimumDistance <- function(trios, bsSet, minDistanceSet){
-
 
 callTrioState <- function(ranges.object, subj.stat=c("F.median", "M.median", "O.median")){
 	stopifnot(all(subj.stat %in% colnames(ranges.object)))

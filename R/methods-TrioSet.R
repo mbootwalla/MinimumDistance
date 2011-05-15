@@ -62,6 +62,41 @@ setReplaceMethod("mindist", signature(object="TrioSet", value="ANY"),
 
 setMethod("dim", "TrioSet", function(x) assayDataDim(assayData(x)))
 
+
+## Fix strange behavor for [ with ff_arrays.
+setMethod("[", signature(x="ff_array"), function(x, i, j, ..., drop=FALSE){
+	if(missing(drop)) drop <- TRUE
+	if(length(list(...)) > 0){
+		k <- list(...)[[1]]
+		if(is(k, "character")) {
+			k <- match(dimnames(x)[[3]])
+			stopifnot(length(k)>0)
+		}
+	} else k <- NULL
+	if(is.null(k)){
+		if(!missing(i) & missing(j)){
+			x <- x[i, 1:ncol(x), 1:3, ..., drop=drop]
+		}
+		if(!missing(i) & !missing(j)){
+			x <- x[1:nrow(x), j, 1:3, drop=drop]
+		}
+		if(missing(i) & !missing(j)){
+			x <- x[1:nrow(x), j, 1:3, drop=drop]
+		}
+	} else {
+		if(!missing(i) & missing(j)){
+			x <- x[i, 1:ncol(x), k, drop=drop]
+		}
+		if(!missing(i) & !missing(j)){
+			x <- x[i, j, k, drop=drop]
+		}
+		if(missing(i) & !missing(j)){
+			x <- x[1:nrow(x), j, k, drop=drop]
+		}
+	}
+	return(x)
+})
+
 setMethod("[", "TrioSet", function(x, i, j, ..., drop = FALSE) {
 	if (missing(drop))
 		  drop <- FALSE
@@ -161,6 +196,8 @@ setMethod("[", "TrioSet", function(x, i, j, ..., drop = FALSE) {
 	}
 })
 
+
+
 setReplaceMethod("logR", signature(object="TrioSet", value="ANY"),
 		 function(object, value){
 			 assayDataElementReplace(object, "logRRatio", value)
@@ -183,22 +220,27 @@ setMethod("calculateMindist", signature(object="TrioSet"), function(object, ...)
 	##stopifnot(identical(sns[offspring], ssampleNames(minDistanceSet)))
 	invisible(open(logR(object)))
 	invisible(open(mindist(object)))
+	object$MAD <- NA
 	##invisible(open(copyNumber(minDistanceSet)))
 	##min.resid <- rep(NA, nrow(bsSet))
-	for(j in seq_along(father)){ ## column by column so as not to swamp RAM
+	for(j in seq(length=ncol(object))){
+		##for(j in seq_along(father)){ ## column by column so as not to swamp RAM
 		if(j %% 100 == 0) cat(".")
-		f <- father[j]
-		m <- mother[j]
-		o <- offspring[j]
-		logR.f <- logR(bsSet)[, f]
-		logR.m <- logR(bsSet)[, m]
-		logR.o <- logR(bsSet)[, o]
-		d1 <- logR.f - logR.o
-		d2 <- logR.m - logR.o
+##		f <- father[j]
+##		m <- mother[j]
+##		o <- offspring[j]
+##		logR.f <- logR(bsSet)[, f]
+##		logR.m <- logR(bsSet)[, m]
+##		logR.o <- logR(bsSet)[, o]
+		lr <- logR(object)[, j, ]
+		d1 <- lr[, "F"] - lr[, "O"]
+		d2 <- lr[, "M"] - lr[, "O"]
 		I <- as.numeric(abs(d1) <= abs(d2))
 		md <- I*d1 + (1-I)*d2
-		copyNumber(minDistanceSet)[,j] <- md
-		minDistanceSet$MAD[j] <- mad(md, na.rm=TRUE)
+		mindist(object)[, j] <- md
+		##copyNumber(minDistanceSet)[,j] <- md
+		object$MAD[j] <- mad(md, na.rm=TRUE)
+		##minDistanceSet$MAD[j] <- mad(md, na.rm=TRUE)
 	}
 	##mindist[index, j] <- d2[-index]
 ##	for(j in seq_along(sns)){
@@ -226,5 +268,5 @@ setMethod("calculateMindist", signature(object="TrioSet"), function(object, ...)
 ##		if(j %% 100 == 0) cat(j, " ")
 ##		minDistanceSet$MAD[j] <- mad(min.resid, na.rm=TRUE)
 ##	}
-	return(minDistanceSet)
+	return(object)
 })
