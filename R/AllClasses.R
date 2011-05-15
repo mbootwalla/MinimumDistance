@@ -19,8 +19,24 @@ setValidity("RangedDataCNV", function(object){
 
 setClass("MinDistanceSet", contains="MultiSet")
 
+setClassUnion("matrixOrNULL", c("matrix", "NULL"))
+
 setClass("TrioSet", contains="LogRatioSet",
 	 representation(phenoData2="array"))
+
+setClass("TrioSet", contains="LogRatioSet",
+	 representation(phenoData2="array",
+			mindist="matrixOrNULL"),
+	 prototype = prototype(
+	                       new("VersionedBiobase",
+				   versions=c(classVersion("eSet"), TrioSet="0.0.2"))))
+
+setMethod("updateObject", signature(object="TrioSet"),
+          function(object, ..., verbose=FALSE) {
+		  obj <- tryCatch(callNextMethod(), error=function(e) NULL)
+		  obj@mindist <- NULL
+		  return(obj)
+	  })
 ##  AssayDataElements are T x M arrays
 ##          T= number features
 ##          M= 3 (Father, Mother, Offspring)

@@ -3,6 +3,7 @@ importFrom(graphics, abline, axis, layout, legend, mtext, par, plot,
 	   polygon, rect, segments, text)
 importClassesFrom(mybase, LogRatioSet)
 importMethodsFrom(Biobase, annotatedDataFrameFrom)
+importFrom(Biobase, assayDataElementReplace)
 importMethodsFrom(mybase, baf, "baf<-")
 importMethodsFrom(mybase, logR, "logR<-")
 importFrom(mybase, unique)
@@ -13,7 +14,7 @@ importFrom(oligoClasses, isFF)
 ##exportPattern("^[^\\.]")
 exportClasses(RangedDataCNV, TrioSet)
 exportMethods(plot, nMarkers, state, copyNumber, open, close)
-export(ssampleNames, sssampleNames, ss, s)
+export(ssampleNames, sssampleNames, ss, s, fullId)
 export(beadstudiodir,
        calculateMinimumDistance,
        completeTrios, getAllBayesFactorRanges,

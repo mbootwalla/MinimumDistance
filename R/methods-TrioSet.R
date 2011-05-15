@@ -143,3 +143,15 @@ setMethod("[", "TrioSet", function(x, i, j, ..., drop = FALSE) {
 		return(x)
 	}
 })
+
+setReplaceMethod("logR", signature(object="TrioSet", value="ANY"),
+		 function(object, value){
+			 assayDataElementReplace(object, "logRRatio", value)
+		 })
+setReplaceMethod("baf", signature(object="TrioSet", value="ANY"),
+		 function(object, value){
+			 assayDataElementReplace(object, "BAF", value)
+		 })
+
+fullId <- function(object) object@phenoData2[, "Sample.Name", ]
+
