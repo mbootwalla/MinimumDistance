@@ -90,6 +90,15 @@ setMethod("[", "TrioSet", function(x, i, j, ..., drop = FALSE) {
 	if(missing(j) && !is.null(k)){
 		x@phenoData2 <- x@phenoData2[, k, , drop=drop]
 	}
+	if(!missing(i) & missing(j)){
+		mindist(x) <- mindist(x)[i, ...,drop=drop]
+	}
+	if(!missing(i) & !missing(j)){
+		mindist(x) <- mindist(x)[i, j, drop=drop]
+	}
+	if(missing(i) & !missing(j)){
+		mindist(x) <- mindist(x)[, j, drop=drop]
+	}
 	## assayData; implemented here to avoid function call
 	orig <- assayData(x)
 	storage.mode <- Biobase:::assayDataStorageMode(orig)
