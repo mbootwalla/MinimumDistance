@@ -164,15 +164,17 @@ setReplaceMethod("baf", signature(object="TrioSet", value="ANY"),
 fullId <- function(object) object@phenoData2[, "Sample.Name", ]
 
 setMethod("calculateMindist", signature(object="TrioSet"), function(object, ...){
-	sns <- ssampleNames(bsSet)
+	sns <- sampleNames(object)
+	##sns <- ssampleNames(bsSet)
 	##sns.all <- sampleNames(bsSet)
 	##trios <- completeTrios(bsSet)
-	father <- match(trios[, "F"], sns)
-	mother <- match(trios[, "M"], sns)
-	offspring <- match(trios[, "O"], sns)
-	stopifnot(identical(sns[offspring], ssampleNames(minDistanceSet)))
-	invisible(open(logR(bsSet)))
-	invisible(open(copyNumber(minDistanceSet)))
+	##father <- match(trios[, "F"], sns)
+	##mother <- match(trios[, "M"], sns)
+	##offspring <- match(trios[, "O"], sns)
+	##stopifnot(identical(sns[offspring], ssampleNames(minDistanceSet)))
+	invisible(open(logR(object)))
+	invisible(open(mindist(object)))
+	##invisible(open(copyNumber(minDistanceSet)))
 	##min.resid <- rep(NA, nrow(bsSet))
 	for(j in seq_along(father)){ ## column by column so as not to swamp RAM
 		if(j %% 100 == 0) cat(".")

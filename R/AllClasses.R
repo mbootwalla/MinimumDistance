@@ -22,7 +22,7 @@ setValidity("RangedDataCNV", function(object){
 
 setClass("MinDistanceSet", contains="MultiSet")
 
-setClassUnion("matrixOrNULL", c("matrix", "NULL"))
+setClassUnion("matrixOrNULL", c("matrix", "NULL", "ff_matrix"))
 
 setClass("TrioSet", contains="LogRatioSet",
 	 representation(phenoData2="array"))
