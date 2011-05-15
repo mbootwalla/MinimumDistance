@@ -34,7 +34,9 @@ setClass("TrioSet", contains="LogRatioSet",
 setMethod("updateObject", signature(object="TrioSet"),
           function(object, ..., verbose=FALSE) {
 		  obj <- tryCatch(callNextMethod(), error=function(e) NULL)
-		  obj@mindist <- NULL
+		  if(is.null(obj)){
+			  stop("Update was unsucessfull.")
+		  }
 		  return(obj)
 	  })
 ##  AssayDataElements are T x M arrays

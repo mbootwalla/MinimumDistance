@@ -35,6 +35,7 @@ setMethod("show", signature(object="TrioSet"), function(object){
 	if (length(pmids) > 0 && all(pmids != ""))
 		cat("  pubMedIds:", paste(pmids, sep=", "), "\n")
 	cat("Annotation:", annotation(object), "\n")
+	cat("mindist:", class(mindist(object)), "\n")
 	cat("phenoData2:", dimnames(object@phenoData2)[[3]], "\n")
 })
 
@@ -43,6 +44,13 @@ setReplaceMethod("sampleNames", signature(object="TrioSet"),
 			 object <- callNextMethod(object, value)
 			 row.names(object@phenoData2) <- value
 			 object
+		 })
+
+setMethod("mindist", "TrioSet", function(object) object@mindist)
+setReplaceMethod("mindist", signature(object="TrioSet", value="ANY"),
+		 function(object, value){
+			 object@mindist <- value
+			 return(object)
 		 })
 
 ##setReplaceMethod("trioNames", signature(object="TrioSet"),
