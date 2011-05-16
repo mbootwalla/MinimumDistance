@@ -287,22 +287,24 @@ setReplaceMethod("mad", signature(object="TrioSet", value="ANY"),
 		  return(object)
 	  })
 
-setGeneric("phenoData2", function(object) standardGeneric("phenoData2"))
-setGeneric("varLabels2", function(object) standardGeneric("varLabels2"))
 setMethod("phenoData2", signature(object="TrioSet"), function(object) object@phenoData2)
+setReplaceMethod("phenoData2", signature(object="TrioSet", value="ANY"), function(object, value){
+	object@phenoData2 <- value
+	object
+})
 setMethod("varLabels2", signature(object="TrioSet"), function(object) colnames(phenoData2(object)))
 
 setMethod("xsegment", signature(object="TrioSet"),
-	  function(object, ...){
+	  function(object, id, ..., verbose=FALSE){
 		  ## needs to be ordered
 		  ix <- order(chromosome(object), position(object))
 		  stopifnot(all(diff(ix) > 0))
 		  ##
 		  ##
 		  ##dfl <- vector("list", 22) ## data.frame list
-		  if("id" %in% names(list(...))) id <- list(...)[["id"]] else id <- sampleNames(object)
-		  ix <- match(id, sampleNames(object))
-		  stopifnot(length(ix) > 0)
+		  if(missing(id)) id <- sampleNames(object)
+		  sample.index <- match(id, sampleNames(object))
+		  stopifnot(length(sample.index) > 0)
 		  open(object)
 		  ##
 		  ##
@@ -311,7 +313,7 @@ setMethod("xsegment", signature(object="TrioSet"),
 		  marker.index <- seq(length=nrow(object))[!duplicated(position(object))]
 		  pos <- position(object)[marker.index]
 		  chrom <- chromosome(object)[marker.index]
-		  CN <- copyNumber(object)[marker.index, sample.index, drop=FALSE]
+		  CN <- mindist(object)[marker.index, sample.index, drop=FALSE]
 		  arm <- getChromosomeArm(chrom, pos)
 		  index.list <- split(seq_along(marker.index), arm)
 		  md.segs <- list()

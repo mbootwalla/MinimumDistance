@@ -30,7 +30,6 @@ export(beadstudiodir,
        completeTrios, getAllBayesFactorRanges,
        isDenovo, readPennCnv, harmonizeStates, pennStats,
        pennDenovoFreq, readCbsBatchFiles, readPedfile,
-       segmentMD,
        wrapperPosteriorProbs)
 
 

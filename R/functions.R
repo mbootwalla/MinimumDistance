@@ -313,7 +313,29 @@ constructMinDistanceContainer <- function(bsSet){
 ##segmentMD <- function(minDistanceSet,
 ##		      id,
 ##		      verbose=FALSE, ...){
-
+getChromosomeArm <- function(chrom, pos){
+	if(!is.integer(chrom)) {
+		chrom <- chromosome2integer(chrom)
+	}
+	if(!all(chrom %in% 1:24)){
+			warning("Chromosome annotation is currently available for chromosomes 1-22, X and Y")
+			##message("Please add/modify data(chromosomeAnnotation, package='SNPchip') to accomodate special chromosomes")
+			pos <- pos[chrom%in%1:24]
+			chrom <- chrom[chrom%in%1:24]
+	}
+	data(chromosomeAnnotation, package="SNPchip", envir=environment())
+	chromosomeAnnotation <- as.matrix(chromosomeAnnotation)
+	chrAnn <- chromosomeAnnotation
+	uchrom <- unique(SNPchip:::integer2chromosome(chrom))
+	chromosomeArm <- vector("list", length(uchrom))
+	positionList <- split(pos, chrom)
+	positionList <- positionList[match(unique(chrom), names(positionList))]
+	for(i in seq_along(unique(chrom))){
+		chromosomeArm[[i]] <- ifelse(positionList[[i]] <= chrAnn[uchrom[i], "centromereEnd"], "p", "q")
+	}
+	chromosomeArm <- unlist(chromosomeArm)
+	chrom <- paste(chrom, chromosomeArm,sep="")
+}
 
 ##segmentBatchWithCbs <- function(minDistanceSet,
 ##				marker.index,
