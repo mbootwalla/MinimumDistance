@@ -310,77 +310,55 @@ constructMinDistanceContainer <- function(bsSet){
 	minDistanceSet
 }
 
-segmentMD <- function(minDistanceSet,
-		      id,
-		      verbose=FALSE, ...){
-	## needs to be ordered
-	ix <- order(chromosome(minDistanceSet), position(minDistanceSet))
-	stopifnot(all(diff(ix) > 0))
-	##
-	##
-	dfl <- vector("list", 22) ## data.frame list
-	ix <- match(s(id), ssampleNames(minDistanceSet))
-	stopifnot(length(ix) > 0)
-	open(minDistanceSet)
-	##
-	##
-	marker.index.list <- split(seq(length=nrow(minDistanceSet)), chromosome(minDistanceSet))
-	for(CHR in 1:22){
-		dfl[[CHR]] <- segmentBatchWithCbs(minDistanceSet=minDistanceSet,
-						  marker.index=marker.index.list[[CHR]],
-						  sample.index=ix,
-						  CHR=CHR,
-						  verbose=verbose)
-	}
-	close(minDistanceSet)
-	df <- do.call("rbind", dfl)
-	return(df)
-}
+##segmentMD <- function(minDistanceSet,
+##		      id,
+##		      verbose=FALSE, ...){
 
-segmentBatchWithCbs <- function(minDistanceSet,
-				marker.index,
-				sample.index,
-				CHR,
-				verbose=FALSE, ...){
-	if("undo.splits" %in% names(list(...))) message("undo.splits = ", list(...)[["undo.splits"]])
-	stopifnot(!missing(CHR))
-	fns <- featureNames(minDistanceSet)  ## Do not subset!!
-	##
-	pos <- position(minDistanceSet)[marker.index]
-	marker.index <- marker.index[!duplicated(pos)]
-	pos <- position(minDistanceSet)[marker.index]
-	chrom <- chromosome(minDistanceSet)[marker.index]
-	CN <- copyNumber(minDistanceSet)[marker.index, sample.index, drop=FALSE]
-	id <- sampleNames(minDistanceSet)[sample.index]
-	arm <- getChromosomeArm(chrom, pos)
-	index.list <- split(seq_along(marker.index), arm)
-	md.segs <- list()
-	if(verbose) message("Running CBS by chromosome arm")
-	for(i in seq_along(index.list)){
-		j <- index.list[[i]]
-		CNA.object <- CNA(genomdat=CN[j, , drop=FALSE],
-				  chrom=chrom[j],
-				  maploc=pos[j],
-				  data.type="logratio",
-				  sampleid=id)
-		smu.object <- smooth.CNA(CNA.object)
-		tmp <- segment(smu.object, verbose=0, ...)
-		df <- tmp$output
-		sr <- tmp$segRows
-		##df <- cbind(tmp$output, tmp$segRows)
-		##md.segs[[i]] <-
-		firstMarker <- rownames(CNA.object)[sr$startRow]
-		endMarker <- rownames(CNA.object)[sr$endRow]
-		df$start.index <- match(firstMarker, fns)
-		df$end.index <- match(endMarker, fns)
-		md.segs[[i]] <- df
-	}
-	if(length(md.segs) > 1){
-		md.segs <- do.call("rbind", md.segs)
-	} else md.segs=md.segs[[1]]
-	## md.segs is a data.frame
-	md.segs
-}
+
+##segmentBatchWithCbs <- function(minDistanceSet,
+##				marker.index,
+##				sample.index,
+##				CHR,
+##				verbose=FALSE, ...){
+##	if("undo.splits" %in% names(list(...))) message("undo.splits = ", list(...)[["undo.splits"]])
+##	stopifnot(!missing(CHR))
+##	fns <- featureNames(minDistanceSet)  ## Do not subset!!
+##	##
+##	pos <- position(minDistanceSet)[marker.index]
+##	marker.index <- marker.index[!duplicated(pos)]
+##	pos <- position(minDistanceSet)[marker.index]
+##	chrom <- chromosome(minDistanceSet)[marker.index]
+##	CN <- copyNumber(minDistanceSet)[marker.index, sample.index, drop=FALSE]
+##	id <- sampleNames(minDistanceSet)[sample.index]
+##	arm <- getChromosomeArm(chrom, pos)
+##	index.list <- split(seq_along(marker.index), arm)
+##	md.segs <- list()
+##	if(verbose) message("Running CBS by chromosome arm")
+##	for(i in seq_along(index.list)){
+##		j <- index.list[[i]]
+##		CNA.object <- CNA(genomdat=CN[j, , drop=FALSE],
+##				  chrom=chrom[j],
+##				  maploc=pos[j],
+##				  data.type="logratio",
+##				  sampleid=id)
+##		smu.object <- smooth.CNA(CNA.object)
+##		tmp <- segment(smu.object, verbose=0, ...)
+##		df <- tmp$output
+##		sr <- tmp$segRows
+##		##df <- cbind(tmp$output, tmp$segRows)
+##		##md.segs[[i]] <-
+##		firstMarker <- rownames(CNA.object)[sr$startRow]
+##		endMarker <- rownames(CNA.object)[sr$endRow]
+##		df$start.index <- match(firstMarker, fns)
+##		df$end.index <- match(endMarker, fns)
+##		md.segs[[i]] <- df
+##	}
+##	if(length(md.segs) > 1){
+##		md.segs <- do.call("rbind", md.segs)
+##	} else md.segs=md.segs[[1]]
+##	## md.segs is a data.frame
+##	md.segs
+##}
 
 submitCbsJobs <- function(BATCHSIZE, NN, CHR, undo.splits="'none'", outdir){
 	for(BATCH in 1:NN){
@@ -1303,6 +1281,21 @@ getDnaSource <- function(bsSet){
 	which.mouth <- match("mouth", dna)
 	dna[which.mouth] <- "saliva"
 	return(dna)
+}
+
+harmonizeDnaLabels <- function(dnaLabels){
+	dnaLabels <- as.character(dnaLabels)
+	cell.lines <- c(grep("CEPH", dnaLabels),
+			grep("HAN CHINESE", dnaLabels),
+			grep("JAPANESE", dnaLabels),
+			grep("YORUBA", dnaLabels))
+	dnaLabels[cell.lines] <- "HapMap"
+	which.wga <- grep("WGA", dnaLabels)
+	dnaLabels[which.wga] <- "WGA"
+	dnaLabels[dnaLabels=="dried blood spot"] <- "blood"
+	which.mouth <- match("mouth", dnaLabels)
+	dnaLabels[which.mouth] <- "saliva"
+	dnaLabels <- matrix(dnaLabels, ncol=3)
 }
 
 combineRanges <- function(deletion.ranges, amp.ranges){

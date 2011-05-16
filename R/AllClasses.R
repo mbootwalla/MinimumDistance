@@ -2,13 +2,7 @@
 setOldClass("ffdf")
 setOldClass("ff_matrix")
 setOldClass("ff_array")
-setClass("LikSet",
-	 contains="LogRatioSet",
-	 representation(loglik="array",
-			range.index="integer"),
-	 prototype = prototype(
-	 new("VersionedBiobase",
-	     versions=c(classVersion("LogRatioSet"), LikSet="1.0.0"))))
+
 
 
 setClass("RangedDataCNV", contains="RangedData")
@@ -23,9 +17,18 @@ setValidity("RangedDataCNV", function(object){
 setClass("MinDistanceSet", contains="MultiSet")
 
 setClassUnion("matrixOrNULL", c("matrix", "NULL", "ff_matrix"))
+setClassUnion("arrayOrNULL", c("array", "NULL"))
 
 setClass("LogRatioSet", contains="eSet")
 setClass("BeadStudioSet", contains="eSet")
+
+setClass("LikSet",
+	 contains="LogRatioSet",
+	 representation(loglik="array",
+			range.index="integer"),
+	 prototype = prototype(
+	 new("VersionedBiobase",
+	     versions=c(classVersion("LogRatioSet"), LikSet="1.0.0"))))
 
 setClass("TrioSet", contains="LogRatioSet",
 	 representation(phenoData2="array"))
@@ -38,12 +41,12 @@ setClass("TrioSet", contains="LogRatioSet",
 				   versions=c(classVersion("eSet"), TrioSet="0.0.2"))))
 
 setClass("TrioSet", contains="LogRatioSet",
-	 representation(phenoData2="array",
+	 representation(phenoData2="arrayOrNULL",
 			mindist="matrixOrNULL",
-			mad="array"),
+			mad="matrix"),
 	 prototype = prototype(
 	                       new("VersionedBiobase",
-				   versions=c(classVersion("eSet"), TrioSet="0.0.3"))))
+				   versions=c(classVersion("LogRatioSet"), TrioSet="0.0.3"))))
 
 
 ##setClass("TrioSet", contains="BeadStudioSet",

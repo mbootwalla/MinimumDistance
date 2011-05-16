@@ -1,10 +1,15 @@
 setMethod("initialize", signature(.Object="TrioSet"),
 	  function(.Object, phenoData2, ...){
-		  .Object <- callNextMethod(.Object, ...)
-		  phenoData2 <- array(NA, dim=c(ncol(.Object), 3, ncol(phenoData(.Object))),
-				      dimnames=list(sampleNames(.Object),
-				      c("F", "M", "O"), NULL))
+		  .Object <- callNextMethod()
+		  if(!"logRRatio" %in% names(list(...))){
+			  .Object <- assayDataElementReplace(.Object, "logRRatio", array(NA, dim=c(0,0,0)))
+		  }
+		  if("phenoData2" %in% names(list(...))){
+			  phenoData2 <- list(...)[["phenoData2"]]
+		  } else phenoData2 <- NULL
 		  .Object@phenoData2 <- phenoData2
+		  .Object@mad <- matrix(NA, ncol(.Object), 3)
+		  dimnames(.Object@mad) <- list(sampleNames(.Object), c("F", "M", "O"))
 		  .Object
 })
 
@@ -36,7 +41,8 @@ setMethod("show", signature(object="TrioSet"), function(object){
 		cat("  pubMedIds:", paste(pmids, sep=", "), "\n")
 	cat("Annotation:", annotation(object), "\n")
 	cat("mindist:", class(mindist(object)), "\n")
-	cat("phenoData2:", dimnames(object@phenoData2)[[3]], "\n")
+	cat("phenoData2:", class(object@phenoData2), "\n")
+	cat("mad:", class(mad(object)), "\n")
 })
 
 setReplaceMethod("sampleNames", signature(object="TrioSet"),
@@ -280,3 +286,67 @@ setReplaceMethod("mad", signature(object="TrioSet", value="ANY"),
 		  object@mad <- value
 		  return(object)
 	  })
+
+setGeneric("phenoData2", function(object) standardGeneric("phenoData2"))
+setGeneric("varLabels2", function(object) standardGeneric("varLabels2"))
+setMethod("phenoData2", signature(object="TrioSet"), function(object) object@phenoData2)
+setMethod("varLabels2", signature(object="TrioSet"), function(object) colnames(phenoData2(object)))
+
+setMethod("xsegment", signature(object="TrioSet"),
+	  function(object, ...){
+		  ## needs to be ordered
+		  ix <- order(chromosome(object), position(object))
+		  stopifnot(all(diff(ix) > 0))
+		  ##
+		  ##
+		  ##dfl <- vector("list", 22) ## data.frame list
+		  if("id" %in% names(list(...))) id <- list(...)[["id"]] else id <- sampleNames(object)
+		  ix <- match(id, sampleNames(object))
+		  stopifnot(length(ix) > 0)
+		  open(object)
+		  ##
+		  ##
+		  ##marker.index.list <- split(seq(length=nrow(minDistanceSet)), chromosome(minDistanceSet))
+		  ##for(CHR in 1:22){
+		  marker.index <- seq(length=nrow(object))[!duplicated(position(object))]
+		  pos <- position(object)[marker.index]
+		  chrom <- chromosome(object)[marker.index]
+		  CN <- copyNumber(object)[marker.index, sample.index, drop=FALSE]
+		  arm <- getChromosomeArm(chrom, pos)
+		  index.list <- split(seq_along(marker.index), arm)
+		  md.segs <- list()
+		  if(verbose) message("Running CBS by chromosome arm")
+		  for(i in seq_along(index.list)){
+			  j <- index.list[[i]]
+			  CNA.object <- CNA(genomdat=CN[j, , drop=FALSE],
+					    chrom=chrom[j],
+					    maploc=pos[j],
+					    data.type="logratio",
+					    sampleid=id)
+			  smu.object <- smooth.CNA(CNA.object)
+			  tmp <- segment(smu.object, verbose=0, ...)
+			  df <- tmp$output
+			  sr <- tmp$segRows
+			  ##df <- cbind(tmp$output, tmp$segRows)
+			  ##md.segs[[i]] <-
+			  firstMarker <- rownames(CNA.object)[sr$startRow]
+			  endMarker <- rownames(CNA.object)[sr$endRow]
+			  df$start.index <- match(firstMarker, fns)
+			  df$end.index <- match(endMarker, fns)
+			  md.segs[[i]] <- df
+		  }
+		  if(length(md.segs) > 1){
+			  md.segs <- do.call("rbind", md.segs)
+		  } else md.segs=md.segs[[1]]
+		  close(object)
+		  return(md.segs)
+##		  dfl[[CHR]] <- segmentBatchWithCbs(minDistanceSet=minDistanceSet,
+##						    marker.index=marker.index.list[[CHR]],
+##						    sample.index=ix,
+##						    CHR=CHR,
+##						    verbose=verbose)
+		  ##	  }
+##	  close(minDistanceSet)
+##	  df <- do.call("rbind", dfl)
+##	  return(df)
+})
