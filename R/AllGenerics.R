@@ -29,3 +29,12 @@ setGeneric("nMarkers", function(object) standardGeneric("nMarkers"))
 setGeneric("state", function(object) standardGeneric("state"))
 setGeneric("mindist<-", function(object,value) standardGeneric("mindist<-"))
 setGeneric("calculateMindist", function(object, ...) standardGeneric("calculateMindist"))
+
+##setGeneric("updateObject", function(object, ...) standardGeneric("updateObject"))
+setGeneric("logR", function(object) standardGeneric("logR"))
+setGeneric("logR<-", function(object, value) standardGeneric("logR<-"))
+setGeneric("baf<-", function(object, value) standardGeneric("baf<-"))
+setGeneric("baf", function(object) standardGeneric("baf"))
+
+setGeneric("mad")
+setGeneric("mad<-", function(object, value) standardGeneric("mad<-"))

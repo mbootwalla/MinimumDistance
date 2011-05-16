@@ -24,6 +24,9 @@ setClass("MinDistanceSet", contains="MultiSet")
 
 setClassUnion("matrixOrNULL", c("matrix", "NULL", "ff_matrix"))
 
+setClass("LogRatioSet", contains="eSet")
+setClass("BeadStudioSet", contains="eSet")
+
 setClass("TrioSet", contains="LogRatioSet",
 	 representation(phenoData2="array"))
 
@@ -34,13 +37,60 @@ setClass("TrioSet", contains="LogRatioSet",
 	                       new("VersionedBiobase",
 				   versions=c(classVersion("eSet"), TrioSet="0.0.2"))))
 
+setClass("TrioSet", contains="LogRatioSet",
+	 representation(phenoData2="array",
+			mindist="matrixOrNULL",
+			mad="array"),
+	 prototype = prototype(
+	                       new("VersionedBiobase",
+				   versions=c(classVersion("eSet"), TrioSet="0.0.3"))))
+
+
+##setClass("TrioSet", contains="BeadStudioSet",
+##	 representation(phenoData2="array",
+##			mindist="matrixOrNULL"),
+##	 prototype = prototype(
+##	                       new("VersionedBiobase",
+##				   versions=c(classVersion("eSet"), TrioSet="0.0.3"))))
+
 setMethod("updateObject", signature(object="TrioSet"),
           function(object, ..., verbose=FALSE) {
 		  obj <- tryCatch(callNextMethod(), error=function(e) NULL)
 		  if(is.null(obj)){
-			  stop("Update was unsucessfull.")
+			  stop("updateObject failed")
+##			  md <- tryCatch(mindist(object), error=function(e) NULL)
+##			  if(is.null(md)){
+##				  object <- new("TrioSet",
+##					     logRRatio=logR(object),
+##					     BAF=baf(object),
+##					     phenoData=phenoData(object),
+##					     phenoData2=object@phenoData2,
+##					     experimentData=experimentData(object),
+##					     featureData=featureData(object),
+##					     protocolData=protocolData(object),
+##					     mindist=NULL,
+##					     annotation=annotation(object))
+##				  return(object)
+##			  } else {
+##
+##			  }
+##			  mads <- tryCatch(mad(object), error=function(e) NULL)
+##			  if(is.null(mads)){
+##				  callNextMethod(mad=array())
+##			  } else
+##				  object <- new("TrioSet",
+##					     logRRatio=logR(object),
+##					     BAF=baf(object),
+##					     phenoData=phenoData(object),
+##					     phenoData2=object@phenoData2,
+##					     experimentData=experimentData(object),
+##					     featureData=featureData(object),
+##					     protocolData=protocolData(object),
+##					     mindist=mindist(object),
+##					     annotation=annotation(object))
+##			  }
 		  }
-		  return(obj)
+		  return(object)
 	  })
 ##  AssayDataElements are T x M arrays
 ##          T= number features

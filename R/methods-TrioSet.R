@@ -242,6 +242,8 @@ setMethod("calculateMindist", signature(object="TrioSet"), function(object, ...)
 		object$MAD[j] <- mad(md, na.rm=TRUE)
 		##minDistanceSet$MAD[j] <- mad(md, na.rm=TRUE)
 	}
+	close(mindist(object))
+	close(logR(object))
 	##mindist[index, j] <- d2[-index]
 ##	for(j in seq_along(sns)){
 ##		offspring.name <- sns[j]
@@ -270,3 +272,11 @@ setMethod("calculateMindist", signature(object="TrioSet"), function(object, ...)
 ##	}
 	return(object)
 })
+
+setMethod("mad", signature(x="TrioSet"), function(x) x@mad)
+
+setReplaceMethod("mad", signature(object="TrioSet", value="ANY"),
+	  function(object, value){
+		  object@mad <- value
+		  return(object)
+	  })

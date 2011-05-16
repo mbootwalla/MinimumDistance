@@ -1,20 +1,30 @@
 useDynLib("Beaty", .registration=TRUE)
 importFrom(graphics, abline, axis, layout, legend, mtext, par, plot,
 	   polygon, rect, segments, text)
-importClassesFrom(mybase, LogRatioSet)
-importMethodsFrom(Biobase, annotatedDataFrameFrom)
+##importClassesFrom(mybase, LogRatioSet)
+importMethodsFrom(Biobase, annotatedDataFrameFrom, updateObject)
 importFrom(Biobase, assayDataElementReplace)
-importMethodsFrom(mybase, baf, "baf<-")
-importMethodsFrom(mybase, logR, "logR<-")
-importFrom(mybase, unique)
+
+##importMethodsFrom(mybase, baf, "baf<-")
+##importMethodsFrom(mybase, logR, "logR<-")
+##importFrom(mybase, unique)
+importFrom(stats, mad)
+
+
 importClassesFrom(IRanges, RangedData, IRanges, DataTable, Vector, Annotated, List, DataTableORNULL)
 importMethodsFrom(IRanges, start, end)
+
 importMethodsFrom(oligoClasses, open, close)
-importFrom(oligoClasses, isFF)
+importFrom(oligoClasses, isFF, getBar)
+
+importFrom(ff, filename)
+
+
 ##exportPattern("^[^\\.]")
 exportClasses(RangedDataCNV, TrioSet)
 exportMethods(plot, nMarkers, state, copyNumber, open, close,
-	      calculateMindist, mindist, "mindist<-")
+	      calculateMindist, mindist, "mindist<-", updateObject,
+	      logR, baf, "logR<-", "baf<-", mad, "mad<-")
 export(ssampleNames, sssampleNames, ss, s, fullId)
 export(beadstudiodir,
        completeTrios, getAllBayesFactorRanges,
