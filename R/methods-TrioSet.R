@@ -305,7 +305,8 @@ setMethod("xsegment", signature(object="TrioSet"),
 		  if(missing(id)) id <- sampleNames(object)
 		  sample.index <- match(id, sampleNames(object))
 		  stopifnot(length(sample.index) > 0)
-		  open(object)
+		  open(mindist(object))
+		  fns <- featureNames(object)
 		  ##
 		  ##
 		  ##marker.index.list <- split(seq(length=nrow(minDistanceSet)), chromosome(minDistanceSet))
@@ -340,15 +341,6 @@ setMethod("xsegment", signature(object="TrioSet"),
 		  if(length(md.segs) > 1){
 			  md.segs <- do.call("rbind", md.segs)
 		  } else md.segs=md.segs[[1]]
-		  close(object)
+		  close(mindist(object))
 		  return(md.segs)
-##		  dfl[[CHR]] <- segmentBatchWithCbs(minDistanceSet=minDistanceSet,
-##						    marker.index=marker.index.list[[CHR]],
-##						    sample.index=ix,
-##						    CHR=CHR,
-##						    verbose=verbose)
-		  ##	  }
-##	  close(minDistanceSet)
-##	  df <- do.call("rbind", dfl)
-##	  return(df)
 })
