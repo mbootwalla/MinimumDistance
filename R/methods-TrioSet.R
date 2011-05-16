@@ -119,6 +119,7 @@ setMethod("[", "TrioSet", function(x, i, j, ..., drop = FALSE) {
 	if (!missing(j)) {
 		phenoData(x) <- phenoData(x)[j,, ..., drop = drop]
 		protocolData(x) <- protocolData(x)[j,, ..., drop = drop]
+		mad(x) <- mad(x)[j,,...,drop=drop]
 	}
 	if (!missing(i))
 		featureData(x) <- featureData(x)[i, ,..., drop=drop]
@@ -315,6 +316,8 @@ setMethod("xsegment", signature(object="TrioSet"),
 		  pos <- position(object)[marker.index]
 		  chrom <- chromosome(object)[marker.index]
 		  CN <- mindist(object)[marker.index, sample.index, drop=FALSE]
+		  CN <- matrix(as.numeric(CN), nrow(CN), ncol(CN))
+		  dimnames(CN) <- list(featureNames(object)[marker.index], sampleNames(object)[sample.index])
 		  arm <- getChromosomeArm(chrom, pos)
 		  index.list <- split(seq_along(marker.index), arm)
 		  md.segs <- list()
