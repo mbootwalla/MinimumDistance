@@ -13,7 +13,7 @@ THISPKG <- "Beaty"
 	options(prompt="R> ", continue=" ", width=70)##device=pdf
 	##library(Study)
 ##	library(oligoClasses)
-	library(BeatyExperimentData)
+##	library(BeatyExperimentData)
 #3	library(SNPchip)
 #3	library(DNAcopy)
 #3	library(IRanges)

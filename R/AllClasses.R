@@ -50,9 +50,6 @@ setClass("TrioSet", contains="LogRatioSet",
 
 setClass("TrioSetList", contains="list")
 
-
-
-
 ##setClass("TrioSet", contains="BeadStudioSet",
 ##	 representation(phenoData2="array",
 ##			mindist="matrixOrNULL"),

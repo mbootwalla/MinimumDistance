@@ -6,5 +6,5 @@ setMethod("xsegment", signature(object="TrioSetList"),
 	  })
 setMethod("sampleNames", signature(object="TrioSetList"),
 	  function(object) sampleNames(object[[1]]))
-setMethod("ncol", signature(object="TrioSetList"),
-	  function(object) ncol(object[[1]]))
+setMethod("ncol", signature(x="TrioSetList"),
+	  function(x) ncol(x[[1]]))
