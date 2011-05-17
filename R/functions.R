@@ -539,33 +539,43 @@ loadRangesCbs <- function(outdir, pattern, CHR, name){
 
 
 ##loadRanges <- function(outdir, pattern, CHR, name){
-readCbsBatchFiles <- function(outdir, pattern, CHR, name){
+readCbsBatchFiles <- function(outdir, pattern, name){
 	fnames <- list.files(outdir, pattern=pattern, full.name=TRUE)
-	if(missing(name)) stop("must specify R object name when saved.")
-	if(length(fnames) == 0) stop(paste("There are no segmentation files for chrom", CHR))
-	segmeans <- vector("list", length(fnames))
-	for(i in seq_along(segmeans)){
+	dfl <- vector("list", length(fnames))
+	for(i in seq_along(fnames)){
 		load(fnames[i])
-		cbs.segs <- get(name)
-##		rd <- RangedData(IRanges(start=cbs.segs$startRow,
-##					 end=cbs.segs$endRow),
-##				 pos.start=cbs.segs$loc.start,
-		rd <- RangedData(IRanges(cbs.segs$loc.start,
-					 cbs.segs$loc.end),
-				 ##pos.end=cbs.segs$loc.end,
-				 ##num.mark=cbs.segs$num.mark,
-				 id=cbs.segs$ID,
-				 num.mark=cbs.segs$num.mark,
-				 chrom=cbs.segs$chrom,
-				 seg.mean=cbs.segs$seg.mean)
-		segmeans[[i]] <- rd
+		dfl[[i]] <- get(name)
 	}
-	rdlist <- RangedDataList(segmeans)
-	rd <- stack(rdlist)
-	ix <- match("sample", colnames(rd))
-	if(length(ix) > 0) rd <- rd[, -ix]
-	rd$id <- substr(rd$id, 2, 9)
-	return(rd)
+	df <- do.call("rbind", dfl)
+	return(df)
+}
+
+
+##	if(missing(name)) stop("must specify R object name when saved.")
+##	if(length(fnames) == 0) stop(paste("There are no segmentation files for chrom", CHR))
+##	segmeans <- vector("list", length(fnames))
+##	for(i in seq_along(segmeans)){
+##		load(fnames[i])
+##		cbs.segs <- get(name)
+####		rd <- RangedData(IRanges(start=cbs.segs$startRow,
+####					 end=cbs.segs$endRow),
+####				 pos.start=cbs.segs$loc.start,
+##		rd <- RangedData(IRanges(cbs.segs$loc.start,
+##					 cbs.segs$loc.end),
+##				 ##pos.end=cbs.segs$loc.end,
+##				 ##num.mark=cbs.segs$num.mark,
+##				 id=cbs.segs$ID,
+##				 num.mark=cbs.segs$num.mark,
+##				 chrom=cbs.segs$chrom,
+##				 seg.mean=cbs.segs$seg.mean)
+##		segmeans[[i]] <- rd
+##	}
+##	rdlist <- RangedDataList(segmeans)
+##	rd <- stack(rdlist)
+##	ix <- match("sample", colnames(rd))
+##	if(length(ix) > 0) rd <- rd[, -ix]
+##	rd$id <- substr(rd$id, 2, 9)
+##	return(rd)
 ##	segmean_ranges <- do.call("c", segmeans)
 ##	if(substr(segmean_ranges$id[1], 1, 1) == "X"){
 ##		segmean_ranges$id <- substr(segmean_ranges$id, 2, 9)
@@ -579,7 +589,7 @@ readCbsBatchFiles <- function(outdir, pattern, CHR, name){
 ##				     seg.mean=segmean_ranges$seg.mean,
 ##				     pedId=who(segmean_ranges$id))
 ##	segmean_ranges
-}
+##}
 
 excludeRanges <- function(segmeans, lrSet){
 	##trace(getSegMeanRanges, browser)
@@ -3474,7 +3484,6 @@ pennfig8 <- function(penn.denovo, CHR=8, pass.qc=TRUE, ylab="", main=""){
 			   par.strip.text=list(lines=0.7, cex=0.6), main=main)
 	pennfig
 }
-
 
 
 getAllBayesFactorRanges <- function(path=beadstudiodir()){

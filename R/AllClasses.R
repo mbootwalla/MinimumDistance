@@ -7,12 +7,15 @@ setOldClass("ff_array")
 
 setClass("RangedDataCNV", contains="RangedData")
 setValidity("RangedDataCNV", function(object){
-	all(c("chrom", "id", "num.mark", "state") %in% colnames(object))
+	all(c("chrom", "id", "num.mark", "state", "seg.mean",
+	      "start.index", "end.index") %in% colnames(object))
 })
-setClass("RangedDataCNVPlus", contains="RangedDataCNV")
-setValidity("RangedDataCNV", function(object){
-	all(c("seg.mean", "start.index", "end.index") %in% colnames(object))
-})
+
+
+##setClass("RangedDataCNVPlus", contains="RangedDataCNV")
+##setValidity("RangedDataCNV", function(object){
+##	all(c("seg.mean", "start.index", "end.index") %in% colnames(object))
+##})
 
 setClass("MinDistanceSet", contains="MultiSet")
 
