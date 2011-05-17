@@ -310,6 +310,7 @@ constructMinDistanceContainer <- function(bsSet){
 	minDistanceSet
 }
 
+##default.DNAcopy.bdry <- DNAcopy:::default.DNAcopy.bdry
 ##segmentMD <- function(minDistanceSet,
 ##		      id,
 ##		      verbose=FALSE, ...){

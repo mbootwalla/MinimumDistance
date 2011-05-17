@@ -18,11 +18,12 @@ importFrom(oligoClasses, isFF, getBar)
 
 importFrom(ff, filename)
 
-importFrom(DNAcopy, CNA, segment, smooth.CNA)
+importFrom(DNAcopy, CNA, segment, smooth.CNA, getbdry)
 
 
 ##exportPattern("^[^\\.]")
-exportClasses(RangedDataCNV, TrioSet, LogRatioSet)
+exportClasses(RangedDataCNV, TrioSet, LogRatioSet, TrioSetList)
+
 exportMethods(plot, nMarkers, state, copyNumber, open, close,
 	      calculateMindist, mindist, "mindist<-", updateObject,
 	      logR, baf, "logR<-", "baf<-", mad, "mad<-", xsegment,

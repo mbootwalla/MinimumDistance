@@ -48,6 +48,10 @@ setClass("TrioSet", contains="LogRatioSet",
 	                       new("VersionedBiobase",
 				   versions=c(classVersion("LogRatioSet"), TrioSet="0.0.3"))))
 
+setClass("TrioSetList", contains="list")
+
+
+
 
 ##setClass("TrioSet", contains="BeadStudioSet",
 ##	 representation(phenoData2="array",

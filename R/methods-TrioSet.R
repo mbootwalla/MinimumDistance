@@ -295,6 +295,7 @@ setReplaceMethod("phenoData2", signature(object="TrioSet", value="ANY"), functio
 })
 setMethod("varLabels2", signature(object="TrioSet"), function(object) colnames(phenoData2(object)))
 
+
 setMethod("xsegment", signature(object="TrioSet"),
 	  function(object, id, ..., verbose=FALSE){
 		  ## needs to be ordered
