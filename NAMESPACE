@@ -18,6 +18,8 @@ importFrom(oligoClasses, isFF, getBar)
 
 importFrom(ff, filename)
 
+importFrom(DNAcopy, CNA, segment, smooth.CNA)
+
 
 ##exportPattern("^[^\\.]")
 exportClasses(RangedDataCNV, TrioSet, LogRatioSet)
