@@ -27,7 +27,7 @@ exportClasses(RangedDataCNV, TrioSet, LogRatioSet, TrioSetList)
 exportMethods(plot, nMarkers, state, copyNumber, open, close,
 	      calculateMindist, mindist, "mindist<-", updateObject,
 	      logR, baf, "logR<-", "baf<-", mad, "mad<-", xsegment,
-	      phenoData2, "phenoData2<-")
+	      phenoData2, "phenoData2<-", ncol)
 export(ssampleNames, sssampleNames, ss, s, fullId)
 export(beadstudiodir,
        completeTrios, getAllBayesFactorRanges,
