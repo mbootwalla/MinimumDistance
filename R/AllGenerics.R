@@ -37,6 +37,7 @@ setGeneric("baf<-", function(object, value) standardGeneric("baf<-"))
 setGeneric("baf", function(object) standardGeneric("baf"))
 
 setGeneric("mad")
+setGeneric("ncol")
 setGeneric("mad<-", function(object, value) standardGeneric("mad<-"))
 ##setGeneric("segment")
 setGeneric("xsegment", function(object, id, ..., verbose=FALSE) standardGeneric("xsegment"))

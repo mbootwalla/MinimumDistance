@@ -4,7 +4,7 @@ importFrom(graphics, abline, axis, layout, legend, mtext, par, plot,
 
 importClassesFrom(Biobase, eSet)
 importMethodsFrom(Biobase, annotatedDataFrameFrom, updateObject)
-importFrom(Biobase, assayDataElementReplace)
+importFrom(Biobase, assayDataElementReplace, sampleNames)
 
 ##importFrom(mybase, unique)
 importFrom(stats, mad)
