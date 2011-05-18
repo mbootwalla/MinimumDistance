@@ -99,6 +99,12 @@ setMethod("updateObject", signature(object="TrioSet"),
 		  }
 		  return(object)
 	  })
+
+setClass("DataFrameCNV", representation(row.names="character",
+					names="character"),
+	 contains="list")
+
+
 ##  AssayDataElements are T x M arrays
 ##          T= number features
 ##          M= 3 (Father, Mother, Offspring)

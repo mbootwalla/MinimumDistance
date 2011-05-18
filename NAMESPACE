@@ -11,8 +11,8 @@ importFrom(stats, mad)
 
 
 importClassesFrom(IRanges, RangedData, IRanges, DataTable, Vector, Annotated, List, DataTableORNULL)
-importMethodsFrom(IRanges, start, end, "[", "[[","[<-", "[[<-", "$")
-importFrom(IRanges, IRanges, RangedData, RangedDataList, stack)
+importMethodsFrom(IRanges, start, end, "[", "[[","[<-", "[[<-", "$")##, stack, rbind)
+importFrom(IRanges, IRanges, RangedData, RangedDataList)
 
 importMethodsFrom(oligoClasses, open, close)
 importFrom(oligoClasses, isFF, getBar)
@@ -23,13 +23,13 @@ importFrom(DNAcopy, CNA, segment, smooth.CNA, getbdry)
 
 
 ##exportPattern("^[^\\.]")
-exportClasses(RangedDataCNV, TrioSet, LogRatioSet, TrioSetList)
-exportMethods(plot, nMarkers, state, copyNumber, open, close,
+exportClasses(DataFrameCNV, RangedDataCNV, TrioSet, LogRatioSet, TrioSetList)
+exportMethods(dim, dimnames, plot, nMarkers, state, copyNumber, open, close,
 	      calculateMindist, mindist, "mindist<-", updateObject,
 	      logR, baf, "logR<-", "baf<-", mad, "mad<-", xsegment, prune,
-	      phenoData2, "phenoData2<-", ncol, RangedDataCNV)
-export(ssampleNames, sssampleNames, ss, s, fullId)
-export(beadstudiodir,
+	      phenoData2, "phenoData2<-", ncol, RangedDataCNV)##, stack, rbind)
+export(ssampleNames, sssampleNames, ss, s, fullId,
+       beadstudiodir,
        completeTrios,
        computeBayesFactor,
        getAllBayesFactorRanges,
