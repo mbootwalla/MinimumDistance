@@ -100,7 +100,15 @@ setMethod("updateObject", signature(object="TrioSet"),
 		  return(object)
 	  })
 
-setClassUnion("DataFrameCNV", "data.frame")
+##setClassUnion("dataFrame", "data.frame")
+setClass("DataFrameCNV", contains="data.frame")
+##setMethod("initialize", signature(.Object="DataFrameCNV"),
+##	  function(.Object, ...){
+##		  .Object <- callNextMethod(.Object, ...)
+##	  })
+##DataFrameCNV <- function(...) data.frame()
+
+
 
 ##setClass("DataFrameCNV", representation(row.names="character",
 ##					names="character"),

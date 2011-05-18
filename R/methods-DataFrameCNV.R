@@ -1,31 +1,30 @@
 ##setMethod("dimnames", "DataFrameCNV", function(x) list(x@row.names, names(x)))
 ##setMethod("dim", "DataFrameCNV", function(x) c(length(x@row.names), length(x)))
 
+setClass("someClass", contains="numeric")
 
-setMethod("plot", signature(x="DataFrameCNV"),
-	  function(x, y, ...){
+setMethod("xyplot", signature(x="formula", data="DataFrameCNV"),
+	  function(x, data, ...){
 		  data(chromosomeAnnotation)
-		  df <- as.data.frame(x@.Data)
-		  colnames(df) <- names(x)
-		  df$x <- df$midpoint
-		  fig <- xyplot(y~x, data=df,
+		  data <- as(data, "data.frame")
+		  ## could we do UseMethod here?
+		  fig <- xyplot(x, data=data,
 				panel=my.xypanel,
-				x0=df$x0,
-				x1=df$x1,
-				col=df$col,
-				border=df$border,
+				x0=data$x0,
+				x1=data$x1,
+				col=data$col,
+				border=data$border,
 				alpha=1,
-				chr=df$chr,
-				chr.size=df$chr.size,
-				coverage=df$coverage,
+				chr=data$chr,
+				chr.size=data$chr.size,
+				coverage=data$coverage,
 				xlab="Mb",
 				ylab="offspring index",
-				##key=getKey(df),
+				##key=getKey(data),
 				par.strip.text=list(lines=0.7, cex=0.6),
 				prepanel=prepanel.fxn,
-				max.y=max(df$y),
-				chromosomeAnnotation=chromosomeAnnotation,
-				...)
+				max.y=max(data$y),
+				chromosomeAnnotation=chromosomeAnnotation,...)
 		  return(fig)
 	  })
 

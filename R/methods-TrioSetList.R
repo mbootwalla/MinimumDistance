@@ -19,3 +19,16 @@ setMethod("prune", signature(object="TrioSetList", ranges="RangedDataCNV"),
 				   scale.exp=scale.exp,
 				   verbose=verbose, ...)
 	  })
+
+offspringNames <- function(object){
+	pd2=phenoData2(object[[1]])
+	pd2[, "CIDR_Name", "O"]
+}
+fatherNames <- function(object){
+	pd2=phenoData2(object[[1]])
+	pd2[, "CIDR_Name", "F"]
+}
+motherNames <- function(object){
+	pd2=phenoData2(object[[1]])
+	pd2[, "CIDR_Name", "M"]
+}

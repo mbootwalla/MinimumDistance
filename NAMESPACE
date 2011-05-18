@@ -21,13 +21,15 @@ importFrom(ff, filename)
 
 importFrom(DNAcopy, CNA, segment, smooth.CNA, getbdry)
 
+importFrom(lattice, xyplot)
 
 ##exportPattern("^[^\\.]")
 exportClasses(DataFrameCNV, RangedDataCNV, TrioSet, LogRatioSet, TrioSetList)
 exportMethods(plot, nMarkers, state, copyNumber, open, close,
 	      calculateMindist, mindist, "mindist<-", updateObject,
 	      logR, baf, "logR<-", "baf<-", mad, "mad<-", xsegment, prune,
-	      phenoData2, "phenoData2<-", ncol, RangedDataCNV)##, stack, rbind)
+	      phenoData2, "phenoData2<-", ncol, RangedDataCNV,
+	      xyplot)##, stack, rbind)
 export(ssampleNames, sssampleNames, ss, s, fullId,
        beadstudiodir,
        completeTrios,
@@ -35,6 +37,9 @@ export(ssampleNames, sssampleNames, ss, s, fullId,
        getAllBayesFactorRanges,
        isDenovo, readPennCnv, harmonizeStates, pennStats,
        pennDenovoFreq, loadBatchFiles, readPedfile,
-       wrapperPosteriorProbs)
+       wrapperPosteriorProbs,
+       getKey,
+       my.xypanel,
+       prepanel.fxn)
 
 
