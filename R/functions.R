@@ -538,15 +538,19 @@ loadRangesCbs <- function(outdir, pattern, CHR, name){
 }
 
 
-##loadRanges <- function(outdir, pattern, CHR, name){
-readCbsBatchFiles <- function(outdir, pattern, name){
+## load and try to rbind the list
+loadBatchFiles <- function(outdir, pattern, name){
 	fnames <- list.files(outdir, pattern=pattern, full.name=TRUE)
 	dfl <- vector("list", length(fnames))
 	for(i in seq_along(fnames)){
 		load(fnames[i])
 		dfl[[i]] <- get(name)
 	}
-	df <- do.call("rbind", dfl)
+	if(length(dfl) == 1) df <- dfl[[1]]
+	if(length(dfl) > 1) df <- tryCatch(df <- do.call("rbind", dfl), error=function(e) NULL)
+	if(is.null(df)) {
+		return(dfl)
+	}
 	return(df)
 }
 
@@ -2082,61 +2086,61 @@ pruneMD <- function(genomdat,
 
 
 
-pruneRanges <- function(CHR,
-			bsSet,
-			minDistanceSet,
-			ids,
-			lambda=0.05,
-			MIN.CHANGE=0.1,
-			SCALE.EXP=0.02,
-			MIN.COVERAGE=3, verbose=TRUE){
-	stopifnot(length(CHR)==1)
-	open(copyNumber(minDistanceSet))
-	open(baf(bsSet))
-	open(logR(bsSet))
-	open(bsSet$MAD)
-	open(minDistanceSet$MAD)
-	range.object <- loadRanges(beadstudiodir(), pattern=paste("md.segs_chr", CHR, "_", sep=""), CHR=CHR, name="md.segs")
-	if(!missing(ids)) range.object <- range.object[ss(range.object$id) %in% ids, ]
-	fD <- featureData(bsSet)[chromosome(bsSet)==CHR, ]
-	range.object <- addIndicesFromFeatureData(range.object, fD)
-	mads <- minDistanceSet$MAD
-	mads <- mads[match(range.object$id, sampleNames(minDistanceSet))]
-	range.object$mad <- mads
-	## pruning is sample-specific (different noise)
-	samples.in.range <- unique(range.object$id)
-	rdList <- vector("list", length(samples.in.range))
-	for(j in seq_along(samples.in.range)){
-		if(verbose) if(j %% 100==0) message('   sample (', j, '/', length(samples.in.range), ')')
-		rd <- range.object[range.object$id==samples.in.range[j], ]
-		k <- match(samples.in.range[j], sampleNames(minDistanceSet))
-		genomdat <- as.numeric(copyNumber(minDistanceSet)[chromosome(minDistanceSet) == CHR, k])
-		##trace(prune, browser)
-		range.pruned <- prune(genomdat,
-				      rd,
-				      physical.pos=fD$position,
-				      lambda=lambda,
-				      MIN.CHANGE=MIN.CHANGE,
-				      SCALE.EXP=SCALE.EXP,
-				      MIN.COVERAGE=MIN.COVERAGE)
-		rdList[[j]] <- range.pruned
-	}
-	rdList <- rdList[!sapply(rdList, is.null)]
-	range.pruned <- do.call("c", rdList)
-	range.pruned <- RangedData(IRanges(start(range.pruned), end(range.pruned)),
-				    chrom=range.pruned$chrom,
-				    id=range.pruned$id,
-				    num.mark=range.pruned$num.mark,
-				    seg.mean=range.pruned$seg.mean,
-				    start.index=range.pruned$start.index,
-				    end.index=range.pruned$end.index)
-	close(copyNumber(minDistanceSet))
-	close(baf(bsSet))
-	close(logR(bsSet))
-	close(bsSet$MAD)
-	close(minDistanceSet$MAD)
-	return(range.pruned)
-}
+##pruneRanges <- function(CHR,
+##			bsSet,
+##			minDistanceSet,
+##			ids,
+##			lambda=0.05,
+##			MIN.CHANGE=0.1,
+##			SCALE.EXP=0.02,
+##			MIN.COVERAGE=3, verbose=TRUE){
+##	stopifnot(length(CHR)==1)
+##	open(copyNumber(minDistanceSet))
+##	open(baf(bsSet))
+##	open(logR(bsSet))
+##	open(bsSet$MAD)
+##	open(minDistanceSet$MAD)
+##	range.object <- loadRanges(beadstudiodir(), pattern=paste("md.segs_chr", CHR, "_", sep=""), CHR=CHR, name="md.segs")
+##	if(!missing(ids)) range.object <- range.object[ss(range.object$id) %in% ids, ]
+##	fD <- featureData(bsSet)[chromosome(bsSet)==CHR, ]
+##	range.object <- addIndicesFromFeatureData(range.object, fD)
+##	mads <- minDistanceSet$MAD
+##	mads <- mads[match(range.object$id, sampleNames(minDistanceSet))]
+##	range.object$mad <- mads
+##	## pruning is sample-specific (different noise)
+##	samples.in.range <- unique(range.object$id)
+##	rdList <- vector("list", length(samples.in.range))
+##	for(j in seq_along(samples.in.range)){
+##		if(verbose) if(j %% 100==0) message('   sample (', j, '/', length(samples.in.range), ')')
+##		rd <- range.object[range.object$id==samples.in.range[j], ]
+##		k <- match(samples.in.range[j], sampleNames(minDistanceSet))
+##		genomdat <- as.numeric(copyNumber(minDistanceSet)[chromosome(minDistanceSet) == CHR, k])
+##		##trace(prune, browser)
+##		range.pruned <- prune(genomdat,
+##				      rd,
+##				      physical.pos=fD$position,
+##				      lambda=lambda,
+##				      MIN.CHANGE=MIN.CHANGE,
+##				      SCALE.EXP=SCALE.EXP,
+##				      MIN.COVERAGE=MIN.COVERAGE)
+##		rdList[[j]] <- range.pruned
+##	}
+##	rdList <- rdList[!sapply(rdList, is.null)]
+##	range.pruned <- do.call("c", rdList)
+##	range.pruned <- RangedData(IRanges(start(range.pruned), end(range.pruned)),
+##				    chrom=range.pruned$chrom,
+##				    id=range.pruned$id,
+##				    num.mark=range.pruned$num.mark,
+##				    seg.mean=range.pruned$seg.mean,
+##				    start.index=range.pruned$start.index,
+##				    end.index=range.pruned$end.index)
+##	close(copyNumber(minDistanceSet))
+##	close(baf(bsSet))
+##	close(logR(bsSet))
+##	close(bsSet$MAD)
+##	close(minDistanceSet$MAD)
+##	return(range.pruned)
+##}
 
 ##prune <- function(range.object, minDistanceSet, ...){
 ##	drop.col <- match("pedId", colnames(range.object))
@@ -2581,7 +2585,7 @@ joint1 <- function(LLT, ##object,
 	return(res)
 }
 
-joint4 <- function(bsSet,
+.joint4 <- function(bsSet,
 		   ranges,
 		   states,
 		   baf.sds,
@@ -2731,7 +2735,145 @@ joint4 <- function(bsSet,
 	ranges
 }
 
-computeBayesFactor <- function(range.object,
+joint4 <- function(trioSet,
+		    ranges,
+		    states,
+		    baf.sds,
+		    THR=-50,
+		    mu.logr=c(-2,-0.5, 0, 0.3, 0.75),
+		    log.pi,
+		    tau,
+		    normal.index,
+		    a=0.0009,
+		    verbose=TRUE,
+		    prGtCorrect=0.999){
+	stopifnot(states == 0:4)
+	family.id <- unique(ss(ranges$id))
+	fmonames <- paste(ss(family.id), c("03", "02", "01"), sep="_")
+	object <- computeLoglik(id=fmonames,
+				bsSet=bsSet,
+				CHR=ranges$chrom[[1]],
+				mu.logr=mu.logr,
+				states=states,
+				baf.sds=baf.sds,
+				THR=THR,
+				prGtCorrect=prGtCorrect)
+	start.stop <- cbind(ranges$start.index, ranges$end.index)
+	l <- apply(start.stop, 1, function(x) length(x[1]:x[2]))
+	fData(object)$range.index <- rep(seq(length=nrow(ranges)), l)
+	trio.states <- trioStates(states)
+	tmp <- matrix(NA, nrow(trio.states), 2)
+	colnames(tmp) <- c("DN=0", "DN=1")
+	## take into account 'the prior'
+	##  -- the probability of transitioning to and from an altered state for each range
+	##  -- the initial state probability if range is denovo
+	##  -- the initial state probability of range is not denovo
+	state.prev <- NULL
+	denovo.prev <- NULL
+	table1 <- readTable1(a=a)
+	table3 <- readTable3(a=a)
+	weightR <- 1/3
+	for(i in seq(length=nrow(ranges))){
+		obj <- object[range.index(object) == i, ]
+		LLR <- loglik(obj)["logR", , ,  ]
+		LLB <- loglik(obj)["baf", , , ]
+		LL <- weightR * LLR + (1-weightR)*LLB
+		LLT <- matrix(NA, 3, 5)
+		for(j in 1:3) LLT[j, ] <- apply(LL[, j, ], 2, sum, na.rm=TRUE)
+		for(j in 1:nrow(trio.states)){
+			for(DN in c(FALSE, TRUE)){
+				tmp[j, DN+1] <- joint1(##object=obj,
+						       LLT=LLT,
+						       trio.states=trio.states,
+						      tau=tau,
+						      log.pi=log.pi,
+						      normal.index=normal.index,
+						      segment.index=i,
+						      state.index=j,
+						      table1=table1,
+						      table3=table3,
+						      is.denovo=DN,
+						      state.prev=state.prev,
+						      denovo.prev=denovo.prev)
+			}
+		}
+		## RS 4/29/2011
+		##integrate out the denovo indicator
+		##one.finite <- which(rowSums(is.finite(tmp))==1)
+		argmax1 <- which.max(tmp[,1])
+		argmax2 <- which.max(tmp[,2])
+		if(argmax1 != argmax2){
+			lik1 <- tmp[argmax1, 1]
+			lik2 <- tmp[argmax2, 2]
+			if(lik1 >= lik2){
+				argmax <- argmax1
+				is.denovo <- FALSE
+				bf <- tmp[argmax1, 1]
+			} else{
+				is.denovo <- TRUE
+				argmax <- argmax2
+				bf <- tmp[argmax2, 2]
+			}
+		} else{
+			argmax <- argmax1
+			is.denovo <- FALSE
+			bf <- tmp[argmax1, 1]
+		}
+		ranges$bayes.factor[i] <- bf
+		ranges$DN[i] <- is.denovo
+		ranges$argmax[i] <- argmax
+		denovo.prev <- is.denovo
+		state.prev <- trio.states[argmax, ]
+	}
+	ranges
+}
+
+computeBayesFactor <- function(object,
+			       trioSet,
+			       states=0:4,
+			       baf.sds=c(0.02, 0.03, 0.02),
+			       THR=-50,
+			       mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
+			       log.pi,
+			       tau,
+			       normal.index=61,
+			       a=0.0009,
+			       prGtCorrect=0.999,
+			       verbose=TRUE){
+	stopifnot(!missing(tau))
+	stopifnot(!missing(log.pi))
+	stopifnot(!missing(bsSet))
+	range.object$bayes.factor <- NA
+	range.object$argmax <- NA
+	range.object$DN <- NA
+	ids <- unique(range.object$id)
+	for(i in seq_along(ids)){
+		this.id <- ids[i]
+		if(verbose){
+			if(i %% 100 == 0)
+				message("   sample ", this.id, " (", i, "/", length(ids), ")")
+		}
+		j <- which(range.object$id == this.id)
+		rd <- joint4(trioSet=trioSet,
+			     ranges=range.object[j, ],
+			     states=states,
+			     baf.sds=baf.sds,
+			     THR=THR,
+			     mu.logr=mu.logr,
+			     log.pi=log.pi,
+			     tau=tau,
+			     normal.index=normal.index,
+			     a=a,
+			     prGtCorrect=prGtCorrect,
+			     verbose=verbose)##, F=F, M=M, O=O)
+		range.object$bayes.factor[j] <- rd$bayes.factor
+		range.object$argmax[j] <- rd$argmax
+		range.object$DN[j] <- rd$DN
+	}
+	range.object
+}
+
+.computeBayesFactor <- function(range.object,
 			       bsSet,
 			       states=0:4,
 			       baf.sds=c(0.02, 0.03, 0.02),

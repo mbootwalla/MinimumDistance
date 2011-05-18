@@ -32,7 +32,7 @@ export(ssampleNames, sssampleNames, ss, s, fullId)
 export(beadstudiodir,
        completeTrios, getAllBayesFactorRanges,
        isDenovo, readPennCnv, harmonizeStates, pennStats,
-       pennDenovoFreq, readCbsBatchFiles, readPedfile,
+       pennDenovoFreq, loadBatchFiles, readPedfile,
        wrapperPosteriorProbs)
 
 

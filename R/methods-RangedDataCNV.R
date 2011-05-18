@@ -14,45 +14,6 @@ setMethod("RangedDataCNV", signature(ranges="IRanges"),
 
 setMethod("chromosome", signature(object="RangedDataCNV"), function(object) object$chrom)
 
-setMethod("prune", signature(object="TrioSetList", ranges="RangedDataCNV"),
-	  function(object, ranges, ...){
-		  rdList <- lapply(object, xprune, ranges=ranges, ...)
-	  })
 
-setMethod("prune", signature(object="TrioSet", ranges="RangedDataCNV"),
-	  function(object, ranges, ...){
-		  CHR <- unique(chromosome(object))
-		  if(missing(id)) id <- unique(sampleNames(ranges))
-		  index <- which(chromosome(ranges) == CHR & sampleNames(ranges) %in% id)
-		  ranges <- ranges[index, ]
-		  rdList <- vector("list", length(unique(id)))
-		  open(mindist(object))
-		  for(j in seq_along(id)){
-			  sampleId <- id[j]
-			  rd <- ranges[sampleNames(ranges) == sampleId, ]
-			  stopifnot(nrow(rd) > 0)
-			  ## assign the mad of the minimum distance to the ranges
-			  k <- match(sampleId, sampleNames(object))
-			  ##rd$mad <- object[[1]]$mindist.mad[k]
-			  genomdat <- as.numeric(mindist(object)[, k])
-			  rdList[[j]] <- pruneMD(genomdat,
-						 rd,
-						 physical.pos=position(object),  ##fD$position,
-						 lambda=lambda,
-						 MIN.CHANGE=min.change,
-						 SCALE.EXP=scale.exp,
-						 MIN.COVERAGE=min.coverage)
-		  }
-		  close(mindist(object))
-		  if(length(rdList) == 1) {
-			  rd <- rdList[[1]]
-		  } else {
-			  rdList <- rdList[!sapply(rdList, is.null)]
-			  rd <- RangedDataList(rdList)
-			  rd <- stack(rd)
-			  ix <- match("sample", colnames(rd))
-			  if(length(ix) > 0) rd <- rd[, -ix]
-		  }
-		  return(rd)
-	 })
+
 
