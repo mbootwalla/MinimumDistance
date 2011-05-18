@@ -11,7 +11,7 @@ importFrom(stats, mad)
 
 
 importClassesFrom(IRanges, RangedData, IRanges, DataTable, Vector, Annotated, List, DataTableORNULL)
-importMethodsFrom(IRanges, start, end)
+importMethodsFrom(IRanges, start, end, "[", "[[","[<-", "[[<-", "$")
 importFrom(IRanges, IRanges, RangedData)
 
 importMethodsFrom(oligoClasses, open, close)

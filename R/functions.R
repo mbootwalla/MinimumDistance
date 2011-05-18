@@ -2067,61 +2067,20 @@ prune <- function(genomdat,
 	starts <- physical.pos[segments0[, 1]]
 	ends <- physical.pos[segments0[, 2]]
 	id <- unique(range.object$id)
-	RangedData(IRanges(starts, ends),
-		   id=unique(range.object$id),
-		   chrom=unique(range.object$chrom),
-		   num.mark=lseg,
-		   seg.mean=segmeans,
-		   start.index=segments0[,1],
-		   end.index=segments0[,2],
-		   space=id)
+	RangedDataCNV(IRanges(starts, ends),
+		      id=id,
+		      chrom=unique(range.object$chrom),
+		      num.mark=lseg,
+		      seg.mean=segmeans,
+		      start.index=segments0[,1],
+		      end.index=segments0[,2],
+		      mindist.mad=range.object$mad[1],
+		      space=id)
 }
 
 
 
-setMethod("xprune", signature(ranges="RangedDataCNV"),
-	  function(ranges, id, trioSets, lambda=0.05,
-		   min.change=0.02, min.coverage=3,
-		   scale.exp, CHR,
-		   verbose, ...){
-		 trioSet <- trioSets[[CHR]]
-		 ranges <- ranges[chromosome(ranges)==CHR, ]
-		 if(missing(id)) id <- unique(id(ranges))
-		 rdList <- vector("list", length(unique(id)))
-		 for(j in seq_along(id)){
-			 sampleId <- id[j]
-			 rd <- ranges[id(ranges) == sampleId, ]
-			 stopifnot(nrow(rd) > 0)
-			 ## assign the mad of the minimum distance to the ranges
-			 ix <- match(id(rd), sampleNames(trioSets))
-			 rd$mad <- trioSets[[1]]$mindist.mad
-			 ##chrom <- unique(chromosome(rd))
-			 k <- match(sampleId, sampleNames(trioSets))
-			 ##for(l in seq_along(chrom)){
-				## CHR <- chrom[l]
-			 ##rd2 <- rd[chromosome(rd) == CHR, ]
-			 ##stopifnot(nrow(rd2) > 0)
-			 ##trioSet <- trioSets[[CHR]]
-			 genomdat <- as.numeric(mindist(trioSet)[, k])
-			 range.pruned <- prune(genomdat,
-					       rd2,
-					       physical.pos=position(trioSet),  ##fD$position,
-					       lambda=lambda,
-					       MIN.CHANGE=min.change,
-					       SCALE.EXP=scale.exp,
-					       MIN.COVERAGE=min.coverage)
-			 rdList[[j]] <- range.pruned
-		 }
-		 rdList <- rdList[!sapply(rdList, is.null)]
-		 range.pruned <- do.call("c", rdList)
-		 range.pruned <- RangedData(IRanges(start(range.pruned), end(range.pruned)),
-					    chrom=range.pruned$chrom,
-					    id=range.pruned$id,
-					    num.mark=range.pruned$num.mark,
-					    seg.mean=range.pruned$seg.mean,
-					    start.index=range.pruned$start.index,
-					    end.index=range.pruned$end.index)
-	 })
+
 
 pruneRanges <- function(CHR,
 			bsSet,
