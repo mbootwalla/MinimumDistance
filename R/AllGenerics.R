@@ -50,3 +50,13 @@ setGeneric("RangedDataCNV", function(ranges=IRanges(), ..., space=NULL, universe
 	   standardGeneric("RangedDataCNV"))
 
 
+setGeneric("xprune", function(ranges, id, trioSets,
+			      lambda=0.05,
+			      min.change=0.1,
+			      min.coverage=3,
+			      scale.exp=0.02,
+			      CHR,
+			      verbose, ...)
+	   standardGeneric("xprune"))
+
+

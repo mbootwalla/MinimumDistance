@@ -4,7 +4,7 @@ importFrom(graphics, abline, axis, layout, legend, mtext, par, plot,
 
 importClassesFrom(Biobase, eSet)
 importMethodsFrom(Biobase, annotatedDataFrameFrom, updateObject)
-importFrom(Biobase, assayDataElementReplace, sampleNames)
+importFrom(Biobase, assayDataElementReplace, sampleNames, varLabels)
 
 ##importFrom(mybase, unique)
 importFrom(stats, mad)
@@ -24,11 +24,10 @@ importFrom(DNAcopy, CNA, segment, smooth.CNA, getbdry)
 
 ##exportPattern("^[^\\.]")
 exportClasses(RangedDataCNV, TrioSet, LogRatioSet, TrioSetList)
-
 exportMethods(plot, nMarkers, state, copyNumber, open, close,
 	      calculateMindist, mindist, "mindist<-", updateObject,
-	      logR, baf, "logR<-", "baf<-", mad, "mad<-", xsegment,
-	      phenoData2, "phenoData2<-", ncol)
+	      logR, baf, "logR<-", "baf<-", mad, "mad<-", xsegment, xprune,
+	      phenoData2, "phenoData2<-", ncol, RangedDataCNV)
 export(ssampleNames, sssampleNames, ss, s, fullId)
 export(beadstudiodir,
        completeTrios, getAllBayesFactorRanges,
