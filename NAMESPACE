@@ -24,7 +24,7 @@ importFrom(DNAcopy, CNA, segment, smooth.CNA, getbdry)
 
 ##exportPattern("^[^\\.]")
 exportClasses(DataFrameCNV, RangedDataCNV, TrioSet, LogRatioSet, TrioSetList)
-exportMethods(dim, dimnames, plot, nMarkers, state, copyNumber, open, close,
+exportMethods(plot, nMarkers, state, copyNumber, open, close,
 	      calculateMindist, mindist, "mindist<-", updateObject,
 	      logR, baf, "logR<-", "baf<-", mad, "mad<-", xsegment, prune,
 	      phenoData2, "phenoData2<-", ncol, RangedDataCNV)##, stack, rbind)

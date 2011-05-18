@@ -20,7 +20,8 @@ setMethod("plot", signature(x="RangedDataCNV", y="missing"),
 		  plot(x=df, ...)
 	  })
 
-setMethod("todf", signature(object="RangedDataCNV"), function(object, ...){
+
+setMethod("todf", signature(object="RangedDataCNV"), function(object, col=1:3, ...){
 	require(SNPchip)
 	data(chromosomeAnnotation)
 	##object <- object[object$state != normalIndex(hmm.params), ]
@@ -43,6 +44,19 @@ setMethod("todf", signature(object="RangedDataCNV"), function(object, ...){
 		y <- y[match(nms2, names(y))]
 		stopifnot(identical(names(y), nms2))
 	}
+	##
+	states <- state(object)
+	xstates <- rep(NA, length(states))
+	xstates[states %in% offspring.homozygous()] <- "loss (homozygous)"
+	xstates[states %in% offspring.hemizygous()] <- "loss (hemizygous)"
+	xstates[states %in% duplicationStates()] <- "gain"
+	##
+	labels <- factor(xstates, levels=c("loss (homozygous)",
+				  "loss (hemizygous)",
+				  "gain"), ordered=TRUE)
+	colors <- col[as.integer(as.factor(labels))]
+	##colors <- factor(colors, levels=col, ordered=TRUE)
+	##
 	dat <- data.frame(x0=start(object)/1e6,
 			  x1=end(object)/1e6,
 			  y0=y-h/2,
@@ -53,42 +67,16 @@ setMethod("todf", signature(object="RangedDataCNV"), function(object, ...){
 			  id=sampleNames(object),
 			  chr.size=chr.size/1e6,
 			  border=rep("black", nrow(object)),
-			  col=as.integer(as.factor(state(object))),
+			  col=colors,
+			  statelabels=labels,
 			  state=state(object),
 			  y=y,
 			  stringsAsFactors=FALSE)
 	dat$chr <- as.factor(dat$chr)
-	dat <- new("DataFrameCNV", dat)
+	dat <- as(dat, "DataFrameCNV")
+	##dat <- new("DataFrameCNV", dat)
 	return(dat)
 })
-
-
-setMethod("plot", signature(x="DataFrameCNV"),
-	  function(x, ...){
-		  data(chromosomeAnnotation)
-		  df <- as.data.frame(object@.Data)
-		  colnames(df) <- names(object)
-		  df$x <- df$midpoint
-		  fig <- xyplot(y~x, data=df,
-				panel=my.xypanel,
-				x0=df$x0,
-				x1=df$x1,
-				col=df$col,
-				border=df$border,
-				alpha=1,
-				chr=df$chr,
-				chr.size=df$chr.size,
-				coverage=df$coverage,
-				xlab="Mb",
-				ylab="offspring index",
-				key=getKey(df),
-				par.strip.text=list(lines=0.7, cex=0.6),
-				prepanel=prepanel.fxn,
-				max.y=max(df$y),
-				chromosomeAnnotation=chromosomeAnnotation,
-				...)
-		  return(fig)
-	  })
 
 ##setMethod("rbind", "RangedDataCNV", function(..., deparse.level=1){
 ##	x <- lapply(list(...), function(x) as(x, "RangedData"))

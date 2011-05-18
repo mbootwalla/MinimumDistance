@@ -100,9 +100,11 @@ setMethod("updateObject", signature(object="TrioSet"),
 		  return(object)
 	  })
 
-setClass("DataFrameCNV", representation(row.names="character",
-					names="character"),
-	 contains="list")
+setClassUnion("DataFrameCNV", "data.frame")
+
+##setClass("DataFrameCNV", representation(row.names="character",
+##					names="character"),
+##	 contains="list")
 
 
 ##  AssayDataElements are T x M arrays

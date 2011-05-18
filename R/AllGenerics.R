@@ -61,4 +61,4 @@ setGeneric("prune", function(object, ranges, id,
 	   standardGeneric("prune"))
 
 
-setGeneric("todf", function(object, ...) standardGeneric("todf"))
+setGeneric("todf", function(object, col=1:3, ...) standardGeneric("todf"))
