@@ -14,15 +14,15 @@ setMethod("RangedDataCNV", signature(ranges="IRanges"),
 
 setMethod("chromosome", signature(object="RangedDataCNV"), function(object) object$chrom)
 
-setMethod("xprune", signature(object="TrioSetList", ranges="RangedDataCNV"),
+setMethod("prune", signature(object="TrioSetList", ranges="RangedDataCNV"),
 	  function(object, ranges, ...){
 		  rdList <- lapply(object, xprune, ranges=ranges, ...)
 	  })
 
-setMethod("xprune", signature(ranges="RangedDataCNV", trioSet="TrioSet"),
+setMethod("prune", signature(object="TrioSet", ranges="RangedDataCNV"),
 	  function(object, ranges, ...){
 		  CHR <- unique(chromosome(object))
-		  if(missing(id)) id <- unique(id(ranges))
+		  if(missing(id)) id <- unique(sampleNames(ranges))
 		  index <- which(chromosome(ranges) == CHR & sampleNames(ranges) %in% id)
 		  ranges <- ranges[index, ]
 		  rdList <- vector("list", length(unique(id)))
@@ -35,13 +35,13 @@ setMethod("xprune", signature(ranges="RangedDataCNV", trioSet="TrioSet"),
 			  k <- match(sampleId, sampleNames(object))
 			  ##rd$mad <- object[[1]]$mindist.mad[k]
 			  genomdat <- as.numeric(mindist(object)[, k])
-			  rdList[[j]] <- prune(genomdat,
-					       rd,
-					       physical.pos=position(object),  ##fD$position,
-					       lambda=lambda,
-					       MIN.CHANGE=min.change,
-					       SCALE.EXP=scale.exp,
-					       MIN.COVERAGE=min.coverage)
+			  rdList[[j]] <- pruneMD(genomdat,
+						 rd,
+						 physical.pos=position(object),  ##fD$position,
+						 lambda=lambda,
+						 MIN.CHANGE=min.change,
+						 SCALE.EXP=scale.exp,
+						 MIN.COVERAGE=min.coverage)
 		  }
 		  close(mindist(object))
 		  if(length(rdList) == 1) {

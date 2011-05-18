@@ -26,7 +26,7 @@ importFrom(DNAcopy, CNA, segment, smooth.CNA, getbdry)
 exportClasses(RangedDataCNV, TrioSet, LogRatioSet, TrioSetList)
 exportMethods(plot, nMarkers, state, copyNumber, open, close,
 	      calculateMindist, mindist, "mindist<-", updateObject,
-	      logR, baf, "logR<-", "baf<-", mad, "mad<-", xsegment, xprune,
+	      logR, baf, "logR<-", "baf<-", mad, "mad<-", xsegment, prune,
 	      phenoData2, "phenoData2<-", ncol, RangedDataCNV)
 export(ssampleNames, sssampleNames, ss, s, fullId)
 export(beadstudiodir,

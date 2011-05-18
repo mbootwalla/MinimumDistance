@@ -1970,7 +1970,7 @@ calculateChangeSd <- function(coverage=1:500, lambda, a=0.2, b=0.025)
 	a + lambda*exp(-lambda*coverage)/b
 
 
-prune <- function(genomdat,
+pruneMD <- function(genomdat,
 		  range.object,
 		  physical.pos,
 		  ##trimmed.SD, ##
@@ -1985,7 +1985,7 @@ prune <- function(genomdat,
 	##change.SD <- trimmed.SD*change.SD
 	genomdat <- as.numeric(genomdat)
 	coverage <- range.object$num.mark
-	trimmed.SD <- unique(range.object$mad)
+	trimmed.SD <- unique(range.object$mindist.mad)
 	stopifnot(length(trimmed.SD)==1)
 	coverage <- coverage[-length(coverage)]
 	if(FALSE){
@@ -2074,7 +2074,7 @@ prune <- function(genomdat,
 		      seg.mean=segmeans,
 		      start.index=segments0[,1],
 		      end.index=segments0[,2],
-		      mindist.mad=range.object$mad[1],
+		      mindist.mad=range.object$mindist.mad[1],
 		      space=id)
 }
 
