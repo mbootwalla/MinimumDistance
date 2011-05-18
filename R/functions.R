@@ -2748,10 +2748,18 @@ joint4 <- function(trioSet,
 		    verbose=TRUE,
 		    prGtCorrect=0.999){
 	stopifnot(states == 0:4)
-	family.id <- unique(ss(ranges$id))
-	fmonames <- paste(ss(family.id), c("03", "02", "01"), sep="_")
+	stopifnot(length(unique(ranges$chrom)) == 1)
+	##family.id <- unique(ss(ranges$id))
+	family.id <- unique(ranges$id)
+	##fmonames <- paste(ss(family.id), c("03", "02", "01"), sep="_")
+	pd2 <- phenoData2(trioSet)
+	i <- match(family.id, sampleNames(trioSet))
+	j <- match("CIDR_Name", colnames(pd2))
+	stopifnot(!missing(i) && !missing(j))
+	fmonames <- pd2[i, j, ]
+
 	object <- computeLoglik(id=fmonames,
-				bsSet=bsSet,
+				trioSet=trioSet,
 				CHR=ranges$chrom[[1]],
 				mu.logr=mu.logr,
 				states=states,
@@ -2830,11 +2838,12 @@ joint4 <- function(trioSet,
 
 computeBayesFactor <- function(object,
 			       trioSet,
+			       id,
 			       states=0:4,
 			       baf.sds=c(0.02, 0.03, 0.02),
 			       THR=-50,
 			       mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
-			       log.pi,
+			       log.pi=rep(1/length(states), length(states)),
 			       tau,
 			       normal.index=61,
 			       a=0.0009,
@@ -2842,20 +2851,20 @@ computeBayesFactor <- function(object,
 			       verbose=TRUE){
 	stopifnot(!missing(tau))
 	stopifnot(!missing(log.pi))
-	stopifnot(!missing(bsSet))
-	range.object$bayes.factor <- NA
-	range.object$argmax <- NA
-	range.object$DN <- NA
-	ids <- unique(range.object$id)
-	for(i in seq_along(ids)){
-		this.id <- ids[i]
+	stopifnot(!missing(trioSet))
+	if(missing(id)) id <- unique(object$id) else stopifnot(id %in% unique(object$id))
+	object$bayes.factor <- NA
+	object$argmax <- NA
+	object$DN <- NA
+	for(i in seq_along(id)){
+		this.id <- id[i]
 		if(verbose){
 			if(i %% 100 == 0)
-				message("   sample ", this.id, " (", i, "/", length(ids), ")")
+				message("   sample ", this.id, " (", i, "/", length(id), ")")
 		}
-		j <- which(range.object$id == this.id)
+		j <- which(object$id == this.id)
 		rd <- joint4(trioSet=trioSet,
-			     ranges=range.object[j, ],
+			     ranges=object[j, ],
 			     states=states,
 			     baf.sds=baf.sds,
 			     THR=THR,
@@ -2866,11 +2875,11 @@ computeBayesFactor <- function(object,
 			     a=a,
 			     prGtCorrect=prGtCorrect,
 			     verbose=verbose)##, F=F, M=M, O=O)
-		range.object$bayes.factor[j] <- rd$bayes.factor
-		range.object$argmax[j] <- rd$argmax
-		range.object$DN[j] <- rd$DN
+		object$bayes.factor[j] <- rd$bayes.factor
+		object$argmax[j] <- rd$argmax
+		object$DN[j] <- rd$DN
 	}
-	range.object
+	object
 }
 
 .computeBayesFactor <- function(range.object,

@@ -12,7 +12,7 @@ importFrom(stats, mad)
 
 importClassesFrom(IRanges, RangedData, IRanges, DataTable, Vector, Annotated, List, DataTableORNULL)
 importMethodsFrom(IRanges, start, end, "[", "[[","[<-", "[[<-", "$")
-importFrom(IRanges, IRanges, RangedData)
+importFrom(IRanges, IRanges, RangedData, RangedDataList, stack)
 
 importMethodsFrom(oligoClasses, open, close)
 importFrom(oligoClasses, isFF, getBar)
@@ -30,7 +30,9 @@ exportMethods(plot, nMarkers, state, copyNumber, open, close,
 	      phenoData2, "phenoData2<-", ncol, RangedDataCNV)
 export(ssampleNames, sssampleNames, ss, s, fullId)
 export(beadstudiodir,
-       completeTrios, getAllBayesFactorRanges,
+       completeTrios,
+       computeBayesFactor,
+       getAllBayesFactorRanges,
        isDenovo, readPennCnv, harmonizeStates, pennStats,
        pennDenovoFreq, loadBatchFiles, readPedfile,
        wrapperPosteriorProbs)
