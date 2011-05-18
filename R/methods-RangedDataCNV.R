@@ -20,13 +20,14 @@ setMethod("plot", signature(x="RangedDataCNV", y="missing"),
 		  plot(x=df, ...)
 	  })
 
-setMethod("todf", "RangedDataCNV", function(object, ...){
+setMethod("todf", signature(object="RangedDataCNV"), function(object, ...){
 	require(SNPchip)
 	data(chromosomeAnnotation)
-	object <- object[object$state != normalIndex(hmm.params), ]
+	##object <- object[object$state != normalIndex(hmm.params), ]
+	is.denovo <- isDenovo(state(object))
+	object <- object[is.denovo, ]
 	h <- 0.75
 	meanSegment <- apply(cbind(start(object), end(object)), 1, mean)
-	data(chromosomeAnnotation)
 	chr.size <- chromosomeAnnotation[1:22, "chromosomeSize"]
 	chrom <- chromosome(object)
 	chr.size <- chr.size[chrom]
@@ -57,7 +58,7 @@ setMethod("todf", "RangedDataCNV", function(object, ...){
 			  y=y,
 			  stringsAsFactors=FALSE)
 	dat$chr <- as.factor(dat$chr)
-	dat <- new("DataFrameCN", dat)
+	dat <- new("DataFrameCNV", dat)
 	return(dat)
 })
 
