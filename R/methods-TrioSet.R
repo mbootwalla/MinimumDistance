@@ -349,6 +349,54 @@ setMethod("xsegment", signature(object="TrioSet"),
 		  return(md.segs)
 })
 
+setMethod("computeBayesFactor", signature(object="TrioSet"),
+	  function(object, ranges, id,
+		   states,
+		   baf.sds,
+		   mu.logr,
+		   log.pi,
+		   tau,
+		   normal.index,
+		   a,
+		   prGtCorrect,
+		   df0,
+		   verbose, ...){
+	stopifnot(!missing(tau))
+	stopifnot(!missing(log.pi))
+	stopifnot(!missing(object))
+	CHR <- unique(chromosome(object))
+	ranges <- ranges[chromosome(ranges) == CHR, ]
+	if(missing(id)) id <- unique(ranges$id) else stopifnot(id %in% unique(ranges$id))
+	ranges <- ranges[ranges$id %in% id, ]
+	ranges$bayes.factor <- NA
+	ranges$argmax <- NA
+	ranges$DN <- NA
+	for(i in seq_along(id)){
+		this.id <- id[i]
+		if(verbose){
+			if(i %% 100 == 0)
+				message("   sample ", this.id, " (", i, "/", length(id), ")")
+		}
+		j <- which(ranges$id == this.id)
+		rd <- joint4(trioSet=object,
+			     ranges=ranges[j, ],
+			     states=states,
+			     baf.sds=baf.sds,
+			     mu.logr=mu.logr,
+			     log.pi=log.pi,
+			     tau=tau,
+			     normal.index=normal.index,
+			     a=a,
+			     prGtCorrect=prGtCorrect,
+			     df0=df0,
+			     verbose=verbose)##, F=F, M=M, O=O)
+		ranges$bayes.factor[j] <- rd$bayes.factor
+		ranges$argmax[j] <- rd$argmax
+		ranges$DN[j] <- rd$DN
+	}
+	ranges
+})
+
 setMethod("prune", signature(object="TrioSet", ranges="RangedDataCNV"),
 	  function(object, ranges, ...){
 		  CHR <- unique(chromosome(object))
@@ -389,3 +437,19 @@ setMethod("prune", signature(object="TrioSet", ranges="RangedDataCNV"),
 		  }
 		  return(rd)
 	 })
+
+## CIDR_Name is not a general label -- need to generalize these functions
+setMethod("offspringNames", signature(object="TrioSet"), function(object){
+	phenoData2(object)[, "CIDR_Name", "O"]
+})
+setMethod("fatherNames", signature(object="TrioSet"), function(object){
+	phenoData2(object)[, "CIDR_Name", "F"]
+})
+setMethod("motherNames", signature(object="TrioSet"), function(object){
+	phenoData2(object)[, "CIDR_Name", "M"]
+})
+fmoNames <- function(object){
+	tmp <- cbind(fatherNames(object), motherNames(object), offspringNames(object))
+	colnames(tmp) <- c("F", "M", "O")
+	return(tmp)
+}

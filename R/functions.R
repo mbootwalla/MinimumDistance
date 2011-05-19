@@ -2281,33 +2281,43 @@ likelihood <- function(CHR, bsSet, index.list, family.list, chr.index, states=0:
 constructSet <- function(trioSet, CHR, id, states){
 	open(baf(trioSet))
 	open(logR(trioSet))
-
-	i <- match(id, offspringNames(trioSet))
-	mads <- mad(trioSet)
-
-	open(trioSet$MAD)
-	i <- which(chromosome(trioSet) == CHR)
-	j <- match(id, ssampleNames(trioSet))
+	i <- match(id[["O"]], offspringNames(trioSet))
+	mads <- mad(trioSet)[i, ]
+	##open(trioSet$MAD)
+	##i <- which(chromosome(trioSet) == CHR)
+	##j <- match(id, ssampleNames(trioSet))
 	S <- length(states)
-	loglik <- array(NA, dim=c(2, length(i), length(j), S))
+	loglik <- array(NA, dim=c(2, nrow(trioSet), 3, S))
 	dimnames(loglik) <- list(c("logR", "baf"),
-			      featureNames(trioSet)[i],
-			      sampleNames(trioSet)[j],
-			      states)
+				 featureNames(trioSet),
+				 ##fmoNames(trioSet)[i, ],
+				 id,
+				 states)
 	object <- new("LikSet",
-		      logR=as.matrix(logR(trioSet)[i,j]),
-		      BAF=as.matrix(baf(trioSet)[i,j]),
-		      phenoData=phenoData(trioSet)[j, ],
-		      featureData=featureData(trioSet)[i, ],
-		      experimentData=experimentData(trioSet),
-		      annotation=annotation(trioSet),
-		      protocolData=protocolData(trioSet)[j, ],
+		      logR=as.matrix(logR(trioSet)[ ,i,]),
+		      BAF=as.matrix(baf(trioSet)[ ,i , ]),
+		      ##phenoData=phenoData2(trioSet)[i, , ],
+		      featureData=featureData(trioSet),
+		      ##experimentData=experimentData(trioSet),
+		      ##annotation=annotation(trioSet),
+		      ##protocolData=protocolData(trioSet)[i, ],
 		      loglik=loglik)
+	object$MAD <- mads
 	fData(object)$range.index <- NA
 	close(baf(trioSet))
 	close(logR(trioSet))
-	close(trioSet$MAD)
+	##close(trioSet$MAD)
 	return(object)
+}
+
+shrinkTo <- function(x, x.0, DF.PRIOR){
+	DF <- ncol(x)-1
+	DF <- Ns-1
+	DF[DF < 1] <- 1
+	x.0 <- apply(x, 2, median, na.rm=TRUE)
+	x <- (x*DF + x.0*DF.PRIOR)/(DF.PRIOR + DF)
+	for(j in 1:ncol(x)) x[is.na(x[, j]), j] <- x.0[j]
+	return(x)
 }
 
 computeLoglik <- function(id,
@@ -2315,65 +2325,34 @@ computeLoglik <- function(id,
 			  mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
 			  states=0:4,
 			  baf.sds=c(0.02, 0.03, 0.02),
-			  THR=-50,
-			  prGtCorrect=0.999){ ##prob genotype is correct
+			  prGtCorrect=0.999, ##prob genotype is correct
+			  df0=10){
 	CHR <- chromosome(trioSet)[1]
 	p1 <- prGtCorrect; rm(prGtCorrect)
-	##
 	## one obvious thing that p1 could depend on is the
 	## minor allele frequency.  If rare, p1 is smaller
-	##
-	##i <- index.list[[stratum]]
-	##k <- chr.index[[stratum]]
 	stopifnot(all(!is.na(match(id, s(fullId(trioSet))))))
 	object <- constructSet(trioSet, CHR, id, states=states)
-##	lR <- as.matrix(logR(trioSet)[i, j])
-##	bf <- as.matrix(baf(trioSet)[i, j])
-	##lik.logr <- array(NA, dim=c(nrow(object), ncol(object), length(states)))
-	##lik.baf <- array(NA, dim=dim(lik.logr))
-##	lik <- array(NA, dim=c(2, nrow(object), ncol(object), length(states)))
-##	dimnames(lik) <- list(c("logR", "baf"),
-##			      featureNames(object),
-##			      sampleNames(object),
-##			      states)
-	open(trioSet$MAD)
-	med.all <- median(trioSet$MAD[!trioSet$is.wga], na.rm=TRUE)
-	j <- match(id, ssampleNames(trioSet))
-	sds.sample <- trioSet$MAD[j]
-##	scale.sd <- sds.sample
-##	scale.sd[sds.sample < med.all] <- 1
-##	scale.sd[sds.sample >= med.all] <- sds.sample[sds.sample >= med.all]/med.all
-	##scale.sd <- ifelse(sds.sample < median(sds.sample), 1, sds.sample/median(sds.sample))
-##	scale.sd <- matrix(scale.sd, nrow(object), length(j), byrow=TRUE)
-	##sds.marker <- crlmm:::rowMAD(lR)
-	##marker.index <- which(chromosome(trioSet) == CHR)
-	sds.sample <- matrix(sds.sample, nrow(object), length(j), byrow=TRUE)
-	sds.marker <- fData(object)$MAD
-	sds.marker <- matrix(sds.marker, nrow(object), length(j), byrow=FALSE)
-	## less ad hoc: shrink the marker-specific estimate to the sample-level estimate
-	sds <- (sds.marker+sds.sample)/2
+	j <- match(id[["O"]], offspringNames(trioSet))
+	sds.sample <- mad(trioSet)[j, ]
+	sds.sample <- matrix(sds.sample, nrow(trioSet), 3, byrow=TRUE)
+	open(logR(trioSet))
+	sds.marker <- crlmm:::rowMAD(logR(trioSet)[, , "O"], na.rm=TRUE)
+	sds.marker <- matrix(sds.marker, nrow(object), 3, byrow=FALSE)
+	df1 <- nrow(phenoData(trioSet))/3
+	sds <- (sds.marker * df1 + df0*sds.sample)/(df0 + df1)
 	lR <- logR(object)
-	##lik <- loglik(object)
-	for(i in seq_along(states)) loglik(object)["logR", , , i] <- dnorm(lR, mu.logr[i], sds)
-##	loglik(object)["logR", 12572:12590, 1, c(2,3)]
-##	s1 <- apply(loglik(object)["logR", 12572:12590, 1, c(2,3)], 2, sum)
-##	s2 <- apply(loglik(object)["logR", 12572:12590, 2, c(2,3)], 2, sum)
-##	s3 <- apply(loglik(object)["baf", 12572:12590, 1, c(2,3)], 2, sum)
-##	s4 <- apply(loglik(object)["baf", 12572:12590, 2, c(2,3)], 2, sum)
-##	lik["logR", , 1] <- dnorm(lR, -2, sds)
-##	lik["logR", , 2] <- dnorm(lR, -0.5, sds)
-##	lik["logR", , 3] <- dnorm(lR, 0, sds)
-##	lik["logR", , 4] <- dnorm(lR, 0.3, sds)
-##	lik["logR", , 5] <- dnorm(lR, 0.75, sds)
+	## the uniform needs to cover the support
+	CN.MAX=10
+	CN.MIN=-20
+	for(i in seq_along(states)) {
+		loglik(object)["logR", , , i] <- (p1)*dnorm(lR, mu.logr[i], sds) + (1-p1) * dunif(lR, CN.MIN, CN.MAX)
+	}
 	sd0 <- baf.sds[1]
 	sd.5 <- baf.sds[2]
 	sd1 <- baf.sds[3]
-	## we can also multiply the density given by tnorm by the
-	## binomial probability of the genotype as per Wang.
-	##  -- could use estimates of the allele frequency for the p parameter
 	bf <- baf(object)
 	## model emission as a mixture of normals (genotype is correct) and a uniform (error)
-	perr <- (1-p1)*runif(bf)
 	## Wang et al. use mixture probabilities from a binomial
 	##
 	##   pi ~ binomial(C(z), allele freq)
@@ -2381,20 +2360,18 @@ computeLoglik <- function(id,
 	##
 	##   Below, I,ve just used a mixture model.  I have not integrated out the	#      copy number of the B allele, nor do I make use of MAF estimates.
 	loglik(object)["baf", , , 1] <-  1
-	loglik(object)["baf", , , 2] <- p1*(1/2*tnorm(bf, 0, sd0) + 1/2*tnorm(bf, 1, sd1)) + perr
-	loglik(object)["baf", , , 3] <- p1*(1/3*tnorm(bf, 0, sd0) + 1/3*tnorm(bf, 0.5, sd.5) + 1/3*tnorm(bf, 1, sd1))+perr
-	loglik(object)["baf", , , 4] <- p1*(1/4*tnorm(bf, 0, sd0) + 1/4*tnorm(bf, 1/3, sd.5) + 1/4*tnorm(bf, 2/3, sd.5) + 1/4*tnorm(bf, 1, sd1)) + perr
-	loglik(object)["baf", , , 5] <- p1*(1/5*tnorm(bf, 0, sd0) + 1/5*tnorm(bf, 1/4, sd.5) + 1/5*tnorm(bf, 0.5, sd.5) + 1/5*tnorm(bf, 3/4, sd.5) + 1/5*tnorm(bf, 1, sd1)) + perr
+	loglik(object)["baf", , , 2] <- p1*((1/2*tnorm(bf, 0, sd0) + 1/2*tnorm(bf, 1, sd1))) + (1-p1)  ## * dunif(bf, 0, 1) = 1
+	loglik(object)["baf", , , 3] <- p1*((1/3*tnorm(bf, 0, sd0) + 1/3*tnorm(bf, 0.5, sd.5) + 1/3*tnorm(bf, 1, sd1)))+ (1-p1)
+	loglik(object)["baf", , , 4] <- p1*((1/4*tnorm(bf, 0, sd0) + 1/4*tnorm(bf, 1/3, sd.5) + 1/4*tnorm(bf, 2/3, sd.5) + 1/4*tnorm(bf, 1, sd1))) + (1-p1)
+	loglik(object)["baf", , , 5] <- p1*((1/5*tnorm(bf, 0, sd0) + 1/5*tnorm(bf, 1/4, sd.5) + 1/5*tnorm(bf, 0.5, sd.5) + 1/5*tnorm(bf, 3/4, sd.5) + 1/5*tnorm(bf, 1, sd1))) + (1-p1)
 	loglik(object) <- log(loglik(object))
-	loglik(object)[loglik(object) < THR] <- THR
-	##ll[ll < THR] <- THR
-	##loglik(object) <- ll
-	## assume an epsilon probability that the observation was an error
-	##     (truncating the lik. should have a similar effect)
-##	loglik[loglik < THR] <- THR
-	##close(L)
-	close(trioSet$MAD)
 	return(object)
+}
+
+rowMAD <- function(x, y, ...){
+	notna <- !is.na(x)
+	mad <- 1.4826*rowMedians(abs(x-rowMedians(x, ...)), ...)
+	return(mad)
 }
 
 trioStates <- function(states=0:4){
@@ -2739,7 +2716,7 @@ joint1 <- function(LLT, ##object,
 }
 
 joint4 <- function(trioSet,
-		    ranges,
+		   ranges, ## all the ranges from one subject , one chromosome
 		    states,
 		    baf.sds,
 		    THR=-50,
@@ -2749,7 +2726,8 @@ joint4 <- function(trioSet,
 		    normal.index,
 		    a=0.0009,
 		    verbose=TRUE,
-		    prGtCorrect=0.999){
+		    prGtCorrect=0.999,
+		   df0=10){
 	stopifnot(states == 0:4)
 	stopifnot(length(unique(ranges$chrom)) == 1)
 	##family.id <- unique(ss(ranges$id))
@@ -2765,8 +2743,8 @@ joint4 <- function(trioSet,
 				mu.logr=mu.logr,
 				states=states,
 				baf.sds=baf.sds,
-				THR=THR,
-				prGtCorrect=prGtCorrect)
+				prGtCorrect=prGtCorrect,
+				df0=df0)
 	start.stop <- cbind(ranges$start.index, ranges$end.index)
 	l <- apply(start.stop, 1, function(x) length(x[1]:x[2]))
 	fData(object)$range.index <- rep(seq(length=nrow(ranges)), l)
@@ -2837,98 +2815,74 @@ joint4 <- function(trioSet,
 	ranges
 }
 
-computeBayesFactor <- function(object,
-			       trioSet,
-			       id,
-			       states=0:4,
-			       baf.sds=c(0.02, 0.03, 0.02),
-			       THR=-50,
-			       mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
-			       log.pi=rep(1/length(states), length(states)),
-			       tau,
-			       normal.index=61,
-			       a=0.0009,
-			       prGtCorrect=0.999,
-			       verbose=TRUE){
-	stopifnot(!missing(tau))
-	stopifnot(!missing(log.pi))
-	stopifnot(!missing(trioSet))
-	CHR <- unique(chromosome(trioSet))
-	object <- object[chromosome(object) == CHR, ]
-	if(missing(id)) id <- unique(object$id) else stopifnot(id %in% unique(object$id))
-	object$bayes.factor <- NA
-	object$argmax <- NA
-	object$DN <- NA
-	for(i in seq_along(id)){
-		this.id <- id[i]
-		if(verbose){
-			if(i %% 100 == 0)
-				message("   sample ", this.id, " (", i, "/", length(id), ")")
-		}
-		j <- which(object$id == this.id)
-		rd <- joint4(trioSet=trioSet,
-			     ranges=object[j, ],
-			     states=states,
-			     baf.sds=baf.sds,
-			     THR=THR,
-			     mu.logr=mu.logr,
-			     log.pi=log.pi,
-			     tau=tau,
-			     normal.index=normal.index,
-			     a=a,
-			     prGtCorrect=prGtCorrect,
-			     verbose=verbose)##, F=F, M=M, O=O)
-		object$bayes.factor[j] <- rd$bayes.factor
-		object$argmax[j] <- rd$argmax
-		object$DN[j] <- rd$DN
-	}
-	object
-}
 
-.computeBayesFactor <- function(range.object,
-			       bsSet,
-			       states=0:4,
-			       baf.sds=c(0.02, 0.03, 0.02),
-			       THR=-50,
-			       mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
-			       log.pi,
-			       tau,
-			       normal.index=61,
-			       a=0.0009,
-			       prGtCorrect=0.999,
-			       verbose=TRUE){
-	stopifnot(!missing(tau))
-	stopifnot(!missing(log.pi))
-	stopifnot(!missing(bsSet))
-	range.object$bayes.factor <- NA
-	range.object$argmax <- NA
-	range.object$DN <- NA
-	ids <- unique(range.object$id)
-	for(i in seq_along(ids)){
-		this.id <- ids[i]
-		if(verbose){
-			if(i %% 100 == 0)
-				message("   sample ", this.id, " (", i, "/", length(ids), ")")
-		}
-		j <- which(range.object$id == this.id)
-		rd <- joint4(bsSet=bsSet,
-			     ranges=range.object[j, ],
-			     states=states,
-			     baf.sds=baf.sds,
-			     THR=THR,
-			     mu.logr=mu.logr,
-			     log.pi=log.pi,
-			     tau=tau,
-			     normal.index=normal.index,
-			     a=a,
-			     prGtCorrect=prGtCorrect,
-			     verbose=verbose)##, F=F, M=M, O=O)
-		range.object$bayes.factor[j] <- rd$bayes.factor
-		range.object$argmax[j] <- rd$argmax
-		range.object$DN[j] <- rd$DN
-	}
-	range.object
-}
+
+
+
+
+
+
+
+##computeBayesFactor <- function(object,
+##				trioSet,
+##				id,
+##				states=0:4,
+##				baf.sds=c(0.02, 0.03, 0.02),
+##				THR=-50,
+##				mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
+##				log.pi=rep(1/length(states), length(states)),
+##				tau,
+##				normal.index=61,
+##				a=0.0009,
+##				prGtCorrect=0.999,
+##				df0=10,
+##				verbose=TRUE, ...){
+##}
+
+##.computeBayesFactor <- function(range.object,
+##			       bsSet,
+##			       states=0:4,
+##			       baf.sds=c(0.02, 0.03, 0.02),
+##			       THR=-50,
+##			       mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
+##			       log.pi,
+##			       tau,
+##			       normal.index=61,
+##			       a=0.0009,
+##			       prGtCorrect=0.999,
+##			       verbose=TRUE){
+##	stopifnot(!missing(tau))
+##	stopifnot(!missing(log.pi))
+##	stopifnot(!missing(bsSet))
+##	range.object$bayes.factor <- NA
+##	range.object$argmax <- NA
+##	range.object$DN <- NA
+##	ids <- unique(range.object$id)
+##	for(i in seq_along(ids)){
+##		this.id <- ids[i]
+##		if(verbose){
+##			if(i %% 100 == 0)
+##				message("   sample ", this.id, " (", i, "/", length(ids), ")")
+##		}
+##		j <- which(range.object$id == this.id)
+##		rd <- joint4(bsSet=bsSet,
+##			     ranges=range.object[j, ],
+##			     states=states,
+##			     baf.sds=baf.sds,
+##			     THR=THR,
+##			     mu.logr=mu.logr,
+##			     log.pi=log.pi,
+##			     tau=tau,
+##			     normal.index=normal.index,
+##			     a=a,
+##			     prGtCorrect=prGtCorrect,
+##			     verbose=verbose)##, F=F, M=M, O=O)
+##		range.object$bayes.factor[j] <- rd$bayes.factor
+##		range.object$argmax[j] <- rd$argmax
+##		range.object$DN[j] <- rd$DN
+##	}
+##	range.object
+##}
 
 pruneThenBayesFactor <- function(CHR,
 				 bsSet,

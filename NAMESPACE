@@ -32,17 +32,18 @@ exportMethods(plot, nMarkers, state, copyNumber, open, close,
 	      xyplot,
 	      offspringNames,
 	      fatherNames,
-	      motherNames)##, stack, rbind)
+	      motherNames,
+	      computeBayesFactor)##, stack, rbind)
 export(ssampleNames, sssampleNames, ss, s, fullId,
        beadstudiodir,
        completeTrios,
-       computeBayesFactor,
        getAllBayesFactorRanges,
        isDenovo, readPennCnv, harmonizeStates, pennStats,
        pennDenovoFreq, loadBatchFiles, readPedfile,
        wrapperPosteriorProbs,
        getKey,
        my.xypanel,
-       prepanel.fxn)
+       prepanel.fxn,
+       fmoNames)
 
 

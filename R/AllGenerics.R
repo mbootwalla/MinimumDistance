@@ -62,6 +62,21 @@ setGeneric("prune", function(object, ranges, id,
 			      verbose, ...)
 	   standardGeneric("prune"))
 
+setGeneric("computeBayesFactor", function(object,
+					  ranges,
+					  id,
+					  states=0:4,
+					  baf.sds=c(0.02, 0.03, 0.02),
+					  mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
+					  log.pi,
+					  tau,
+					  normal.index=61,
+					  a=0.0009,
+					  prGtCorrect=0.999,
+					  df0=10,
+					  verbose=TRUE, ...)
+	   standardGeneric("computeBayesFactor"))
+
 
 setGeneric("todf", function(object, col=1:3, ...) standardGeneric("todf"))
 

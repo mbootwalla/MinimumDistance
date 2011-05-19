@@ -31,15 +31,51 @@ setMethod("offspringNames", signature(object="TrioSetList"), function(object) of
 setMethod("fatherNames", signature(object="TrioSetList"), function(object) fatherNames(object[[1]]))
 setMethod("motherNames", signature(object="TrioSetList"), function(object) motherNames(object[[1]]))
 
-setMethod("offspringNames", signature(object="TrioSet"), function(object){
-	phenoData2(object)[, "CIDR_Name", "O"]
-})
-setMethod("fatherNames", signature(object="TrioSet"), function(object){
-	phenoData2(object)[, "CIDR_Name", "F"]
-})
+setMethod("computeBayesFactor", signature(object="TrioSetList"),
+	  function(object, ranges, id, states, baf.sds, mu.logr,
+		   log.pi, tau, normal.index, a, prGtCorrect, df0, verbose, ...){
+		  if(missing(id)) id <- unique(ranges$id) else stopifnot(id %in% unique(ranges$id))
+		  chromosomes <- sapply(object, function(x) unique(chromosome(x)))
+		  ranges <- ranges[chromosome(ranges) %in% chromosomes, ]
+		  ranges <- ranges[ranges$id %in% id, ]
+		  if(!"bayes.factor" %in% colnames(ranges)){
+			  ranges$bayes.factor <- NA
+		  }
+		  if(!"DN" %in% colnames(ranges)){
+			  ranges$DN <- NA
+		  }
+		  if(!"argmax" %in% colnames(ranges)){
+			  ranges$argmax <- NA
+		  }
+		  for(i in seq_along(object)){
+			  if(verbose)
+				  message("Processing chromosome ", i, " of ", length(object))
+			  CHR <- unique(chromosome(object[[i]]))
+			  j <- which(chromosome(ranges) == CHR)
+			  rd <- computeBayesFactor(object[[i]],
+						   ranges[j, ],
+						   id=id,
+						   states=states,
+						   baf.sds=baf.sds,
+						   mu.logr=mu.logr,
+						   log.pi=log.pi,
+						   tau=tau,
+						   normal.index=normal.index,
+						   a=a,
+						   prGtCorrect=prGtCorrect,
+						   df0=df0,
+						   verbose=verbose, ...)
+			  ranges$bayes.factor[j] <- rd$bayes.factor
+			  ranges$argmax[j] <- rd$argmax
+			  ranges$DN[j] <- rd$DN
+		  }
+		  return(ranges)
+	  })
 
-setMethod("motherNames", signature(object="TrioSet"), function(object){
-	phenoData2(object)[, "CIDR_Name", "M"]
-})
-
-
+setMethod("[", signature(x="TrioSetList"),
+	  function(x, i, j, ..., drop=FALSE){
+		  xlist <- as(x, "list")
+		  xlist <- xlist[i]
+		  x <- as(xlist, "TrioSetList")
+		  return(x)
+	  })

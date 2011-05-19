@@ -43,6 +43,7 @@ setClass("TrioSet", contains="LogRatioSet",
 	                       new("VersionedBiobase",
 				   versions=c(classVersion("eSet"), TrioSet="0.0.2"))))
 
+
 setClass("TrioSet", contains="LogRatioSet",
 	 representation(phenoData2="arrayOrNULL",
 			mindist="matrixOrNULL",
@@ -51,7 +52,33 @@ setClass("TrioSet", contains="LogRatioSet",
 	                       new("VersionedBiobase",
 				   versions=c(classVersion("LogRatioSet"), TrioSet="0.0.3"))))
 
+setClass("TrioSet", contains="LogRatioSet",
+	 representation(phenoData2="arrayOrNULL",
+			mindist="matrixOrNULL",
+			mad="matrix"),
+	 prototype = prototype(
+	                       new("VersionedBiobase",
+				   versions=c(classVersion("LogRatioSet"), TrioSet="0.0.4"))))
+
+## should we add a slot for trioNames
+##  -- would be a R x 3 matrix, where R is the number of trios
+##  -- R must be equal to the number of columns of the assayData arrays
+##  -- '[' method for the trioNames slot
+##  -- 'show' method for trioNames slot
+##  -- add trioNames accessor / replacement method
+##  -- modify offspringNames, fmoNames, ... to access trioNames slot
+## Other potential slots:
+##  -- dna source
+##  -- batch / plate
 setClass("TrioSetList", contains="list")
+##setClass("TrioSetList",
+##	 representation(trioSets="list",
+##			phenoData="AnnotatedDataFrame",
+##			mad="matrix",
+##			dnaSource="matrixOrNull",
+##			trioNames="matrixOrNull",
+##			batch="matrixOrNull"))
+
 
 ##setClass("TrioSet", contains="BeadStudioSet",
 ##	 representation(phenoData2="array",

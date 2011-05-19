@@ -8,7 +8,7 @@ Maintainer: Robert B Scharpf <rscharpf@jhsph.edu>
 Description: Analysis of Cleft trios on the Illumina platform
 License: Artistic-2.0
 Depends: oligoClasses (>= 1.15.7), DNAcopy, IRanges, lattice
-Imports: IRanges, ff (>= 2.2-1), Biobase
+Imports: IRanges, ff (>= 2.2-1), Biobase, crlmm
 collate: AllClasses.R
          AllGenerics.R
 	 methods-AnnotatedDataFrame.R
