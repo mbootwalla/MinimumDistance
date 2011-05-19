@@ -64,3 +64,7 @@ setGeneric("prune", function(object, ranges, id,
 
 
 setGeneric("todf", function(object, col=1:3, ...) standardGeneric("todf"))
+
+setGeneric("offspringNames", function(object) standardGeneric("offspringNames"))
+setGeneric("fatherNames", function(object) standardGeneric("fatherNames"))
+setGeneric("motherNames", function(object) standardGeneric("motherNames"))

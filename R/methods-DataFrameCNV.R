@@ -1,15 +1,16 @@
 ##setMethod("dimnames", "DataFrameCNV", function(x) list(x@row.names, names(x)))
 ##setMethod("dim", "DataFrameCNV", function(x) c(length(x@row.names), length(x)))
 
-setClass("someClass", contains="numeric")
-
 setMethod("xyplot", signature(x="formula", data="DataFrameCNV"),
 	  function(x, data, ...){
+		  if(!"panel" %in% names(list(...))){
+			  panel <- my.xypanel
+		  }
 		  data(chromosomeAnnotation)
 		  data <- as(data, "data.frame")
 		  ## could we do UseMethod here?
 		  fig <- xyplot(x, data=data,
-				panel=my.xypanel,
+				panel=panel,
 				x0=data$x0,
 				x1=data$x1,
 				col=data$col,

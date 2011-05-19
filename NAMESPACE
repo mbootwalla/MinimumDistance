@@ -29,7 +29,10 @@ exportMethods(plot, nMarkers, state, copyNumber, open, close,
 	      calculateMindist, mindist, "mindist<-", updateObject,
 	      logR, baf, "logR<-", "baf<-", mad, "mad<-", xsegment, prune,
 	      phenoData2, "phenoData2<-", ncol, RangedDataCNV,
-	      xyplot)##, stack, rbind)
+	      xyplot,
+	      offspringNames,
+	      fatherNames,
+	      motherNames)##, stack, rbind)
 export(ssampleNames, sssampleNames, ss, s, fullId,
        beadstudiodir,
        completeTrios,

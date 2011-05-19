@@ -380,10 +380,10 @@ setMethod("prune", signature(object="TrioSet", ranges="RangedDataCNV"),
 			  rd <- rdList[[1]]
 		  } else {
 			  rdList <- rdList[!sapply(rdList, is.null)]
-			  rdList <- lapply(rdList, function(x) as(x, "RangedData"))
+			  ##rdList <- lapply(rdList, function(x) as(x, "RangedData"))
 			  rdl <- RangedDataList(rdList)
 			  rd <- stack(rdl)
-			  rd <- as(rd, "RangedDataCNV")
+			  ##rd <- as(rd, "RangedDataCNV")
 			  ix <- match("sample", colnames(rd))
 			  if(length(ix) > 0) rd <- rd[, -ix]
 		  }

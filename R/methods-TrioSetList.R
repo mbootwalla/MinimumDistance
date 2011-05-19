@@ -18,17 +18,28 @@ setMethod("prune", signature(object="TrioSetList", ranges="RangedDataCNV"),
 				   min.coverage=min.coverage,
 				   scale.exp=scale.exp,
 				   verbose=verbose, ...)
+		  if(length(rdList) > 1){
+			  rdl <- RangedDataList(rdList)
+			  rd <- stack(rdl)
+			  rd <- rd[, -ncol(rd)]
+		  } else rd <- rdList[[1]]
+		  rd <- as(rd, "RangedDataCNV")
+		  return(rd)
 	  })
 
-offspringNames <- function(object){
-	pd2=phenoData2(object[[1]])
-	pd2[, "CIDR_Name", "O"]
-}
-fatherNames <- function(object){
-	pd2=phenoData2(object[[1]])
-	pd2[, "CIDR_Name", "F"]
-}
-motherNames <- function(object){
-	pd2=phenoData2(object[[1]])
-	pd2[, "CIDR_Name", "M"]
-}
+setMethod("offspringNames", signature(object="TrioSetList"), function(object) offspringNames(object[[1]]))
+setMethod("fatherNames", signature(object="TrioSetList"), function(object) fatherNames(object[[1]]))
+setMethod("motherNames", signature(object="TrioSetList"), function(object) motherNames(object[[1]]))
+
+setMethod("offspringNames", signature(object="TrioSet"), function(object){
+	phenoData2(object)[, "CIDR_Name", "O"]
+})
+setMethod("fatherNames", signature(object="TrioSet"), function(object){
+	phenoData2(object)[, "CIDR_Name", "F"]
+})
+
+setMethod("motherNames", signature(object="TrioSet"), function(object){
+	phenoData2(object)[, "CIDR_Name", "M"]
+})
+
+

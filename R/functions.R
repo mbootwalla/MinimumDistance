@@ -2071,15 +2071,14 @@ pruneMD <- function(genomdat,
 	starts <- physical.pos[segments0[, 1]]
 	ends <- physical.pos[segments0[, 2]]
 	id <- unique(range.object$id)
-	RangedDataCNV(IRanges(starts, ends),
-		      id=id,
-		      chrom=unique(range.object$chrom),
-		      num.mark=lseg,
-		      seg.mean=segmeans,
-		      start.index=segments0[,1],
-		      end.index=segments0[,2],
-		      mindist.mad=range.object$mindist.mad[1],
-		      space=id)
+	RangedData(IRanges(starts, ends),
+		   id=id,
+		   chrom=unique(range.object$chrom),
+		   num.mark=lseg,
+		   seg.mean=segmeans,
+		   start.index=segments0[,1],
+		   end.index=segments0[,2],
+		   mindist.mad=range.object$mindist.mad[1])
 }
 
 
@@ -2279,42 +2278,46 @@ likelihood <- function(CHR, bsSet, index.list, family.list, chr.index, states=0:
 	     O=LO)
 }
 
-constructSet <- function(bsSet, CHR, id, states){
-	open(baf(bsSet))
-	open(logR(bsSet))
-	open(bsSet$MAD)
-	i <- which(chromosome(bsSet) == CHR)
-	j <- match(id, ssampleNames(bsSet))
+constructSet <- function(trioSet, CHR, id, states){
+	open(baf(trioSet))
+	open(logR(trioSet))
+
+	i <- match(id, offspringNames(trioSet))
+	mads <- mad(trioSet)
+
+	open(trioSet$MAD)
+	i <- which(chromosome(trioSet) == CHR)
+	j <- match(id, ssampleNames(trioSet))
 	S <- length(states)
 	loglik <- array(NA, dim=c(2, length(i), length(j), S))
 	dimnames(loglik) <- list(c("logR", "baf"),
-			      featureNames(bsSet)[i],
-			      sampleNames(bsSet)[j],
+			      featureNames(trioSet)[i],
+			      sampleNames(trioSet)[j],
 			      states)
 	object <- new("LikSet",
-		      logR=as.matrix(logR(bsSet)[i,j]),
-		      BAF=as.matrix(baf(bsSet)[i,j]),
-		      phenoData=phenoData(bsSet)[j, ],
-		      featureData=featureData(bsSet)[i, ],
-		      experimentData=experimentData(bsSet),
-		      annotation=annotation(bsSet),
-		      protocolData=protocolData(bsSet)[j, ],
+		      logR=as.matrix(logR(trioSet)[i,j]),
+		      BAF=as.matrix(baf(trioSet)[i,j]),
+		      phenoData=phenoData(trioSet)[j, ],
+		      featureData=featureData(trioSet)[i, ],
+		      experimentData=experimentData(trioSet),
+		      annotation=annotation(trioSet),
+		      protocolData=protocolData(trioSet)[j, ],
 		      loglik=loglik)
 	fData(object)$range.index <- NA
-	close(baf(bsSet))
-	close(logR(bsSet))
-	close(bsSet$MAD)
+	close(baf(trioSet))
+	close(logR(trioSet))
+	close(trioSet$MAD)
 	return(object)
 }
 
 computeLoglik <- function(id,
-			  bsSet, #L,
-			  CHR,
+			  trioSet, #L,
 			  mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
 			  states=0:4,
 			  baf.sds=c(0.02, 0.03, 0.02),
 			  THR=-50,
 			  prGtCorrect=0.999){ ##prob genotype is correct
+	CHR <- chromosome(trioSet)[1]
 	p1 <- prGtCorrect; rm(prGtCorrect)
 	##
 	## one obvious thing that p1 could depend on is the
@@ -2322,10 +2325,10 @@ computeLoglik <- function(id,
 	##
 	##i <- index.list[[stratum]]
 	##k <- chr.index[[stratum]]
-	stopifnot(all(!is.na(match(id, ssampleNames(bsSet)))))
-	object <- constructSet(bsSet, CHR, id, states=states)
-##	lR <- as.matrix(logR(bsSet)[i, j])
-##	bf <- as.matrix(baf(bsSet)[i, j])
+	stopifnot(all(!is.na(match(id, s(fullId(trioSet))))))
+	object <- constructSet(trioSet, CHR, id, states=states)
+##	lR <- as.matrix(logR(trioSet)[i, j])
+##	bf <- as.matrix(baf(trioSet)[i, j])
 	##lik.logr <- array(NA, dim=c(nrow(object), ncol(object), length(states)))
 	##lik.baf <- array(NA, dim=dim(lik.logr))
 ##	lik <- array(NA, dim=c(2, nrow(object), ncol(object), length(states)))
@@ -2333,17 +2336,17 @@ computeLoglik <- function(id,
 ##			      featureNames(object),
 ##			      sampleNames(object),
 ##			      states)
-	open(bsSet$MAD)
-	med.all <- median(bsSet$MAD[!bsSet$is.wga], na.rm=TRUE)
-	j <- match(id, ssampleNames(bsSet))
-	sds.sample <- bsSet$MAD[j]
+	open(trioSet$MAD)
+	med.all <- median(trioSet$MAD[!trioSet$is.wga], na.rm=TRUE)
+	j <- match(id, ssampleNames(trioSet))
+	sds.sample <- trioSet$MAD[j]
 ##	scale.sd <- sds.sample
 ##	scale.sd[sds.sample < med.all] <- 1
 ##	scale.sd[sds.sample >= med.all] <- sds.sample[sds.sample >= med.all]/med.all
 	##scale.sd <- ifelse(sds.sample < median(sds.sample), 1, sds.sample/median(sds.sample))
 ##	scale.sd <- matrix(scale.sd, nrow(object), length(j), byrow=TRUE)
 	##sds.marker <- crlmm:::rowMAD(lR)
-	##marker.index <- which(chromosome(bsSet) == CHR)
+	##marker.index <- which(chromosome(trioSet) == CHR)
 	sds.sample <- matrix(sds.sample, nrow(object), length(j), byrow=TRUE)
 	sds.marker <- fData(object)$MAD
 	sds.marker <- matrix(sds.marker, nrow(object), length(j), byrow=FALSE)
@@ -2390,7 +2393,7 @@ computeLoglik <- function(id,
 	##     (truncating the lik. should have a similar effect)
 ##	loglik[loglik < THR] <- THR
 	##close(L)
-	close(bsSet$MAD)
+	close(trioSet$MAD)
 	return(object)
 }
 
@@ -2757,10 +2760,8 @@ joint4 <- function(trioSet,
 	j <- match("CIDR_Name", colnames(pd2))
 	stopifnot(!missing(i) && !missing(j))
 	fmonames <- pd2[i, j, ]
-
 	object <- computeLoglik(id=fmonames,
 				trioSet=trioSet,
-				CHR=ranges$chrom[[1]],
 				mu.logr=mu.logr,
 				states=states,
 				baf.sds=baf.sds,
@@ -2852,6 +2853,8 @@ computeBayesFactor <- function(object,
 	stopifnot(!missing(tau))
 	stopifnot(!missing(log.pi))
 	stopifnot(!missing(trioSet))
+	CHR <- unique(chromosome(trioSet))
+	object <- object[chromosome(object) == CHR, ]
 	if(missing(id)) id <- unique(object$id) else stopifnot(id %in% unique(object$id))
 	object$bayes.factor <- NA
 	object$argmax <- NA
