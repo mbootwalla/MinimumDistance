@@ -2320,6 +2320,10 @@ shrinkTo <- function(x, x.0, DF.PRIOR){
 	return(x)
 }
 
+
+dna <- function(object) harmonizeDnaLabels(phenoData2(object[[1]])[, "DNA.Source", ])
+plate <- function(object) phenoData2(object[[1]])[, "Sample.Plate", ]
+
 computeLoglik <- function(id,
 			  trioSet, #L,
 			  mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
@@ -2337,7 +2341,8 @@ computeLoglik <- function(id,
 	sds.sample <- mad(trioSet)[j, ]
 	sds.sample <- matrix(sds.sample, nrow(trioSet), 3, byrow=TRUE)
 	open(logR(trioSet))
-	sds.marker <- crlmm:::rowMAD(logR(trioSet)[, , "O"], na.rm=TRUE)
+##	sds.marker <- rowMAD(logR(trioSet)[, , "O"], na.rm=TRUE)
+	sds.marker <- fData(trioSet)$marker.mad
 	sds.marker <- matrix(sds.marker, nrow(object), 3, byrow=FALSE)
 	df1 <- nrow(phenoData(trioSet))/3
 	sds <- (sds.marker * df1 + df0*sds.sample)/(df0 + df1)
@@ -2369,7 +2374,7 @@ computeLoglik <- function(id,
 }
 
 rowMAD <- function(x, y, ...){
-	notna <- !is.na(x)
+	##notna <- !is.na(x)
 	mad <- 1.4826*rowMedians(abs(x-rowMedians(x, ...)), ...)
 	return(mad)
 }
@@ -2478,14 +2483,7 @@ joint1 <- function(LLT, ##object,
 		   Prob.DN=1.5e-6,
 		   denovo.prev,
 		   state.prev) {
-	##browser()
 	state <- trio.states[state.index, ]
-	##fmo <- list()
-	##fmo <- matrix(NA, nrow(object), 3)
-	##tmp <- as.matrix(do.call("cbind", fmo))
-	##for(i in 1:3) fmo[, i] <- loglik(object)["logR", , i, state[i]] + loglik(object)["baf", , i, state[i]]
-	##fmo <- fmo[rowSums(is.na(fmo)) == 0, ]
-	##LLT is 3 x 5
 	fmo <- c(LLT[1, state[1]], LLT[2, state[2]], LLT[3, state[3]])
 	if(segment.index == 1){
 		## assume Pr(z_1,f | lambda) = Pr(z_2,m | lambda) = pi
@@ -2518,7 +2516,6 @@ joint1 <- function(LLT, ##object,
 		## prob. leaving normal state to state k
 		##fmo <- apply(fmo, 2, sum, na.rm=TRUE)
 		for(j in 1:2) fmo[j] <- fmo[j]+log(tau[state.prev[j], state[j]])
-
 		##f <- log(tau[state.prev[1], state[1]]) + sum(fmo[[1]])
 		##m <- log(tau[state.prev[2], state[1]]) + sum(fmo[[2]])
 		if(denovo.prev & is.denovo){
@@ -2614,30 +2611,6 @@ joint1 <- function(LLT, ##object,
 		LLR <- loglik(obj)["logR", , ,  ]
 		LLB <- loglik(obj)["baf", , , ]
 		LL <- weightR * LLR + (1-weightR)*LLB
-		##
-##		## recenter and scale each
-##		LLR.c <- LLR
-##		LLB.c <- LLB
-##		for(j in 1:3){
-##			## centering and scaling the rows gives each probe equal weight
-##			## gives the approx. BAF equal importance
-##			x <- t(LLR[, j, ])
-##			tx <- t(scale(x))
-##			LLR.c[, j, ] <- tx
-##			x <- t(LLB[, j, ])
-##			tx <- t(scale(x))
-##			LLB.c[, j, ] <- tx
-##		}
-##		LL.c <- LLR.c+LLB.c
-		##
-		## Does it make sense to give the logR and BAFs emission probs equal weight?
-		## - The logR emission probs are much more variable and can dominate
-		##
-		##
-##		LL <-  LLR + LLB
-##		LL[is.na(LL)] <- log(1e-10)
-		## nr x 3, S
-		## sum over rows -> 3 x S
 		LLT <- matrix(NA, 3, 5)
 		for(j in 1:3) LLT[j, ] <- apply(LL[, j, ], 2, sum, na.rm=TRUE)
 		for(j in 1:nrow(trio.states)){
@@ -2747,7 +2720,10 @@ joint4 <- function(trioSet,
 				df0=df0)
 	start.stop <- cbind(ranges$start.index, ranges$end.index)
 	l <- apply(start.stop, 1, function(x) length(x[1]:x[2]))
-	fData(object)$range.index <- rep(seq(length=nrow(ranges)), l)
+	ri <- rep(seq(length=nrow(ranges)), l)
+	if(length(ri)==nrow(object)){
+		fData(object)$range.index <- ri
+	} else fData(object)$range.index[seq_along(ri)] <- ri
 	trio.states <- trioStates(states)
 	tmp <- matrix(NA, nrow(trio.states), 2)
 	colnames(tmp) <- c("DN=0", "DN=1")
@@ -2958,7 +2934,7 @@ calculateMarkerSd <- function(object, marker.index, sample.index){
 	message("excluding ", ncol(bsSet)-length(j), " WGA/CIDR samples")
 	sds <- ocLapply(marker.index, function(i, object, j){
 		lr <- as.matrix(logR(object)[i, j])
-		sds <- crlmm:::rowMAD(lr, na.rm=TRUE)
+		sds <- rowMAD(lr, na.rm=TRUE)
 		return(sds)
 	}, object=object, j=j)
 	close(logR(object))

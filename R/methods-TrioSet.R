@@ -372,6 +372,8 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 	ranges$argmax <- NA
 	ranges$DN <- NA
 	for(i in seq_along(id)){
+		if(verbose)
+			message("\t bayes factors for sample ", i, " of ", length(id))
 		this.id <- id[i]
 		if(verbose){
 			if(i %% 100 == 0)
