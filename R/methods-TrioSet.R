@@ -421,10 +421,13 @@ setMethod("todf", signature(object="TrioSet", range="RangedData"),
 	close(mindist(object))
 	id <- matrix(c("F", "M", "O"), nrow(b), ncol(b), byrow=TRUE)
 	empty <- rep(NA, length(md))
-	b <- c(as.numeric(b), empty)
-	r <- c(as.numeric(r), md)
-	x <- rep(position(object)[marker.index], 4)
-	id <- c(as.character(id), rep("min dist",length(md)))
+	## A trick to add an extra panel for genes and cnv
+	##df <- rbind(df, list(as.integer(NA), as.numeric(NA), as.numeric(NA), as.factor("genes")))
+	## The NA's are to create extra panels (when needed for lattice plotting)
+	b <- c(as.numeric(b), empty, NA, NA)
+	r <- c(as.numeric(r), md, NA, NA)
+	x <- c(rep(position(object)[marker.index], 4), NA, NA)
+	id <- c(as.character(id), rep("min dist",length(md)), c("genes", "CNV"))
 	df <- data.frame(x=x, b=b, r=r, id=id)
 	return(df)
 })
@@ -485,3 +488,36 @@ fmoNames <- function(object){
 	colnames(tmp) <- c("F", "M", "O")
 	return(tmp)
 }
+
+logrPanel <- function(x, y, ..., subscripts){
+	panel.grid(v=10,h=10, "grey")
+	panel.xyplot(x, y, ...)
+}
+setMethod("xyplot", signature(x="formula", data="TrioSet"),
+	  function(x, data, ...){
+		  if(!"panel" %in% names(list(...))){
+			  panel <- logrPanel
+		  }
+		  data <- todf(data, ...)
+		  if("labels" %in% names(list(...))){
+			  data <- data[data$id %in% labels, ]
+		  }
+		  xyplot(x, data=data,
+			 panel=panel(...), ...)
+			 ##layout=c(1,4),
+			 ##index.cond=list(4:1),
+			 ##pch=pch,
+			 ##cex=cex,
+			 ##xlab="Mb",
+			 ##ylab="",
+			 ##border="grey60",
+			 ##range.object=rd[i,],
+			 ##scales=list(x=list(tick.number=10, cex=cex.scale, tck=c(1,0)),
+			 ##alternating=rep(1, 4),
+			 ##y=list(cex=cex.scale, tck=c(1,0))),
+			 ##par.strip.text=list(lines=0.8, cex=0.7),
+			 ##alpha=alpha,
+			 ##highlight=highlight,
+			 ##col=col,
+			 ##fill=fill, ...)##, main=rd$id[i]))
+	  })
