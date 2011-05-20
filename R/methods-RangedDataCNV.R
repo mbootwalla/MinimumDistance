@@ -14,16 +14,19 @@ setMethod("RangedDataCNV", signature(ranges="IRanges"),
 
 setMethod("chromosome", signature(object="RangedDataCNV"), function(object) object$chrom)
 
-setMethod("plot", signature(x="RangedDataCNV", y="missing"),
-	  function(x, y, ...){
-		  df <- todf(x)
-		  plot(x=df, ...)
-	  })
+##setMethod("plot", signature(x="RangedDataCNV", y="missing"),
+##	  function(x, y, ...){
+##		  df <- todf(x)
+##		  plot(x=df, ...)
+##	  })
+
+
 
 
 setMethod("todf", signature(object="RangedDataCNV"), function(object, col=1:3, ...){
 	require(SNPchip)
 	data(chromosomeAnnotation)
+	if(!"col" %in% names(list(...))) col <- 1:3 else col <- list(...)[["col"]]
 	##object <- object[object$state != normalIndex(hmm.params), ]
 	is.denovo <- isDenovo(state(object))
 	object <- object[is.denovo, ]

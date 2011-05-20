@@ -399,6 +399,36 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 	ranges
 })
 
+setMethod("todf", signature(object="TrioSet", range="RangedData"),
+	  function(object, range, frame, ...){
+	stopifnot(nrow(range) == 1)
+	if(missing(frame)){
+		w <- width(range)
+		frame <- w/0.05  * 1/2
+	}
+	marker.index <- Beaty:::featuresInRange(object, range, FRAME=frame)
+	id <- range$id
+	sample.index <- match(id, offspringNames(object))
+	stopifnot(length(sample.index)==1)
+	open(baf(object))
+	open(logR(object))
+	open(mindist(object))
+	b <- baf(object)[marker.index, sample.index, ]
+	r <- logR(object)[marker.index, sample.index, ]
+	md <- mindist(object)[marker.index, sample.index]
+	close(baf(object))
+	close(logR(object))
+	close(mindist(object))
+	id <- matrix(c("F", "M", "O"), nrow(b), ncol(b), byrow=TRUE)
+	empty <- rep(NA, length(md))
+	b <- c(as.numeric(b), empty)
+	r <- c(as.numeric(r), md)
+	x <- rep(position(object)[marker.index], 4)
+	id <- c(as.character(id), rep("min dist",length(md)))
+	df <- data.frame(x=x, b=b, r=r, id=id)
+	return(df)
+})
+
 setMethod("prune", signature(object="TrioSet", ranges="RangedDataCNV"),
 	  function(object, ranges, ...){
 		  CHR <- unique(chromosome(object))

@@ -626,7 +626,7 @@ excludeRanges <- function(segmeans, lrSet){
 featuresInRange <- function(object, range, ...){
 	##if(is(range, "RangedData")) stopifnot(nrow(range)==1) else  stopifnot(length(range)==1)
 	##if(is(range, "GRanges")) CHR <- chromosome(range) else CHR <- range$chrom
-	##featuresInXlim(object, start=start(range), end=end(range), CHR=CHR, ...)
+	Beaty:::featuresInXlim(object, start=start(range), end=end(range), CHR=range$chrom, ...)
 }
 
 addIndicesFromFeatureData <- function(rd.object, fD, FRAME=0){

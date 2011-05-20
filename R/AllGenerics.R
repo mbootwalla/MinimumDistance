@@ -78,7 +78,7 @@ setGeneric("computeBayesFactor", function(object,
 	   standardGeneric("computeBayesFactor"))
 
 
-setGeneric("todf", function(object, col=1:3, ...) standardGeneric("todf"))
+setGeneric("todf", function(object, range, frame, ...) standardGeneric("todf"))
 
 setGeneric("offspringNames", function(object) standardGeneric("offspringNames"))
 setGeneric("fatherNames", function(object) standardGeneric("fatherNames"))
