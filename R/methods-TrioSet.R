@@ -595,7 +595,7 @@ gridlayout <- function(figname, lattice.object, rd, ...){
 		seekViewport(rev(viewportNames)[i])
 		y <- lattice.object[[1]]$panel.args[[i]]$y
 		grid.points(x[index], y[index], pch=21,
-			    gp=gpar(...))
+			    gp=gpar(cex=0.4, fill="lightblue"))
 ##			    gp=gpar(cex=0.6, fill="lightblue"))
 	}
 	seekViewport("plot1.panel.1.1.off.vp")
@@ -610,11 +610,17 @@ gridlayout <- function(figname, lattice.object, rd, ...){
 		     unit(0, "npc"))
 	seekViewport("plot1.panel.1.4.off.vp")
 	grid.line.to(unit(end(rd)/1e6, "native"),
-		     unit(1, "npc"), gp=gpar(col="red", lwd=1, lty="dashed", col="purple"))
+		     unit(1, "npc"),
+		     gp=gpar(...))
+		     ##gp=gpar(col="red", lwd=1, lty="dashed", col="purple"))
 	upViewport(0)
-	grid.text("Log R Ratio", x=unit(0.25, "npc"), y=unit(0.96, "npc"), gp=gpar("cex"=0.8))
-	grid.text("B allele frequency", x=unit(0.75, "npc"), y=unit(0.96, "npc"), gp=gpar("cex"=0.8))
-	grid.text(paste(chr.name, ", Family", ss(rd$id)), x=unit(0.5, "npc"), y=unit(0.98, "npc"), gp=gpar("cex"=0.9))
+	grid.text("Log R Ratio", x=unit(0.25, "npc"),
+		  y=unit(0.97, "npc"),
+		  gp=gpar("cex"=0.8))
+	grid.text("B allele frequency", x=unit(0.75, "npc"),
+		  y=unit(0.97, "npc"), gp=gpar("cex"=0.8))
+	grid.text(paste(chr.name, ", Family", ss(rd$id)), x=unit(0.5, "npc"), y=unit(0.98, "npc"),
+		  gp=gpar("cex"=0.9))
 	upViewport(0)
 	print(lattice.object[[2]], position=c(0.48, 0, 1, 1), more=TRUE, prefix="plot2")
 	seekViewport("plot2.panel.1.1.off.vp")
@@ -624,13 +630,27 @@ gridlayout <- function(figname, lattice.object, rd, ...){
 	viewportName <- paste("plot2.panel.1.", L, ".off.vp", sep="")
 	seekViewport(viewportName)
 	grid.line.to(unit(start(rd)/1e6, "native"),
-		     unit(1, "npc"), gp=gpar(col="purple", lty="dashed", lwd=2))
+		     unit(1, "npc"),
+		     gp=gpar(...))
+		     ##gp=gpar(col="purple", lty="dashed", lwd=2))
 	seekViewport("plot2.panel.1.1.off.vp")
 	grid.move.to(unit(end(rd)/1e6, "native"),
 		     unit(0, "npc"))
 	seekViewport(viewportName)
 	grid.line.to(unit(end(rd)/1e6, "native"),
-		     unit(1, "npc"), gp=gpar(col="red", lwd=2, lty="dashed", col="purple"))
+		     unit(1, "npc"), ##gp=gpar(col="red", lwd=2, lty="dashed", col="purple"))
+		     gp=gpar(...))
+	L <- seq(length=length(lattice.object[[2]]$panel.args))
+	viewportNames <- paste("plot2.panel.1.", L, ".off.vp", sep="")
+	panelArgs <- lattice.object[[2]]$panel.args
+	x <- panelArgs[[1]]$x
+	index <- which(x >= start(rd)/1e6 & x <= end(rd)/1e6)
+	for(i in seq_along(viewportNames)){
+		seekViewport(rev(viewportNames)[i])
+		y <- panelArgs[[i]]$y
+		grid.points(x[index], y[index], pch=21,
+			    gp=gpar(cex=0.4, fill="lightblue"))
+	}
 	if(!missing(figname)) dev.off()
 	TRUE
 }
