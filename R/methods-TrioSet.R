@@ -544,7 +544,7 @@ xypanel <- function(x, y, panelLabels,
 	}
 	if(panelLabels[panel.number()] == "genes"){
 		require(locuszoom)
-		data(rf)
+		data(rf, package="locuszoom")
 		rf <- rf[!duplicated(rf$geneName), ]
 		rf.chr <- rf[rf$txStart/1e6 <= xlimit[2] & rf$txEnd/1e6 >= xlimit[1] & rf$chrom==CHR, ]
 		flatBed <- flatten.bed(rf.chr)
@@ -556,10 +556,12 @@ xypanel <- function(x, y, panelLabels,
 			      cex=0.6)
 	}
 	if(panelLabels[panel.number()]=="CNV"){
-		data(cnv)
+		require(locuszoom)
+		data(cnv, package="locuszoom")
 		cnv.chr <- cnv[cnv$txStart/1e6 <= xlimit[2] & cnv$txEnd/1e6 >= xlimit[1] & cnv$chrom==paste("chr", CHR, sep=""), ]
 		##cnv.chr$txStart=cnv.chr$txStart/1000
 		##cnv.chr$txEnd=cnv.chr$txEnd/1000
+		##current.viewport$xscale <- xlimit
 		flatBed <- flatten.bed(cnv.chr)
 		flatBed$start <- flatBed$start/1e3
 		flatBed$stop <- flatBed$stop/1e3
@@ -583,7 +585,7 @@ setMethod("xyplot", signature(x="formula", data="TrioSet"),
 			  panelLabels <- list(...)[["panelLabels"]]
 			  data <- data[data$id %in% panelLabels, ]
 		  }
-		  if("xlim" %in% names(list(...))) xlimit <- xlim else xlimit <- range(df$x)
+		  if("xlim" %in% names(list(...))) xlimit <- xlim else xlimit <- range(data$x, na.rm=TRUE)
 		  xyplot(x=x, data=data,
 			 panel=panel, fmonames=fmonames, xlimit=xlimit, ...)
 			 ##layout=c(1,4),
