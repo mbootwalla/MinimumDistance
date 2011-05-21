@@ -498,7 +498,7 @@ fmoNames <- function(object){
 	return(tmp)
 }
 
-logrPanel <- function(x, y, panelLabels,
+xypanel <- function(x, y, panelLabels,
 		      segments=TRUE,
 		      range, fmonames,
 		      cbs.segs,
@@ -506,8 +506,8 @@ logrPanel <- function(x, y, panelLabels,
 		      ylim, ..., subscripts){
 	panel.grid(v=10,h=10, "grey")
 	panel.xyplot(x, y, ...)
+	CHR <- range$chrom
 	if(segments){
-		CHR <- range$chrom
 		if(missing(cbs.segs)){
 			cbs.segs <- loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, sep=""), name="cbs.segs")
 		}
@@ -565,7 +565,7 @@ logrPanel <- function(x, y, panelLabels,
 setMethod("xyplot", signature(x="formula", data="TrioSet"),
 	  function(x, data, ...){
 		  if(!"panel" %in% names(list(...))){
-			  panel <- logrPanel
+			  panel <- xypanel
 		  }
 		  stopifnot("range" %in% names(list(...)))
 		  range <- list(...)[["range"]]
@@ -574,9 +574,9 @@ setMethod("xyplot", signature(x="formula", data="TrioSet"),
 		  if("panelLabels" %in% names(list(...))){
 			  panelLabels <- list(...)[["panelLabels"]]
 			  data <- data[data$id %in% panelLabels, ]
-		  } else panelLabels=unique(data$id)
+		  }
 		  xyplot(x=x, data=data,
-			 panel=panel, fmonames=fmonames, panelLabels=panelLabels, ...)
+			 panel=panel, fmonames=fmonames, ...)
 			 ##layout=c(1,4),
 			 ##index.cond=list(4:1),
 			 ##pch=pch,
