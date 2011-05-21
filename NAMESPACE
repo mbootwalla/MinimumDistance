@@ -40,7 +40,7 @@ export(beadstudiodir,
        fullId,
        getAllBayesFactorRanges,
        getKey,
-       harmonizeStates
+       harmonizeStates,
        isDenovo,
        loadBatchFiles,
        my.xypanel,

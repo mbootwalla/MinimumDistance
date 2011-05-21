@@ -507,6 +507,7 @@ xypanel <- function(x, y, panelLabels,
 		    ylim, ..., subscripts){
 	panel.grid(v=10,h=10, "grey")
 	panel.xyplot(x, y, ...)
+	index <- which(x >= start(range)/1e6 & x <= end(range)/1e6)
 	panelLabels <- rev(panelLabels)
 	CHR <- range$chrom
 	if(segments){
@@ -583,12 +584,38 @@ gridlayout <- function(figname, lattice.object, rd, ...){
 	pushViewport(dataViewport(xscale=lattice.object[[1]]$x.limits,
 				  yscale=c(0,1), clip="on"))
 	print(lattice.object[[1]], newpage=FALSE, prefix="plot1", more=TRUE)
+	seekViewport("plot1.panel.1.1.off.vp")
+	grid.move.to(unit(start(rd)/1e6, "native"),
+		     unit(0, "npc"))
+	seekViewport("plot1.panel.1.4.off.vp")
+	grid.line.to(unit(start(rd)/1e6, "native"),
+		     unit(1, "npc"), gp=gpar(col="purple", lty="dashed", lwd=2))
+	seekViewport("plot1.panel.1.1.off.vp")
+	grid.move.to(unit(end(rd)/1e6, "native"),
+		     unit(0, "npc"))
+	seekViewport("plot1.panel.1.4.off.vp")
+	grid.line.to(unit(end(rd)/1e6, "native"),
+		     unit(1, "npc"), gp=gpar(col="red", lwd=2, lty="dashed", col="purple"))
 	upViewport(0)
 	grid.text("Log R Ratio", x=unit(0.25, "npc"), y=unit(0.96, "npc"), gp=gpar("cex"=0.8))
 	grid.text("B allele frequency", x=unit(0.75, "npc"), y=unit(0.96, "npc"), gp=gpar("cex"=0.8))
 	grid.text(paste(chr.name, ", Family", ss(rd$id)), x=unit(0.5, "npc"), y=unit(0.98, "npc"), gp=gpar("cex"=0.9))
 	upViewport(0)
-	print(lattice.object[[2]], position=c(0.48, 0, 1, 1), more=TRUE, prefix="baf")
+	print(lattice.object[[2]], position=c(0.48, 0, 1, 1), more=TRUE, prefix="plot2")
+	seekViewport("plot2.panel.1.1.off.vp")
+	grid.move.to(unit(start(rd)/1e6, "native"),
+		     unit(0, "npc"))
+	L <- length(lattice.object[[2]]$panel.args)
+	viewportName <- paste("plot2.panel.1.", L, ".off.vp", sep="")
+	seekViewport(viewportName)
+	grid.line.to(unit(start(rd)/1e6, "native"),
+		     unit(1, "npc"), gp=gpar(col="purple", lty="dashed", lwd=2))
+	seekViewport("plot2.panel.1.1.off.vp")
+	grid.move.to(unit(end(rd)/1e6, "native"),
+		     unit(0, "npc"))
+	seekViewport(viewportName)
+	grid.line.to(unit(end(rd)/1e6, "native"),
+		     unit(1, "npc"), gp=gpar(col="red", lwd=2, lty="dashed", col="purple"))
 	if(!missing(figname)) dev.off()
 	TRUE
 }
@@ -606,23 +633,15 @@ setMethod("xyplot", signature(x="formula", data="TrioSet"),
 			  panelLabels <- list(...)[["panelLabels"]]
 			  data <- data[data$id %in% panelLabels, ]
 		  }
-		  if("xlim" %in% names(list(...))) xlimit <- xlim else xlimit <- range(data$x, na.rm=TRUE)
+		  if("xlim" %in% names(list(...))) xlimit <- list(...)[["xlim"]] else xlimit <- range(data$x, na.rm=TRUE)
 		  xyplot(x=x, data=data,
 			 panel=panel, fmonames=fmonames, xlimit=xlimit, ...)
-			 ##layout=c(1,4),
-			 ##index.cond=list(4:1),
-			 ##pch=pch,
-			 ##cex=cex,
-			 ##xlab="Mb",
-			 ##ylab="",
-			 ##border="grey60",
-			 ##range.object=rd[i,],
-			 ##scales=list(x=list(tick.number=10, cex=cex.scale, tck=c(1,0)),
-			 ##alternating=rep(1, 4),
-			 ##y=list(cex=cex.scale, tck=c(1,0))),
-			 ##par.strip.text=list(lines=0.8, cex=0.7),
-			 ##alpha=alpha,
-			 ##highlight=highlight,
-			 ##col=col,
-			 ##fill=fill, ...)##, main=rd$id[i]))
+	  })
+setMethod("xyplot", signature(x="formula", data="TrioSetList"),
+	  function(x, data, ...){
+		  stopifnot("range" %in% names(list(...)))
+		  range <- list(...)[["range"]]
+		  stopifnot(nrow(range)==1)
+		  trioSet <- data[[range$chrom]]
+		  xyplot(x, trioSet, ...)
 	  })
