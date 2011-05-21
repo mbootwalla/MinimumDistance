@@ -419,17 +419,26 @@ setMethod("todf", signature(object="TrioSet", range="RangedData"),
 	close(baf(object))
 	close(logR(object))
 	close(mindist(object))
-	id <- matrix(c("F", "M", "O"), nrow(b), ncol(b), byrow=TRUE)
+	id <- matrix(c("father", "mother", "offspring"), nrow(b), ncol(b), byrow=TRUE)
 	empty <- rep(NA, length(md))
 	## A trick to add an extra panel for genes and cnv
 	##df <- rbind(df, list(as.integer(NA), as.numeric(NA), as.numeric(NA), as.factor("genes")))
 	## The NA's are to create extra panels (when needed for lattice plotting)
-	b <- c(as.numeric(b), empty, NA, NA)
-	r <- c(as.numeric(r), md, NA, NA)
-	x <- c(rep(position(object)[marker.index], 4), NA, NA)
-	id <- c(as.character(id), rep("min dist",length(md)), c("genes", "CNV"))
+##	b <- c(as.numeric(b), empty, 0, 0)
+##	r <- c(as.numeric(r), md, 0, 0)
+##	x <- c(rep(position(object)[marker.index], 4), 0, 0)
+	id <- c(as.character(id), rep("min dist",length(md)))##, c("genes", "CNV"))
+	b <- c(as.numeric(b), empty)
+	r <- c(as.numeric(r), md)
+	x <- rep(position(object)[marker.index], 4)/1e6
 	df <- data.frame(x=x, b=b, r=r, id=id)
-	return(df)
+
+	df2 <- data.frame(id=c(as.character(df$id), "genes", "CNV"),
+			  b=c(df$b, NA, NA),
+			  r=c(df$r, NA, NA),
+			  x=c(df$x, NA, NA))
+	df2$id <- factor(df2$id, levels=c("father", "mother", "offspring", "min dist", "genes", "CNV"), ordered=TRUE)
+	return(df2)
 })
 
 setMethod("prune", signature(object="TrioSet", ranges="RangedDataCNV"),
@@ -489,21 +498,58 @@ fmoNames <- function(object){
 	return(tmp)
 }
 
-logrPanel <- function(x, y, ..., subscripts){
+logrPanel <- function(x, y, segments=TRUE,
+		      range, fmonames,
+		      cbs.segs,
+		      md.segs, ..., subscripts){
 	panel.grid(v=10,h=10, "grey")
 	panel.xyplot(x, y, ...)
+	if(segments){
+		CHR <- range$chrom
+		if(missing(cbs.segs)){
+			loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, sep=""), name="cbs.segs")
+		}
+		what <- switch(paste("p", panel.number(), sep=""),
+			       p1="min dist",
+			       p2="offspring",
+			       p3="mother",
+			       p4="father",
+			       NULL)
+		stopifnot(!is.null(what))
+		if(what=="father")
+			cbs.sub <- cbs.segs[cbs.segs$id==fmoNames[1], ]
+		if(what=="mother")
+			cbs.sub <- cbs.segs[cbs.segs$id==fmoNames[2], ]
+		if(what=="offspring")
+			cbs.sub <- cbs.segs[cbs.segs$id==fmoNames[3], ]
+		if(what=="min dist"){
+			if(!missing(md.segs)){
+				cbs.sub <- md.segs[md.segs$id %in% ss(range$id), ]
+				##cbs.sub <- dranges[substr(dranges$id, 1, 5) %in% id, ]
+				cbs.sub$seg.mean <- -1*cbs.sub$seg.mean
+			}
+		}
+		if(nrow(cbs.sub) > 0){
+			cbs.sub$seg.mean[cbs.sub$seg.mean < ylimit[1]] <- ylimit[1] + 0.2
+			cbs.sub$seg.mean[cbs.sub$seg.mean > ylimit[2]] <- ylimit[2] - 0.2
+			stopifnot(nrow(cbs.sub) > 0)
+			panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2,col="black")#gp=gpar("lwd"=2))
+		}
+	}
 }
+
 setMethod("xyplot", signature(x="formula", data="TrioSet"),
 	  function(x, data, ...){
 		  if(!"panel" %in% names(list(...))){
 			  panel <- logrPanel
 		  }
-		  data <- todf(data, ...)
-		  if("labels" %in% names(list(...))){
-			  data <- data[data$id %in% labels, ]
+		  data <- Beaty:::todf(data, ...)
+		  if("panelLabels" %in% names(list(...))){
+			  panelLabels <- list(...)[["panelLabels"]]
+			  data <- data[data$id %in% panelLabels, ]
 		  }
-		  xyplot(x, data=data,
-			 panel=panel(...), ...)
+		  xyplot(x=x, data=data,
+			 panel=panel, ...)
 			 ##layout=c(1,4),
 			 ##index.cond=list(4:1),
 			 ##pch=pch,
