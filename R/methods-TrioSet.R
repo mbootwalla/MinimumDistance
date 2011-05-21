@@ -546,7 +546,7 @@ xypanel <- function(x, y, panelLabels,
 		require(locuszoom)
 		data(rf, package="locuszoom")
 		rf <- rf[!duplicated(rf$geneName), ]
-		rf.chr <- rf[rf$txStart/1e6 <= xlimit[2] & rf$txEnd/1e6 >= xlimit[1] & rf$chrom==CHR, ]
+		rf.chr <- rf[rf$txStart/1e6 <= xlimit[2] & rf$txEnd/1e6 >= xlimit[1] & rf$chrom==paste("chr", CHR, sep=""), ]
 		flatBed <- flatten.bed(rf.chr)
 		flatBed$start <- flatBed$start/1e3
 		flatBed$stop <- flatBed$stop/1e3
