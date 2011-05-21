@@ -572,6 +572,27 @@ xypanel <- function(x, y, panelLabels,
 	}
 }
 
+gridlayout <- function(figname, lattice.object, rd, ...){
+	if(!missing(figname))
+		trellis.device(device="pdf", file=figname, onefile=FALSE, ...)
+	stopifnot(!missing(rd))
+	chr.name <- paste("chr", rd$chrom[[1]], sep="")
+	grid.newpage()
+	lvp <- viewport(x=0, width=unit(0.52, "npc"), just="left", name="lvp")
+	pushViewport(lvp)
+	pushViewport(dataViewport(xscale=lattice.object[[1]]$x.limits,
+				  yscale=c(0,1), clip="on"))
+	print(lattice.object[[1]], newpage=FALSE, prefix="plot1", more=TRUE)
+	upViewport(0)
+	grid.text("Log R Ratio", x=unit(0.25, "npc"), y=unit(0.96, "npc"), gp=gpar("cex"=0.8))
+	grid.text("B allele frequency", x=unit(0.75, "npc"), y=unit(0.96, "npc"), gp=gpar("cex"=0.8))
+	grid.text(paste(chr.name, ", Family", ss(rd$id[i])), x=unit(0.5, "npc"), y=unit(0.98, "npc"), gp=gpar("cex"=0.9))
+	upViewport(0)
+	print(lattice.object[[2]], position=c(0.48, 0, 1, 1), more=TRUE, prefix="baf")
+	if(!missing(figname)) dev.off()
+	TRUE
+}
+
 setMethod("xyplot", signature(x="formula", data="TrioSet"),
 	  function(x, data, ...){
 		  if(!"panel" %in% names(list(...))){
