@@ -499,13 +499,15 @@ fmoNames <- function(object){
 }
 
 xypanel <- function(x, y, panelLabels,
-		      segments=TRUE,
-		      range, fmonames,
-		      cbs.segs,
-		      md.segs,
-		      ylim, ..., subscripts){
+		    xlimit,
+		    segments=TRUE,
+		    range, fmonames,
+		    cbs.segs,
+		    md.segs,
+		    ylim, ..., subscripts){
 	panel.grid(v=10,h=10, "grey")
 	panel.xyplot(x, y, ...)
+	panelLabels <- rev(panelLabels)
 	CHR <- range$chrom
 	if(segments){
 		if(missing(cbs.segs)){
@@ -544,8 +546,10 @@ xypanel <- function(x, y, panelLabels,
 		require(locuszoom)
 		data(rf)
 		rf <- rf[!duplicated(rf$geneName), ]
-		rf.chr <- rf[rf$txStart/1e6 <= max(x) & rf$txEnd/1e6 >= min(x) & rf$chrom==CHR, ]
+		rf.chr <- rf[rf$txStart/1e6 <= xlimit[2] & rf$txEnd/1e6 >= xlimit[1] & rf$chrom==CHR, ]
 		flatBed <- flatten.bed(rf.chr)
+		flatBed$start <- flatBed$start/1e3
+		flatBed$stop <- flatBed$stop/1e3
 		panel.flatbed(flat=flatBed,
 			      showIso=FALSE,
 			      rows=5,
@@ -553,8 +557,12 @@ xypanel <- function(x, y, panelLabels,
 	}
 	if(panelLabels[panel.number()]=="CNV"){
 		data(cnv)
-		cnv.chr <- cnv[cnv$txStart/1e6 <= max(x) & cnv$txEnd/1e6 >= min(x) & cnv$chrom==CHR, ]
+		cnv.chr <- cnv[cnv$txStart/1e6 <= xlimit[2] & cnv$txEnd/1e6 >= xlimit[1] & cnv$chrom==paste("chr", CHR, sep=""), ]
+		##cnv.chr$txStart=cnv.chr$txStart/1000
+		##cnv.chr$txEnd=cnv.chr$txEnd/1000
 		flatBed <- flatten.bed(cnv.chr)
+		flatBed$start <- flatBed$start/1e3
+		flatBed$stop <- flatBed$stop/1e3
 		panel.flatbed(flat=flatBed,
 			      showIso=FALSE, rows=5,
 			      cex=0.6,
@@ -575,8 +583,9 @@ setMethod("xyplot", signature(x="formula", data="TrioSet"),
 			  panelLabels <- list(...)[["panelLabels"]]
 			  data <- data[data$id %in% panelLabels, ]
 		  }
+		  if("xlim" %in% names(list(...))) xlimit <- xlim else xlimit <- range(df$x)
 		  xyplot(x=x, data=data,
-			 panel=panel, fmonames=fmonames, ...)
+			 panel=panel, fmonames=fmonames, xlimit=xlimit, ...)
 			 ##layout=c(1,4),
 			 ##index.cond=list(4:1),
 			 ##pch=pch,
