@@ -498,16 +498,18 @@ fmoNames <- function(object){
 	return(tmp)
 }
 
-logrPanel <- function(x, y, segments=TRUE,
+logrPanel <- function(x, y, panelLabels,
+		      segments=TRUE,
 		      range, fmonames,
 		      cbs.segs,
-		      md.segs, ..., subscripts){
+		      md.segs,
+		      ylim, ..., subscripts){
 	panel.grid(v=10,h=10, "grey")
 	panel.xyplot(x, y, ...)
 	if(segments){
 		CHR <- range$chrom
 		if(missing(cbs.segs)){
-			loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, sep=""), name="cbs.segs")
+			cbs.segs <- loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, sep=""), name="cbs.segs")
 		}
 		what <- switch(paste("p", panel.number(), sep=""),
 			       p1="min dist",
@@ -517,24 +519,46 @@ logrPanel <- function(x, y, segments=TRUE,
 			       NULL)
 		stopifnot(!is.null(what))
 		if(what=="father")
-			cbs.sub <- cbs.segs[cbs.segs$id==fmoNames[1], ]
+			cbs.sub <- cbs.segs[cbs.segs$id==fmonames[1], ]
 		if(what=="mother")
-			cbs.sub <- cbs.segs[cbs.segs$id==fmoNames[2], ]
+			cbs.sub <- cbs.segs[cbs.segs$id==fmonames[2], ]
 		if(what=="offspring")
-			cbs.sub <- cbs.segs[cbs.segs$id==fmoNames[3], ]
+			cbs.sub <- cbs.segs[cbs.segs$id==fmonames[3], ]
 		if(what=="min dist"){
 			if(!missing(md.segs)){
 				cbs.sub <- md.segs[md.segs$id %in% ss(range$id), ]
+				cbs.sub <- cbs.sub[cbs.sub$chrom == range$chrom, ]
 				##cbs.sub <- dranges[substr(dranges$id, 1, 5) %in% id, ]
 				cbs.sub$seg.mean <- -1*cbs.sub$seg.mean
 			}
 		}
+		if(missing(ylim)) ylimit <- range(y, na.rm=TRUE) else ylim <- ylimit
 		if(nrow(cbs.sub) > 0){
 			cbs.sub$seg.mean[cbs.sub$seg.mean < ylimit[1]] <- ylimit[1] + 0.2
 			cbs.sub$seg.mean[cbs.sub$seg.mean > ylimit[2]] <- ylimit[2] - 0.2
 			stopifnot(nrow(cbs.sub) > 0)
-			panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2,col="black")#gp=gpar("lwd"=2))
+			panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2, col="black")#gp=gpar("lwd"=2))
 		}
+	}
+	if(panelLabels[panel.number()] == "genes"){
+		require(locuszoom)
+		data(rf)
+		rf <- rf[!duplicated(rf$geneName), ]
+		rf.chr <- rf[rf$txStart/1e6 <= max(x) & rf$txEnd/1e6 >= min(x) & rf$chrom==CHR, ]
+		flatBed <- flatten.bed(rf.chr)
+		panel.flatbed(flat=flatBed,
+			      showIso=FALSE,
+			      rows=5,
+			      cex=0.6)
+	}
+	if(panelLabels[panel.number()]=="CNV"){
+		data(cnv)
+		cnv.chr <- cnv[cnv$txStart/1e6 <= max(x) & cnv$txEnd/1e6 >= min(x) & cnv$chrom==CHR, ]
+		flatBed <- flatten.bed(cnv.chr)
+		panel.flatbed(flat=flatBed,
+			      showIso=FALSE, rows=5,
+			      cex=0.6,
+			      col="red")
 	}
 }
 
@@ -543,13 +567,16 @@ setMethod("xyplot", signature(x="formula", data="TrioSet"),
 		  if(!"panel" %in% names(list(...))){
 			  panel <- logrPanel
 		  }
+		  stopifnot("range" %in% names(list(...)))
+		  range <- list(...)[["range"]]
+		  fmonames <- fmoNames(data)[match(range$id, offspringNames(data)), ]
 		  data <- Beaty:::todf(data, ...)
 		  if("panelLabels" %in% names(list(...))){
 			  panelLabels <- list(...)[["panelLabels"]]
 			  data <- data[data$id %in% panelLabels, ]
-		  }
+		  } else panelLabels=unique(data$id)
 		  xyplot(x=x, data=data,
-			 panel=panel, ...)
+			 panel=panel, fmonames=fmonames, panelLabels=panelLabels, ...)
 			 ##layout=c(1,4),
 			 ##index.cond=list(4:1),
 			 ##pch=pch,
