@@ -586,7 +586,7 @@ gridlayout <- function(figname, lattice.object, rd, ...){
 	upViewport(0)
 	grid.text("Log R Ratio", x=unit(0.25, "npc"), y=unit(0.96, "npc"), gp=gpar("cex"=0.8))
 	grid.text("B allele frequency", x=unit(0.75, "npc"), y=unit(0.96, "npc"), gp=gpar("cex"=0.8))
-	grid.text(paste(chr.name, ", Family", ss(rd$id[i])), x=unit(0.5, "npc"), y=unit(0.98, "npc"), gp=gpar("cex"=0.9))
+	grid.text(paste(chr.name, ", Family", ss(rd$id)), x=unit(0.5, "npc"), y=unit(0.98, "npc"), gp=gpar("cex"=0.9))
 	upViewport(0)
 	print(lattice.object[[2]], position=c(0.48, 0, 1, 1), more=TRUE, prefix="baf")
 	if(!missing(figname)) dev.off()
