@@ -79,3 +79,12 @@ setMethod("[", signature(x="TrioSetList"),
 		  x <- as(xlist, "TrioSetList")
 		  return(x)
 	  })
+
+setMethod("xyplot", signature(x="formula", data="TrioSetList"),
+	  function(x, data, ...){
+		  stopifnot("range" %in% names(list(...)))
+		  range <- list(...)[["range"]]
+		  stopifnot(nrow(range)==1)
+		  trioSet <- data[[range$chrom]]
+		  xyplot(x, trioSet, ...)
+	  })

@@ -573,6 +573,7 @@ xypanel <- function(x, y, panelLabels,
 	}
 }
 
+## perhaps make ... additional args to gpar()
 gridlayout <- function(figname, lattice.object, rd, ...){
 	if(!missing(figname))
 		trellis.device(device="pdf", file=figname, onefile=FALSE, ...)
@@ -584,18 +585,32 @@ gridlayout <- function(figname, lattice.object, rd, ...){
 	pushViewport(dataViewport(xscale=lattice.object[[1]]$x.limits,
 				  yscale=c(0,1), clip="on"))
 	print(lattice.object[[1]], newpage=FALSE, prefix="plot1", more=TRUE)
+	## highlight points in range
+	L <- seq(length=length(lattice.object[[1]]$panel.args))
+	viewportNames <- paste("plot1.panel.1.", L, ".off.vp", sep="")
+	panelArgs <- lattice.object[[1]]$panel.args[[1]]
+	x <- panelArgs$x
+	index <- which(x >= start(rd)/1e6 & x <= end(rd)/1e6)
+	for(i in seq_along(viewportNames)){
+		seekViewport(rev(viewportNames)[i])
+		y <- lattice.object[[1]]$panel.args[[i]]$y
+		grid.points(x[index], y[index], pch=21,
+			    gp=gpar(...))
+##			    gp=gpar(cex=0.6, fill="lightblue"))
+	}
 	seekViewport("plot1.panel.1.1.off.vp")
 	grid.move.to(unit(start(rd)/1e6, "native"),
 		     unit(0, "npc"))
 	seekViewport("plot1.panel.1.4.off.vp")
 	grid.line.to(unit(start(rd)/1e6, "native"),
-		     unit(1, "npc"), gp=gpar(col="purple", lty="dashed", lwd=2))
+		     unit(1, "npc"), ##gp=gpar(col="purple", lty="dashed", lwd=1))
+		     gp=gpar(...))
 	seekViewport("plot1.panel.1.1.off.vp")
 	grid.move.to(unit(end(rd)/1e6, "native"),
 		     unit(0, "npc"))
 	seekViewport("plot1.panel.1.4.off.vp")
 	grid.line.to(unit(end(rd)/1e6, "native"),
-		     unit(1, "npc"), gp=gpar(col="red", lwd=2, lty="dashed", col="purple"))
+		     unit(1, "npc"), gp=gpar(col="red", lwd=1, lty="dashed", col="purple"))
 	upViewport(0)
 	grid.text("Log R Ratio", x=unit(0.25, "npc"), y=unit(0.96, "npc"), gp=gpar("cex"=0.8))
 	grid.text("B allele frequency", x=unit(0.75, "npc"), y=unit(0.96, "npc"), gp=gpar("cex"=0.8))
@@ -637,11 +652,4 @@ setMethod("xyplot", signature(x="formula", data="TrioSet"),
 		  xyplot(x=x, data=data,
 			 panel=panel, fmonames=fmonames, xlimit=xlimit, ...)
 	  })
-setMethod("xyplot", signature(x="formula", data="TrioSetList"),
-	  function(x, data, ...){
-		  stopifnot("range" %in% names(list(...)))
-		  range <- list(...)[["range"]]
-		  stopifnot(nrow(range)==1)
-		  trioSet <- data[[range$chrom]]
-		  xyplot(x, trioSet, ...)
-	  })
+
