@@ -322,6 +322,8 @@ setMethod("xsegment", signature(object="TrioSet"),
 		  dimnames(CN) <- list(featureNames(object)[marker.index], sampleNames(object)[sample.index])
 		  arm <- getChromosomeArm(chrom, pos)
 		  index.list <- split(seq_along(marker.index), arm)
+		  iMax <- sapply(index.list, max)
+		  pMax <- pos[iMax]
 		  md.segs <- list()
 		  NR <- nrow(object)
 		  if(verbose) message("Running CBS by chromosome arm")
@@ -333,7 +335,7 @@ setMethod("xsegment", signature(object="TrioSet"),
 					    data.type="logratio",
 					    sampleid=id)
 			  smu.object <- smooth.CNA(CNA.object)
-			  tmp <- segment(smu.object, verbose=0, ...)
+			  tmp <- segment(smu.object, verbose=as.integer(verbose), ...)
 			  df <- tmp$output
 			  sr <- tmp$segRows
 			  ##df <- cbind(tmp$output, tmp$segRows)
@@ -342,7 +344,7 @@ setMethod("xsegment", signature(object="TrioSet"),
 			  endMarker <- rownames(CNA.object)[sr$endRow]
 			  df$start.index <- match(firstMarker, fns)
 			  df$end.index <- match(endMarker, fns)
-			  stopifnot(max(df$end.index) == NR)
+			  stopifnot(max(df$end.index) %in% iMax)
 			  md.segs[[i]] <- df
 		  }
 		  if(length(md.segs) > 1){
