@@ -50,8 +50,8 @@ setGeneric("phenoData2", function(object) standardGeneric("phenoData2"))
 setGeneric("phenoData2<-", function(object,value) standardGeneric("phenoData2<-"))
 setGeneric("varLabels2", function(object) standardGeneric("varLabels2"))
 
-setGeneric("RangedDataCNV", function(ranges=IRanges(), ..., space=NULL, universe=NULL)
-	   standardGeneric("RangedDataCNV"))
+##setGeneric("RangedDataCNV", function(ranges=IRanges(), ..., space=NULL, universe=NULL)
+##	   standardGeneric("RangedDataCNV"))
 
 
 setGeneric("prune", function(object, ranges, id,

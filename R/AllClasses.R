@@ -1,91 +1,66 @@
-##setClass("TrioSet", contains="SnpCallSetPlus", representation(isBiparental="logical"))
 setOldClass("ffdf")
 setOldClass("ff_matrix")
 setOldClass("ff_array")
-
-## From IRanges:
-##setClass("RangedData", contains = c("DataTable", "List"),
-##         representation(ranges = "RangesList", values = "SplitDataFrameList"),
-##         prototype = prototype(ranges = new("SimpleRangesList"),
-##                               values = new("CompressedSplitDataFrameList")))
-## The SplitDataFrameList contains the metadata on the observations (ranges)
-
-##setClass("SplitDataFrameListCopyNumber",
-##	 contains="SplitDataFrameList", representation("VIRTUAL"))
 setClass("RangedDataCopyNumber", contains="RangedData",
 	 representation("VIRTUAL"))
 setClass("RangedDataCNV", contains="RangedDataCopyNumber")
-##	 prototype(SplitDataFrame))
 setValidity("RangedDataCNV", function(object){
-	all(c("chrom", "id", "num.mark",  "start.index", "end.index") %in% colnames(object))
+	##all(c("chrom", "id", "num.mark",  "start.index", "end.index") %in% colnames(object))
+	is(object, "RangedData")
 })
-
 setClass("RangedDataCBS", contains="RangedDataCNV")
 setValidity("RangedDataCBS", function(object){
 	"seg.mean" %in% colnames(object)
 })
-
 setClass("RangedDataHMM", contains="RangedDataCNV")
 setValidity("RangedDataHMM", function(object){
 	"state" %in% colnames(object)
 })
+##setMethod("initialize", "RangedDataCNV",
+##	  function(.Object,
+##		   ranges, values, ...){
+##		  .Object <- callNextMethod(.Object, ranges=ranges, values=values, ...)
+##	  })
+RangedDataCNV <- function(ranges=IRanges(),
+			  start,
+			  end,
+			  chromosome,
+			  coverage,
+			  sampleId,
+			  startIndexInChromosome,
+			  endIndexInChromosome,
+			  ...){
+	if(!missing(end) && !missing(start))
+		ranges <- IRanges(start, end)
+	if(missing(chromosome))
+		chromosome <- vector("integer", length(ranges))
+	if(missing(coverage))
+		coverage <- vector("integer", length(ranges))
+	if(missing(sampleId))
+		sampleId <- vector("character", length(ranges))
+	if(missing(startIndexInChromosome))
+		startIndexInChromosome <- vector("integer", length(ranges))
+	if(missing(endIndexInChromosome))
+		endIndexInChromosome <- vector("integer", length(ranges))
+	rd <- RangedData(ranges,
+			 chrom=chromosome,
+			 num.mark=coverage,
+			 id=sampleId,
+			 start.index=startIndexInChromosome,
+			 end.index=endIndexInChromosome, ...)##, ...)
+	new("RangedDataCNV", ranges=ranges(rd), values=values(rd))
+}
 
-setMethod("initialize", "RangedDataCNV",
-	  function(.Object, ...){
-		  tmp <- RangedData()
-		  .Object <- callNextMethod(.Object)
-
-	  })
-
-
-setMethod("initialize", "RangedData",
-	  function(.Object, ranges=IRanges(), ..., space=NULL, universe=NULL){
-		  tmp <- IRanges:::RangedData(ranges=ranges)
-		  .Object <- callNextMethod(.Object, ranges=tmp)
-		  .Object
-	  })
-setMethod("initialize", "RangedDataCNV",
-	  function(.Object,
-		   ranges,
-		   start,
-		   end,
-		   chromosome,
-		   coverage,
-		   sampleId,
-		   startIndexInChromosome,
-		   endIndexInChromosome,
-		   ...){
-		  if(missing(ranges)){
-			  stopifnot(!missing(end) && !missing(start))
-			  ranges <- IRanges(start, end)
-		  }
-		  if(missing(chromosome))
-			  chromosome <- rep(NA, length(ranges))
-		  if(missing(coverage))
-			  coverage <- rep(NA, length(ranges))
-		  if(missing(sampleId))
-			  sampleId <- rep(NA, length(ranges))
-		  if(missing(startIndexInChromosome))
-			  startIndexInChromosome=rep(NA, length(ranges))
-		  if(missing(endIndexInChromosome))
-			  endIndexInChromosome=rep(NA, length(ranges))
-		  rd <- RangedData(ranges,
-				   chrom=chromosome,
-				   num.mark=coverage,
-				   id=sampleId,
-				   start.index=startIndexInChromosome,
-				   end.index=endIndexInChromosome, ...)
-		  ## Doesn't work.
-		  .Object <- callNextMethod(.Object, ranges=ranges(rd), values=values(rd))
-		  return(.Object)
-	  })
-
-
-
-##setClass("RangedDataCNVPlus", contains="RangedDataCNV")
-##setValidity("RangedDataCNV", function(object){
-##	all(c("seg.mean", "start.index", "end.index") %in% colnames(object))
-##})
+RangedDataCBS <- function(ranges=IRanges(),
+			  seg.mean=vector("numeric", length(ranges)), ...){
+	rd <- RangedDataCNV(ranges=ranges, seg.mean=seg.mean, ...)
+	new("RangedDataCBS", ranges=ranges(rd), values=values(rd))
+}
+RangedDataHMM <- function(ranges=IRanges(),
+			  state=vector("integer", length(ranges)), ...){
+	rd <- RangedDataCNV(ranges=ranges, state=state, ...)
+	new("RangedDataHMM", ranges=ranges(rd), values=values(rd))
+}
 
 setClass("MinDistanceSet", contains="MultiSet")
 
