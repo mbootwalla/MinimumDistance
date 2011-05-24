@@ -961,44 +961,44 @@ minDistanceDeletion <- function(ranges, minDistanceSet, offspring.rule, CHR){
 }
 
 
-constructTrioSet <- function(minDistanceSet, bsSet, CHR){
-	J <- match(sampleNames(minDistanceSet), sampleNames(bsSet))
-	I <- which(chromosome(minDistanceSet) == CHR)
-	stopifnot(identical(featureNames(minDistanceSet)[I], featureNames(bsSet)[I]))
-	sample.names <- substr(sampleNames(minDistanceSet), 1, 5)
-	father.names <- paste(sample.names, "03", sep="_")
-	mother.names <- paste(sample.names, "02", sep="_")
-	father.index <- match(father.names, sampleNames(bsSet))
-	mother.index <- match(mother.names, sampleNames(bsSet))
-	offspr.index <- match(sampleNames(minDistanceSet),sampleNames(bsSet))
-	logR.F <- as.matrix(logR(bsSet)[I, father.index])
-	logR.M <- as.matrix(logR(bsSet)[I, mother.index])
-	logR.O <- as.matrix(logR(bsSet)[I, offspr.index])
-	baf.F <- as.matrix(baf(bsSet)[I, father.index])
-	baf.M <- as.matrix(baf(bsSet)[I, mother.index])
-	baf.O <- as.matrix(baf(bsSet)[I, offspr.index])
-	colnames(logR.F) <- colnames(logR.M) <- colnames(logR.O) <- sample.names
-	colnames(baf.F) <- colnames(baf.M) <- colnames(baf.O) <- sample.names
-	phenoD <- phenoData(bsSet)[offspr.index, ]
-	sampleNames(phenoD) <- sample.names
-	mindist <- as.matrix(copyNumber(minDistanceSet)[I, ])
-	colnames(mindist) <- sample.names
-	mads <- apply(mindist, 2, mad, na.rm=TRUE)
-	mset <- new("MultiSet",
-		    mindist=mindist,
-		    logR.F=logR.F,
-		    logR.M=logR.M,
-		    logR.O=logR.O,
-		    baf.F=baf.F,
-		    baf.M=baf.M,
-		    baf.O=baf.O,
-		    phenoData=phenoD,
-		    featureData=featureData(bsSet)[I, ])
-	mset$mad <- mads
-	rm(logR.F, logR.M, logR.O, baf.F, baf.M, baf.O, mindist); gc()
-	mset$mad <- mads
-	return(mset)
-}
+##constructTrioSet <- function(minDistanceSet, bsSet, CHR){
+##	J <- match(sampleNames(minDistanceSet), sampleNames(bsSet))
+##	I <- which(chromosome(minDistanceSet) == CHR)
+##	stopifnot(identical(featureNames(minDistanceSet)[I], featureNames(bsSet)[I]))
+##	sample.names <- substr(sampleNames(minDistanceSet), 1, 5)
+##	father.names <- paste(sample.names, "03", sep="_")
+##	mother.names <- paste(sample.names, "02", sep="_")
+##	father.index <- match(father.names, sampleNames(bsSet))
+##	mother.index <- match(mother.names, sampleNames(bsSet))
+##	offspr.index <- match(sampleNames(minDistanceSet),sampleNames(bsSet))
+##	logR.F <- as.matrix(logR(bsSet)[I, father.index])
+##	logR.M <- as.matrix(logR(bsSet)[I, mother.index])
+##	logR.O <- as.matrix(logR(bsSet)[I, offspr.index])
+##	baf.F <- as.matrix(baf(bsSet)[I, father.index])
+##	baf.M <- as.matrix(baf(bsSet)[I, mother.index])
+##	baf.O <- as.matrix(baf(bsSet)[I, offspr.index])
+##	colnames(logR.F) <- colnames(logR.M) <- colnames(logR.O) <- sample.names
+##	colnames(baf.F) <- colnames(baf.M) <- colnames(baf.O) <- sample.names
+##	phenoD <- phenoData(bsSet)[offspr.index, ]
+##	sampleNames(phenoD) <- sample.names
+##	mindist <- as.matrix(copyNumber(minDistanceSet)[I, ])
+##	colnames(mindist) <- sample.names
+##	mads <- apply(mindist, 2, mad, na.rm=TRUE)
+##	mset <- new("MultiSet",
+##		    mindist=mindist,
+##		    logR.F=logR.F,
+##		    logR.M=logR.M,
+##		    logR.O=logR.O,
+##		    baf.F=baf.F,
+##		    baf.M=baf.M,
+##		    baf.O=baf.O,
+##		    phenoData=phenoD,
+##		    featureData=featureData(bsSet)[I, ])
+##	mset$mad <- mads
+##	rm(logR.F, logR.M, logR.O, baf.F, baf.M, baf.O, mindist); gc()
+##	mset$mad <- mads
+##	return(mset)
+##}
 
 
 constructTrioSetFromRanges <- function(ranges1, ## top hit ranges

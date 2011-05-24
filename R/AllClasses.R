@@ -3,13 +3,83 @@ setOldClass("ffdf")
 setOldClass("ff_matrix")
 setOldClass("ff_array")
 
+## From IRanges:
+##setClass("RangedData", contains = c("DataTable", "List"),
+##         representation(ranges = "RangesList", values = "SplitDataFrameList"),
+##         prototype = prototype(ranges = new("SimpleRangesList"),
+##                               values = new("CompressedSplitDataFrameList")))
+## The SplitDataFrameList contains the metadata on the observations (ranges)
 
-
-setClass("RangedDataCNV", contains="RangedData")
+##setClass("SplitDataFrameListCopyNumber",
+##	 contains="SplitDataFrameList", representation("VIRTUAL"))
+setClass("RangedDataCopyNumber", contains="RangedData",
+	 representation("VIRTUAL"))
+setClass("RangedDataCNV", contains="RangedDataCopyNumber")
+##	 prototype(SplitDataFrame))
 setValidity("RangedDataCNV", function(object){
-	all(c("chrom", "id", "num.mark", "state", "seg.mean",
-	      "start.index", "end.index") %in% colnames(object))
+	all(c("chrom", "id", "num.mark",  "start.index", "end.index") %in% colnames(object))
 })
+
+setClass("RangedDataCBS", contains="RangedDataCNV")
+setValidity("RangedDataCBS", function(object){
+	"seg.mean" %in% colnames(object)
+})
+
+setClass("RangedDataHMM", contains="RangedDataCNV")
+setValidity("RangedDataHMM", function(object){
+	"state" %in% colnames(object)
+})
+
+setMethod("initialize", "RangedDataCNV",
+	  function(.Object, ...){
+		  tmp <- RangedData()
+		  .Object <- callNextMethod(.Object)
+
+	  })
+
+
+setMethod("initialize", "RangedData",
+	  function(.Object, ranges=IRanges(), ..., space=NULL, universe=NULL){
+		  tmp <- IRanges:::RangedData(ranges=ranges)
+		  .Object <- callNextMethod(.Object, ranges=tmp)
+		  .Object
+	  })
+setMethod("initialize", "RangedDataCNV",
+	  function(.Object,
+		   ranges,
+		   start,
+		   end,
+		   chromosome,
+		   coverage,
+		   sampleId,
+		   startIndexInChromosome,
+		   endIndexInChromosome,
+		   ...){
+		  if(missing(ranges)){
+			  stopifnot(!missing(end) && !missing(start))
+			  ranges <- IRanges(start, end)
+		  }
+		  if(missing(chromosome))
+			  chromosome <- rep(NA, length(ranges))
+		  if(missing(coverage))
+			  coverage <- rep(NA, length(ranges))
+		  if(missing(sampleId))
+			  sampleId <- rep(NA, length(ranges))
+		  if(missing(startIndexInChromosome))
+			  startIndexInChromosome=rep(NA, length(ranges))
+		  if(missing(endIndexInChromosome))
+			  endIndexInChromosome=rep(NA, length(ranges))
+		  rd <- RangedData(ranges,
+				   chrom=chromosome,
+				   num.mark=coverage,
+				   id=sampleId,
+				   start.index=startIndexInChromosome,
+				   end.index=endIndexInChromosome, ...)
+		  ## Doesn't work.
+		  .Object <- callNextMethod(.Object, ranges=ranges(rd), values=values(rd))
+		  return(.Object)
+	  })
+
 
 
 ##setClass("RangedDataCNVPlus", contains="RangedDataCNV")
@@ -33,24 +103,24 @@ setClass("LikSet",
 	 new("VersionedBiobase",
 	     versions=c(classVersion("LogRatioSet"), LikSet="1.0.0"))))
 
-setClass("TrioSet", contains="LogRatioSet",
-	 representation(phenoData2="array"))
-
-setClass("TrioSet", contains="LogRatioSet",
-	 representation(phenoData2="array",
-			mindist="matrixOrNULL"),
-	 prototype = prototype(
-	                       new("VersionedBiobase",
-				   versions=c(classVersion("eSet"), TrioSet="0.0.2"))))
-
-
-setClass("TrioSet", contains="LogRatioSet",
-	 representation(phenoData2="arrayOrNULL",
-			mindist="matrixOrNULL",
-			mad="matrix"),
-	 prototype = prototype(
-	                       new("VersionedBiobase",
-				   versions=c(classVersion("LogRatioSet"), TrioSet="0.0.3"))))
+##setClass("TrioSet", contains="LogRatioSet",
+##	 representation(phenoData2="array"))
+##
+##setClass("TrioSet", contains="LogRatioSet",
+##	 representation(phenoData2="array",
+##			mindist="matrixOrNULL"),
+##	 prototype = prototype(
+##	                       new("VersionedBiobase",
+##				   versions=c(classVersion("eSet"), TrioSet="0.0.2"))))
+##
+##
+##setClass("TrioSet", contains="LogRatioSet",
+##	 representation(phenoData2="arrayOrNULL",
+##			mindist="matrixOrNULL",
+##			mad="matrix"),
+##	 prototype = prototype(
+##	                       new("VersionedBiobase",
+##				   versions=c(classVersion("LogRatioSet"), TrioSet="0.0.3"))))
 
 setClass("TrioSet", contains="LogRatioSet",
 	 representation(phenoData2="arrayOrNULL",

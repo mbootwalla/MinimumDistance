@@ -299,6 +299,7 @@ setMethod("varLabels2", signature(object="TrioSet"), function(object) colnames(p
 setMethod("xsegment", signature(object="TrioSet"),
 	  function(object, id, ..., verbose=FALSE){
 		  ## needs to be ordered
+		  if(verbose) message("Segmenting chromosome ", unique(chromosome(object)))
 		  ix <- order(chromosome(object), position(object))
 		  stopifnot(all(diff(ix) > 0))
 		  stopifnot(length(unique(chromosome(object))) == 1)
@@ -322,11 +323,11 @@ setMethod("xsegment", signature(object="TrioSet"),
 		  dimnames(CN) <- list(featureNames(object)[marker.index], sampleNames(object)[sample.index])
 		  arm <- getChromosomeArm(chrom, pos)
 		  index.list <- split(seq_along(marker.index), arm)
-		  iMax <- sapply(index.list, max)
+		  iMax <- sapply(split(marker.index, arm), max)
 		  pMax <- pos[iMax]
 		  md.segs <- list()
 		  NR <- nrow(object)
-		  if(verbose) message("Running CBS by chromosome arm")
+		  ##if(verbose) message("Running CBS by chromosome arm")
 		  for(i in seq_along(index.list)){
 			  j <- index.list[[i]]
 			  CNA.object <- CNA(genomdat=CN[j, , drop=FALSE],
@@ -344,7 +345,9 @@ setMethod("xsegment", signature(object="TrioSet"),
 			  endMarker <- rownames(CNA.object)[sr$endRow]
 			  df$start.index <- match(firstMarker, fns)
 			  df$end.index <- match(endMarker, fns)
-			  stopifnot(max(df$end.index) %in% iMax)
+			  ## if the last marker was duplicated or
+			  ## missing, this might not be true
+			  stopifnot(max(df$end.index) <= iMax[i])
 			  md.segs[[i]] <- df
 		  }
 		  if(length(md.segs) > 1){

@@ -6,7 +6,6 @@ importClassesFrom(Biobase, eSet)
 importMethodsFrom(Biobase, annotatedDataFrameFrom, updateObject)
 importFrom(Biobase, assayDataElementReplace, sampleNames, varLabels, rowMedians, "sampleNames<-")
 
-##importFrom(mybase, unique)
 importFrom(stats, mad)
 
 
@@ -24,16 +23,27 @@ importFrom(DNAcopy, CNA, segment, smooth.CNA, getbdry)
 importFrom(lattice, xyplot)
 
 ##exportPattern("^[^\\.]")
-exportClasses(DataFrameCNV, RangedDataCNV, TrioSet, LogRatioSet, TrioSetList)
-exportMethods(plot, nMarkers, state, copyNumber, open, close,
-	      calculateMindist, mindist, "mindist<-", updateObject,
-	      logR, baf, "logR<-", "baf<-", mad, "mad<-", xsegment, prune,
-	      phenoData2, "phenoData2<-", ncol, RangedDataCNV,
-	      xyplot,
-	      offspringNames,
+exportClasses(DataFrameCNV, RangedDataCNV, RangedDataCBS, RangedDataHMM,
+	      TrioSet, LogRatioSet, TrioSetList)
+exportMethods(baf, "baf<-",
+	      calculateMindist,
+	      computeBayesFactor,
+	      copyNumber,
+	      coverage,
 	      fatherNames,
+	      logR, "logR<-",
+	      mad, "mad<-",
+	      mindist, "mindist<-",
 	      motherNames,
-	      computeBayesFactor)##, stack, rbind)
+	      ncol,
+	      offspringNames,
+	      phenoData2, "phenoData2<-",
+	      prune,
+	      RangedDataCNV,
+	      state,
+	      updateObject,
+	      xsegment,
+	      xyplot)
 export(beadstudiodir,
        completeTrios,
        fmoNames,
