@@ -342,7 +342,7 @@ setMethod("xsegment", signature(object="TrioSet"),
 			  endMarker <- rownames(CNA.object)[sr$endRow]
 			  df$start.index <- match(firstMarker, fns)
 			  df$end.index <- match(endMarker, fns)
-			  stopifnot(all(df$end.index <= NR))
+			  stopifnot(max(df$end.index) == NR)
 			  md.segs[[i]] <- df
 		  }
 		  if(length(md.segs) > 1){
