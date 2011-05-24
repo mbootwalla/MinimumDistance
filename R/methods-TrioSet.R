@@ -301,6 +301,7 @@ setMethod("xsegment", signature(object="TrioSet"),
 		  ## needs to be ordered
 		  ix <- order(chromosome(object), position(object))
 		  stopifnot(all(diff(ix) > 0))
+		  stopifnot(length(unique(chromosome(object))) == 1)
 		  ##
 		  ##
 		  ##dfl <- vector("list", 22) ## data.frame list
@@ -322,6 +323,7 @@ setMethod("xsegment", signature(object="TrioSet"),
 		  arm <- getChromosomeArm(chrom, pos)
 		  index.list <- split(seq_along(marker.index), arm)
 		  md.segs <- list()
+		  NR <- nrow(object)
 		  if(verbose) message("Running CBS by chromosome arm")
 		  for(i in seq_along(index.list)){
 			  j <- index.list[[i]]
@@ -340,6 +342,7 @@ setMethod("xsegment", signature(object="TrioSet"),
 			  endMarker <- rownames(CNA.object)[sr$endRow]
 			  df$start.index <- match(firstMarker, fns)
 			  df$end.index <- match(endMarker, fns)
+			  stopifnot(all(df$end.index <= NR))
 			  md.segs[[i]] <- df
 		  }
 		  if(length(md.segs) > 1){
@@ -574,13 +577,14 @@ xypanel <- function(x, y, panelLabels,
 }
 
 ## perhaps make ... additional args to gpar()
-gridlayout <- function(figname, lattice.object, rd, ...){
+gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 	if(!missing(figname))
-		trellis.device(device="pdf", file=figname, onefile=FALSE, ...)
+		trellis.device(device="pdf", file=figname, onefile=FALSE,
+			       width=8, height=5)
 	stopifnot(!missing(rd))
 	chr.name <- paste("chr", rd$chrom[[1]], sep="")
 	grid.newpage()
-	lvp <- viewport(x=0, width=unit(0.52, "npc"), just="left", name="lvp")
+	lvp <- viewport(x=0, width=unit(0.50, "npc"), just="left", name="lvp")
 	pushViewport(lvp)
 	pushViewport(dataViewport(xscale=lattice.object[[1]]$x.limits,
 				  yscale=c(0,1), clip="on"))
@@ -595,34 +599,36 @@ gridlayout <- function(figname, lattice.object, rd, ...){
 		seekViewport(rev(viewportNames)[i])
 		y <- lattice.object[[1]]$panel.args[[i]]$y
 		grid.points(x[index], y[index], pch=21,
-			    gp=gpar(cex=0.4, fill="lightblue"))
+			    gp=gpar(cex=cex.pch, fill="lightblue", alpha=0.5))
 ##			    gp=gpar(cex=0.6, fill="lightblue"))
 	}
 	seekViewport("plot1.panel.1.1.off.vp")
 	grid.move.to(unit(start(rd)/1e6, "native"),
 		     unit(0, "npc"))
-	seekViewport("plot1.panel.1.4.off.vp")
+	seekViewport(paste("plot1.panel.1.", max(L),".off.vp", sep=""))
 	grid.line.to(unit(start(rd)/1e6, "native"),
 		     unit(1, "npc"), ##gp=gpar(col="purple", lty="dashed", lwd=1))
 		     gp=gpar(...))
 	seekViewport("plot1.panel.1.1.off.vp")
 	grid.move.to(unit(end(rd)/1e6, "native"),
 		     unit(0, "npc"))
-	seekViewport("plot1.panel.1.4.off.vp")
+	seekViewport(paste("plot1.panel.1.", max(L),".off.vp", sep=""))
 	grid.line.to(unit(end(rd)/1e6, "native"),
 		     unit(1, "npc"),
 		     gp=gpar(...))
 		     ##gp=gpar(col="red", lwd=1, lty="dashed", col="purple"))
 	upViewport(0)
-	grid.text("Log R Ratio", x=unit(0.25, "npc"),
-		  y=unit(0.97, "npc"),
-		  gp=gpar("cex"=0.8))
-	grid.text("B allele frequency", x=unit(0.75, "npc"),
-		  y=unit(0.97, "npc"), gp=gpar("cex"=0.8))
+##	grid.text("Log R Ratio", x=unit(0.25, "npc"),
+##		  y=unit(0.97, "npc"),
+##		  gp=gpar("cex"=0.8))
+##	grid.text("B allele frequency", x=unit(0.75, "npc"),
+##		  y=unit(0.97, "npc"), gp=gpar("cex"=0.8))
 	grid.text(paste(chr.name, ", Family", ss(rd$id)), x=unit(0.5, "npc"), y=unit(0.98, "npc"),
-		  gp=gpar("cex"=0.9))
+		  gp=gpar(cex=0.9))
+	grid.text("Position (Mb)", x=unit(0.5, "npc"), y=unit(0.05, "npc"),
+		  gp=gpar(cex=0.8))
 	upViewport(0)
-	print(lattice.object[[2]], position=c(0.48, 0, 1, 1), more=TRUE, prefix="plot2")
+	print(lattice.object[[2]], position=c(0.5, 0, 0.98, 1), more=TRUE, prefix="plot2")
 	seekViewport("plot2.panel.1.1.off.vp")
 	grid.move.to(unit(start(rd)/1e6, "native"),
 		     unit(0, "npc"))
@@ -649,7 +655,7 @@ gridlayout <- function(figname, lattice.object, rd, ...){
 		seekViewport(rev(viewportNames)[i])
 		y <- panelArgs[[i]]$y
 		grid.points(x[index], y[index], pch=21,
-			    gp=gpar(cex=0.4, fill="lightblue"))
+			    gp=gpar(cex=cex.pch, fill="lightblue", alpha=0.5))
 	}
 	if(!missing(figname)) dev.off()
 	TRUE

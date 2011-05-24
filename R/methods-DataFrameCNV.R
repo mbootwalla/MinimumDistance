@@ -29,6 +29,14 @@ setMethod("xyplot", signature(x="formula", data="DataFrameCNV"),
 		  return(fig)
 	  })
 
+setMethod("[", signature(x="DataFrameCNV"),
+	  function(x, i, j, ..., drop=FALSE){
+		  xlist <- as(x, "data.frame")
+		  xlist <- xlist[i, ]
+		  x <- as(xlist, "DataFrameCNV")
+		  return(x)
+	  })
+
 getKey <- function(df, space="top"){
 ##	labels <- factor(unique(df$statelabels), levels=c("loss (homozygous)",
 ##					      "loss (hemizygous)",
