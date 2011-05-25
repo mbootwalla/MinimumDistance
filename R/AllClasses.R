@@ -5,23 +5,19 @@ setClass("RangedDataCopyNumber", contains="RangedData",
 	 representation("VIRTUAL"))
 setClass("RangedDataCNV", contains="RangedDataCopyNumber")
 setValidity("RangedDataCNV", function(object){
-	##all(c("chrom", "id", "num.mark",  "start.index", "end.index") %in% colnames(object))
-	is(object, "RangedData")
+	all(c("chrom", "id", "num.mark") %in% colnames(object))
 })
 setClass("RangedDataCBS", contains="RangedDataCNV")
-setValidity("RangedDataCBS", function(object){
-	"seg.mean" %in% colnames(object)
-})
+setValidity("RangedDataCBS", function(object) all(c("seg.mean", "start.index", "end.index") %in% colnames(object)))
 setClass("RangedDataHMM", contains="RangedDataCNV")
-setValidity("RangedDataHMM", function(object){
-	"state" %in% colnames(object)
-})
+setValidity("RangedDataHMM", function(object) "state" %in% colnames(object))
 ##setMethod("initialize", "RangedDataCNV",
 ##	  function(.Object,
 ##		   ranges, values, ...){
 ##		  .Object <- callNextMethod(.Object, ranges=ranges, values=values, ...)
 ##	  })
 RangedDataCNV <- function(ranges=IRanges(),
+			  values,
 			  start,
 			  end,
 			  chromosome,
@@ -30,6 +26,10 @@ RangedDataCNV <- function(ranges=IRanges(),
 			  startIndexInChromosome,
 			  endIndexInChromosome,
 			  ...){
+	if(!missing(ranges) & !missing(values)){
+		object <- new("RangedDataCNV", ranges=ranges, values=values)
+		return(object)
+	}
 	if(!missing(end) && !missing(start))
 		ranges <- IRanges(start, end)
 	if(missing(chromosome))
