@@ -48,7 +48,7 @@ RangedDataCNV <- function(ranges=IRanges(),
 			 id=sampleId,
 			 start.index=startIndexInChromosome,
 			 end.index=endIndexInChromosome, ...)##, ...)
-	new("RangedDataCNV", ranges=ranges(rd), values=values(rd))
+	new("RangedDataCNV", ranges=ranges(rd), values=IRanges:::values(rd))
 }
 
 RangedDataCBS <- function(ranges=IRanges(),
@@ -56,6 +56,18 @@ RangedDataCBS <- function(ranges=IRanges(),
 	rd <- RangedDataCNV(ranges=ranges, seg.mean=seg.mean, ...)
 	new("RangedDataCBS", ranges=ranges(rd), values=values(rd))
 }
+
+setClass("RangedDataCBS2", contains="RangedDataCBS")
+setValidity("RangedDataCBS2", function(object){
+	"state" %in% colnames(object)
+})
+RangedDataCBS2 <- function(ranges=IRanges(),
+			   state=vector("character", length(ranges)), ...){
+	rd <- RangedDataCBS(ranges=ranges, state=state, ...)
+	new("RangedDataCBS2", ranges=ranges(rd), values=values(rd))
+}
+
+
 RangedDataHMM <- function(ranges=IRanges(),
 			  state=vector("integer", length(ranges)), ...){
 	rd <- RangedDataCNV(ranges=ranges, state=state, ...)

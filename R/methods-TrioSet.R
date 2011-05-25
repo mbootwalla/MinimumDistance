@@ -467,6 +467,7 @@ setMethod("prune", signature(object="TrioSet", ranges="RangedDataCNV"),
 			  k <- match(sampleId, sampleNames(object))
 			  ##rd$mad <- object[[1]]$mindist.mad[k]
 			  genomdat <- as.numeric(mindist(object)[, k])
+			  ## This function currently returns a RangedData object
 			  rdList[[j]] <- pruneMD(genomdat,
 						 rd,
 						 physical.pos=position(object),  ##fD$position,
@@ -487,6 +488,7 @@ setMethod("prune", signature(object="TrioSet", ranges="RangedDataCNV"),
 			  ix <- match("sample", colnames(rd))
 			  if(length(ix) > 0) rd <- rd[, -ix]
 		  }
+		  ## This will be of class RangedData
 		  return(rd)
 	 })
 

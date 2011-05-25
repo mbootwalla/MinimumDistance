@@ -23,9 +23,12 @@ setMethod("prune", signature(object="TrioSetList", ranges="RangedDataCNV"),
 			  rd <- stack(rdl)
 			  rd <- rd[, -ncol(rd)]
 		  } else rd <- rdList[[1]]
-		  rd <- as(rd, "RangedDataCNV")
+		  cls <- class(ranges)
+		  rd <- as(rd, cls)
 		  return(rd)
 	  })
+
+
 
 setMethod("offspringNames", signature(object="TrioSetList"), function(object) offspringNames(object[[1]]))
 setMethod("fatherNames", signature(object="TrioSetList"), function(object) fatherNames(object[[1]]))

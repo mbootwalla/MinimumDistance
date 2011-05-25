@@ -13,6 +13,15 @@ setMethod("sampleNames", signature(object="RangedDataCNV"), function(object) obj
 ##		  return(rd2)
 ##	  })
 
+setAs("RangedData", "RangedDataCBS", function(from){
+	RangedDataCBS(ranges=ranges(from),
+		      values=values(from))
+})
+setAs("RangedData", "RangedDataHMM", function(from){
+	RangedDataHMM(ranges=ranges(from),
+		      values=values(from))
+})
+
 setMethod("chromosome", signature(object="RangedDataCNV"), function(object) object$chrom)
 
 ##setMethod("plot", signature(x="RangedDataCNV", y="missing"),
@@ -82,14 +91,17 @@ setMethod("todf", signature(object="RangedDataCNV"), function(object, col=1:3, .
 	return(dat)
 })
 
-##setMethod("rbind", "RangedDataCNV", function(..., deparse.level=1){
-##	x <- lapply(list(...), function(x) as(x, "RangedData"))
-##	rdl <- RangedDataList(x)
-##	rd <- IRanges:::stack(rdl)
-##	##rd <- rd[, -ncol(rd)]
-##	rd <- as(rd, "RangedDataCNV")
-##	rd
-##})
+##setMethod("[", signature(x="RangedDataCNV"),
+##	  function(x, i, j, ..., drop=FALSE){
+##		  ## The "[" method for RangedData does not have separate methods for the slot elements
+##		  ## It seems that the easiest way to subset an object extending the RangedData class is to use
+##		  ## the RangeData method directly -- this will return an object of class RangedData
+##		  rd <- callNextMethod(x, i, j, ..., drop=drop)
+##		  ## Now, update the components of 'x'
+##		  x@ranges <- ranges(rd)
+##		  x@values <- values(rd)
+##		  return(x)
+##	  })
 
 
 
