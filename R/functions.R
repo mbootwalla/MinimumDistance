@@ -3,7 +3,7 @@ catFun <- function(rd.query, rd.subject, size){
 	stopifnot(nrow(rd.query) == 1)
 	##rd.s <- rd.subject[seq(length=size), ]
 	if(!any(chromosome(rd.query) %in% chromosome(rd.subject))) {
-		count <- rep(0, nrow(rd.query))
+		return(0)
 	} else{
 		CHR <- chromosome(rd.query)
 		rd.s <- rd.subject[chromosome(rd.subject) == CHR, ]
@@ -20,8 +20,7 @@ concAtTop <- function(ranges.query, ranges.subject, listSize, state){
 	ranges.query$rank <- rank(-coverage(ranges.query))
 
 	top.query <- ranges.query[order(ranges.query$rank, decreasing=FALSE)[1:listSize], ]
-	top.subject <- ranges.subject[ranges.subject$rank <= listSize, ]
-
+	top.subject <- ranges.subject[order(ranges.subject$rank, decreasing=FALSE)[1:listSize], ]
 	count <- rep(NA, nrow(top.query))
 	for(i in seq(length=nrow(top.query))){
 		if(i %% 100 == 0) cat(".")
@@ -749,6 +748,14 @@ beatyPkgLoader <- function(objectname, filename, loadedName, envir){
 	crlmm:::getVarInEnv(objectname, environ=envir)
 }
 
+readPennFiles <- function(path, filter.multistate=FALSE, min.coverage=10){
+	penn.rd <- readPennCnv(penndir=path)
+	penn.rd$state <- harmonizeStates(penn.rd, filter.multistate=filter.multistate)
+	penn.hmm <- RangedDataHMM(ranges=ranges(penn.rd), values=values(penn.rd))
+	penn.hmm$is.denovo <- isDenovo(state(penn.hmm))
+	penn.hmm <- penn.hmm[coverage(penn.hmm) >= min.coverage, ]
+	return(penn.hmm)
+}
 
 readPennCnv <- function(penndir="/thumper/ctsa/beaty/holger/penncnv/jointDat"){
 	if(length(grep("trioDat", penndir))==1) warning("this is not the recommended aproach")
