@@ -4,6 +4,9 @@ setOldClass("ff_array")
 setClass("RangedDataCopyNumber", contains="RangedData",
 	 representation("VIRTUAL"))
 setClass("RangedDataCNV", contains="RangedDataCopyNumber")
+## It would be much cleaner to add slots to the RangedData class for
+## chrom, id, and num.mark?  This way we can force these slots to be a
+## specific class like numeric, integer, etc.
 setValidity("RangedDataCNV", function(object){
 	all(c("chrom", "id", "num.mark") %in% colnames(object))
 })
@@ -16,6 +19,28 @@ setValidity("RangedDataHMM", function(object) "state" %in% colnames(object))
 ##		   ranges, values, ...){
 ##		  .Object <- callNextMethod(.Object, ranges=ranges, values=values, ...)
 ##	  })
+setClass("RangedDataCNVList", contains="list")
+setMethod("stack", signature(x="RangedDataCNVList"),
+	  function(x){
+		  x <- lapply(x, function(x){
+			  browser()
+			  as(x, "RangedData")
+		  })
+		  rdl <- RangedDataList(x)
+		  rd <- stack(rdl)
+		  return(rd)
+	  })
+#RangedDataCNVList <- function(...){
+#	listData <- list(...)
+#	listData <- lapply(listData, function(x) as(x, "RangedData"))
+#	if (length(listData) == 1 && is.list(listData[[1L]]))
+#		listData <- listData[[1L]]
+#	rdl <- RangedDataList(listData)
+#
+#	IRanges:::newSimpleList("RangedDataListCNV", listData)
+#}
+
+
 RangedDataCNV <- function(ranges=IRanges(),
 			  values,
 			  start,

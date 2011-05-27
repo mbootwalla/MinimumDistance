@@ -8,6 +8,8 @@ setMethod("sampleNames", signature(object="TrioSetList"),
 	  function(object) sampleNames(object[[1]]))
 setMethod("ncol", signature(x="TrioSetList"),
 	  function(x) ncol(x[[1]]))
+setMethod("nrow", signature(x="TrioSetList"),
+	  function(x) nrow(x[[1]]))
 setMethod("prune", signature(object="TrioSetList", ranges="RangedDataCNV"),
 	  function(object, ranges, id, lambda, min.change, min.coverage,
 		   scale.exp, verbose, ...){
@@ -18,14 +20,14 @@ setMethod("prune", signature(object="TrioSetList", ranges="RangedDataCNV"),
 				   min.coverage=min.coverage,
 				   scale.exp=scale.exp,
 				   verbose=verbose, ...)
-		  if(length(rdList) > 1){
-			  rdl <- RangedDataList(rdList)
-			  rd <- stack(rdl)
-			  rd <- rd[, -ncol(rd)]
-		  } else rd <- rdList[[1]]
-		  cls <- class(ranges)
-		  rd <- as(rd, cls)
-		  return(rd)
+##		  if(length(rdList) > 1){
+##			  rdl <- RangedDataList(rdList)
+##			  rd <- stack(rdl)
+##			  rd <- rd[, -ncol(rd)]
+##		  } else rd <- rdList[[1]]
+##		  cls <- class(ranges)
+##		  rd <- as(rd, cls)
+		  return(rdList)
 	  })
 
 

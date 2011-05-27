@@ -1,4 +1,36 @@
 
+catFun <- function(rd.query, rd.subject, size){
+	stopifnot(nrow(rd.query) == 1)
+	##rd.s <- rd.subject[seq(length=size), ]
+	if(!any(chromosome(rd.query) %in% chromosome(rd.subject))) {
+		count <- rep(0, nrow(rd.query))
+	} else{
+		CHR <- chromosome(rd.query)
+		rd.s <- rd.subject[chromosome(rd.subject) == CHR, ]
+		ir.q <- IRanges(start(rd.query),end(rd.query))
+		ir.s <- IRanges(start(rd.s),end(rd.s))
+		count <- countOverlaps(ir.q, ir.s)
+	}
+	return(count)
+}
+concAtTop <- function(ranges.query, ranges.subject, listSize, state){
+	ranges.subject <- ranges.subject[state(ranges.subject) == state, ]
+	ranges.query <- ranges.query[state(ranges.query) == state, ]
+	ranges.subject$rank <- rank(-coverage(ranges.subject))
+	ranges.query$rank <- rank(-coverage(ranges.query))
+
+	top.query <- ranges.query[order(ranges.query$rank, decreasing=FALSE)[1:listSize], ]
+	top.subject <- ranges.subject[ranges.subject$rank <= listSize, ]
+
+	count <- rep(NA, nrow(top.query))
+	for(i in seq(length=nrow(top.query))){
+		if(i %% 100 == 0) cat(".")
+		count[i] <- catFun(rd.query=top.query[i, ], rd.subject=top.subject[seq(length=i), ])
+	}
+	I <- count > 0
+	sapply(1:nrow(top.query), function(x, I) mean(I[1:x]), I=I)
+}
+
 projectMetadata <- function(path="/thumper/ctsa/beaty/holger/txtfiles", ## path to BeadStudioFiles
 			    samplesheet,
 			    outdir=beadstudiodir(),
@@ -537,6 +569,14 @@ loadRangesCbs <- function(outdir, pattern, CHR, name){
 	cbs.segs
 }
 
+stack2 <- function(listData){
+	ld <- lapply(listData, as, "RangedData")
+	rdl <- RangedDataList(ld)
+	rd <- stack(rdl)
+	rd <- rd[, -ncol(rd)]
+	return(rd)
+}
+
 
 ## load and try to rbind the list
 loadBatchFiles <- function(outdir, pattern, name){
@@ -546,12 +586,9 @@ loadBatchFiles <- function(outdir, pattern, name){
 		load(fnames[i])
 		dfl[[i]] <- get(name)
 	}
-	if(length(dfl) == 1) df <- dfl[[1]]
-	if(length(dfl) > 1) df <- tryCatch(df <- do.call("rbind", dfl), error=function(e) NULL)
-	if(is.null(df)) {
-		return(dfl)
-	}
-	return(df)
+	if(length(dfl) == 1) dfl <- dfl[[1]]
+	##if(length(dfl) > 1) df <- tryCatch(df <- do.call("rbind", dfl), error=function(e) NULL)
+	return(dfl)
 }
 
 
