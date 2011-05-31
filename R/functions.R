@@ -4246,24 +4246,68 @@ gridwrap <- function(trioList, rd, index, ylim=c(-2.5,1), unit="Mb", ...){
 	gridsetup(lattice.object=fig, rd=rd[index, ], width=8, height=5)
 }
 
-minimumDistance <- function(filenames, samplenames, pedigree, cdfName,  ...){#samplesheet, ...){
+initializeTrioContainer <- function(filenames, samplenames, pedigree, container.filename, chromosomes=1:22, cdfName, ...){
+	stopifnot(require(ff))
+	stopifnot(all(chromosomes %in% 1:22))
 	stopifnot(all(file.exists(dirname(filenames))))
 	stopifnot(!missing(pedigree))
+	if(is.null(rownames(pedigree))){
+		rns <- apply(pedigree, 1, paste, collapse=",")
+		rownames(pedigree) <- rns
+	}
 	stopifnot(!any(duplicated(rownames(pedigree))))
 	##samplesheet <- samplesheet[-match(c("sampleNames", "filenames"), names(samplesheet))]
 	fD <- Beaty:::constructFeatureData(filenames[1],
 					   cdfName=cdfName)
 	ss <- array(NA, dim=c(nrow(pedigree), ncol(samplesheet), 3),
-		    dimnames=list(rownames(trios),
+		    dimnames=list(rownames(pedigree),
 		    colnames(samplesheet),
 		    c("F", "M", "O")))
-	father.index <- match(trios[, "F"], s(samplesheet$Sample.Name))
-	mother.index <- match(trios[, "M"], s(samplesheet$Sample.Name))
-	offspring.index <- match(trios[, "O"], s(samplesheet$Sample.Name))
+	father.index <- match(pedigree[, "F"], s(samplesheet$Sample.Name))
+	mother.index <- match(pedigree[, "M"], s(samplesheet$Sample.Name))
+	offspring.index <- match(pedigree[, "O"], s(samplesheet$Sample.Name))
 	ss[, , "F"] <- as.matrix(samplesheet[father.index, ])
 	ss[, , "M"] <- as.matrix(samplesheet[mother.index, ])
 	ss[, , "O"] <- as.matrix(samplesheet[offspring.index, ])
+	marker.index.list <- split(seq(length=nrow(fD)), fD$chromosome)
+	stopifnot(all(diff(order(fD$chromosome, fD$position))>0))
+	trioSets <- vector("list", 22)
+	for(CHR in chromosomes){
+		cat("instantiating set for chromosome ", CHR,"\n")
+		L <- length(marker.index.list[[CHR]])
+		logR <- createFF(paste("logR_chr", CHR, "_", sep=""),
+				 dim=c(L, nrow(pedigree), 3),
+				 vmode="double")
+		baf <- createFF(paste("baf_chr", CHR, "_", sep=""),
+				dim=c(L, nrow(pedigree), 3),
+				vmode="double")
+		trioSets[[CHR]] <- new("TrioSet", logRRatio=logR,
+				       BAF=baf,
+				       featureData=fD[marker.index.list[[CHR]], ],
+				       mindist=NULL,
+				       annotation=cdfName)
 
+		sampleNames(phenoData(trioSets[[CHR]])) <- pedigree[, "O"]
+		## add data to phenoData2 slot
+		## (note: parents with multiple sibs are repeated)
+		trioSets[[CHR]]@phenoData2 <- ss
+	}
+	save(trioSets, file=container.filename)
+	return(trioSets)
+}
 
+minimumDistance <- function(filenames, samplenames, pedigree, container.filename, chromosomes, cdfName,  ...){#samplesheet, ...){
+	if(!file.exists(container.filename)){
+	##---------------------------------------------------------------------------
+	##
+	## initialize container
+	##
+	##----------------------------------------------------------------------------
+		stopifnot(file.exists(dirname(container.filename)))
+		container <- initializeTrioContainer(filenames, samplenames, pedigree, container.filename, chromosomes, cdfName)
+	} else {
+		load(container.filename)
+		trioSets <- get("trioSets")
+	}
 
 }
