@@ -76,7 +76,9 @@ populateAssayData <- function(path, readScriptFilename="ReadBsScript2.R"){
 	}
 }
 
-readPedfile <- function(fnames, pedfile="~/Projects/Beaty/inst/extdata/may_peds.csv"){
+##pedfile="~/Projects/Beaty/inst/extdata/may_peds.csv"
+readPedfile <- function(fnames, pedfile){
+	stopifnot(file.exists(pedfile))
 	mayped <- read.csv(pedfile, sep=";", as.is=TRUE)
 	is.father <- which(mayped$father != "0")
 	is.mother <- which(mayped$mother != "0")
@@ -86,10 +88,10 @@ readPedfile <- function(fnames, pedfile="~/Projects/Beaty/inst/extdata/may_peds.
 	trio.matrix <- cbind(mayped$father[i],
 			     mayped$mother[i],
 			     mayped$cidr_name[i])
-	rownames(trio.matrix) <- ss(trio.matrix[,1])
-	index <- which(trio.matrix[, 1] %in% fnames & trio.matrix[, 2] %in% fnames & trio.matrix[, 3] %in% fnames)
-	trio.matrix <- trio.matrix[index, ]
 	colnames(trio.matrix) <- c("F", "M", "O")
+	rownames(trio.matrix) <- ss(trio.matrix[,1])
+	index <- which(trio.matrix[, "F"] %in% fnames & trio.matrix[, "M"] %in% fnames & trio.matrix[, "O"] %in% fnames)
+	trio.matrix <- trio.matrix[index, ]
 	return(trio.matrix)
 }
 
@@ -4242,4 +4244,26 @@ gridwrap <- function(trioList, rd, index, ylim=c(-2.5,1), unit="Mb", ...){
 			unit=unit,
 			...)
 	gridsetup(lattice.object=fig, rd=rd[index, ], width=8, height=5)
+}
+
+minimumDistance <- function(filenames, samplenames, pedigree, cdfName,  ...){#samplesheet, ...){
+	stopifnot(all(file.exists(dirname(filenames))))
+	stopifnot(!missing(pedigree))
+	stopifnot(!any(duplicated(rownames(pedigree))))
+	##samplesheet <- samplesheet[-match(c("sampleNames", "filenames"), names(samplesheet))]
+	fD <- Beaty:::constructFeatureData(filenames[1],
+					   cdfName=cdfName)
+	ss <- array(NA, dim=c(nrow(pedigree), ncol(samplesheet), 3),
+		    dimnames=list(rownames(trios),
+		    colnames(samplesheet),
+		    c("F", "M", "O")))
+	father.index <- match(trios[, "F"], s(samplesheet$Sample.Name))
+	mother.index <- match(trios[, "M"], s(samplesheet$Sample.Name))
+	offspring.index <- match(trios[, "O"], s(samplesheet$Sample.Name))
+	ss[, , "F"] <- as.matrix(samplesheet[father.index, ])
+	ss[, , "M"] <- as.matrix(samplesheet[mother.index, ])
+	ss[, , "O"] <- as.matrix(samplesheet[offspring.index, ])
+
+
+
 }
