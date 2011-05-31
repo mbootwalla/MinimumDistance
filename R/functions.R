@@ -4246,7 +4246,7 @@ gridwrap <- function(trioList, rd, index, ylim=c(-2.5,1), unit="Mb", ...){
 	gridsetup(lattice.object=fig, rd=rd[index, ], width=8, height=5)
 }
 
-initializeTrioContainer <- function(filenames, samplenames, pedigree, container.filename, chromosomes=1:22, cdfName, ...){
+initializeTrioContainer <- function(filenames, samplesheet, pedigree, container.filename, chromosomes=1:22, cdfName, ..., verbose){
 	stopifnot(require(ff))
 	stopifnot(all(chromosomes %in% 1:22))
 	stopifnot(all(file.exists(dirname(filenames))))
@@ -4271,9 +4271,9 @@ initializeTrioContainer <- function(filenames, samplenames, pedigree, container.
 	ss[, , "O"] <- as.matrix(samplesheet[offspring.index, ])
 	marker.index.list <- split(seq(length=nrow(fD)), fD$chromosome)
 	stopifnot(all(diff(order(fD$chromosome, fD$position))>0))
-	trioSets <- vector("list", 22)
+	trioSets <- vector("list", length(chromosomes))
 	for(CHR in chromosomes){
-		cat("instantiating set for chromosome ", CHR,"\n")
+		if(verbose) message("\t Chromosome ", CHR)
 		L <- length(marker.index.list[[CHR]])
 		logR <- createFF(paste("logR_chr", CHR, "_", sep=""),
 				 dim=c(L, nrow(pedigree), 3),
@@ -4292,22 +4292,67 @@ initializeTrioContainer <- function(filenames, samplenames, pedigree, container.
 		## (note: parents with multiple sibs are repeated)
 		trioSets[[CHR]]@phenoData2 <- ss
 	}
+	if(verbose) message("Saving as ", container.filename)
 	save(trioSets, file=container.filename)
 	return(trioSets)
 }
 
-minimumDistance <- function(filenames, samplenames, pedigree, container.filename, chromosomes, cdfName,  ...){#samplesheet, ...){
+minimumDistance <- function(filenames, samplesheet, pedigree, container.filename, chromosomes,
+			    cdfName, file.ext=".txt",
+			    readFiles=TRUE, ..., verbose=TRUE){#samplesheet, ...){
 	if(!file.exists(container.filename)){
+
 	##---------------------------------------------------------------------------
 	##
 	## initialize container
 	##
 	##----------------------------------------------------------------------------
 		stopifnot(file.exists(dirname(container.filename)))
-		container <- initializeTrioContainer(filenames, samplenames, pedigree, container.filename, chromosomes, cdfName)
+		stopifnot("Sample.Name" %in% colnames(samplesheet))
+		stopifnot(colnames(pedigree) == c("F", "M", "O"))
+		if(verbose) message("Instantiating a container for the assay data.")
+		container <- initializeTrioContainer(filenames, samplenames, pedigree, container.filename, chromosomes, cdfName,
+						     verbose=verbose)
 	} else {
 		load(container.filename)
-		trioSets <- get("trioSets")
+		container <- get("trioSets")
 	}
+	##---------------------------------------------------------------------------
+	##
+	## reading processed files
+	##
+	##----------------------------------------------------------------------------
+	if(readFiles){
+		if(verbose) message("Reading ", length(filenames), " files")
+		ok <- readParsedFiles(filenames, container, file.ext, verbose)
+		stopifnot(ok)
+	}
+	return(container)
+}
 
+readParsedFiles <- function(filenames, container, file.ext, verbose){
+	fatherIds <- as.character(paste(fullId(container[[1]])[, "F"], file.ext, sep=""))
+	stopifnot(all(fatherIds %in% basename(filenames)))
+	sample.index <- match(fatherIds, basename(filenames))
+	for(i in seq_along(sample.index)){
+		if(verbose){
+			if(i %% 10 == 0) message("\tFile ", i, " of ", length(sample.index))
+		}
+		j <- sample.index[i]
+		if(i == 1){
+			dat <- read.delim(filenames[j], colClasses=c("character", "numeric", "numeric"))
+			nms <- dat[[1]]
+			dat <- dat[-1]
+		} else dat <- read.delim(filenames[j], colClasses=c("NULL", "numeric", "numeric"))
+		for(CHR in 1:22){
+			open(logR(container[[CHR]]))
+			open(baf(container[[CHR]]))
+			marker.index <- match(featureNames(container[[CHR]]), nms)
+			logR(container[[CHR]])[, i, "F"] <- dat[[1]][marker.index]
+			baf(container[[CHR]])[, i, "F"] <- dat[[2]][marker.index]
+			close(logR(container[[CHR]]))
+			close(baf(container[[CHR]]))
+		}
+	}
+	return(TRUE)
 }

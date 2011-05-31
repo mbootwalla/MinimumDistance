@@ -115,24 +115,9 @@ setClass("LikSet",
 	 new("VersionedBiobase",
 	     versions=c(classVersion("LogRatioSet"), LikSet="1.0.0"))))
 
-##setClass("TrioSet", contains="LogRatioSet",
-##	 representation(phenoData2="array"))
-##
-##setClass("TrioSet", contains="LogRatioSet",
-##	 representation(phenoData2="array",
-##			mindist="matrixOrNULL"),
-##	 prototype = prototype(
-##	                       new("VersionedBiobase",
-##				   versions=c(classVersion("eSet"), TrioSet="0.0.2"))))
-##
-##
-##setClass("TrioSet", contains="LogRatioSet",
-##	 representation(phenoData2="arrayOrNULL",
-##			mindist="matrixOrNULL",
-##			mad="matrix"),
-##	 prototype = prototype(
-##	                       new("VersionedBiobase",
-##				   versions=c(classVersion("LogRatioSet"), TrioSet="0.0.3"))))
+## could include file.ext, cdfname
+setClass("SampleSheet", contains="dataFrame")
+setValidity("SampleSheet", function(object) "Sample.Name" %in% colnames(object))
 
 setClass("TrioSet", contains="LogRatioSet",
 	 representation(phenoData2="arrayOrNULL",
