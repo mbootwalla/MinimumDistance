@@ -4316,7 +4316,7 @@ minimumDistance <- function(filenames, samplesheet, pedigree, container.filename
 			    readFiles=TRUE,
 			    calculate.md=TRUE,
 			    calculate.mad=TRUE,
-			    exlusionRule, ## for calculateing row-wise mads
+			    exclusionRule, ## for calculateing row-wise mads
 			    ..., verbose=TRUE){#samplesheet, ...){
 	stopifnot(nrow(pedigree) > 1) ## need to fix initialization of trioSet object otherwise
 	if(!file.exists(container.filename)){
@@ -4368,65 +4368,75 @@ minimumDistance <- function(filenames, samplesheet, pedigree, container.filename
 	##    -> put in slot 'mad'
 	##---------------------------------------------------------------------------
 	if(calculate.mad){
-		if(verbose) message("Calculating MAD of the log R ratios across chromosomes ", paste(chromosomes, collapse=", "))
-		sapply(container, function(x) invisible(open(logR(x))))
-		nc <- ncol(container[[1]])
-		mads <- matrix(NA, nc, 3)
-		for(j in 1:nc){
-			r <- lapply(container, function(x, j) logR(x)[, j, ], j=j)
-			if(length(r) > 1){
-				rr <- do.call("rbind", r)
-			} else rr <- r[[1]]
-			mads[j, ] <- apply(rr, 2, mad, na.rm=TRUE)
-		}
-		sapply(container, function(x) invisible(close(logR(x))))
-		##---------------------------------------------------------------------------
-		##
-		## Calculate the MAD of minimum distance
-		##    -> put in phenoData slot
-		##
-		##---------------------------------------------------------------------------
-		sapply(container, function(x) invisible(open(mindist(x))))
-		mads.md <- rep(NA, nc)
-		for(j in 1:nc){
-			m <- lapply(container, function(x, j) mindist(x)[, j], j=j)
-			mm <- unlist(m)
-			mads.md[j] <- mad(mm, na.rm=TRUE)
-		}
-		sapply(container, function(x) invisible(close(mindist(x))))
-		## inefficient to put mad in each TrioSet if there is a large number of samples
-		## just put in first
-		if(verbose) message("\tStoring MAD in first element of the TrioSetList container")
-		mad(container[[1]]) <- mads
-		container[[1]]$mindist.mad <- mads.md
-		rm(mads.md, mads, r, rr, m, mm); gc()
-
-		## this is not a ff object, so we might want to update the .rda file here
-		if(verbose) message("\tSaving updated container to ", container.filename)
-		##---------------------------------------------------------------------------
-		##
-		## Calculate the MAD of the logR ratios (across samples) for each marker
-		##    -> put in featureData slot
-		##
-		##---------------------------------------------------------------------------
-		if(nc > 1){
-			if(verbose) message("\tCalculating mad of log R ratios across offspring samples for each marker.  Can be helpful to exclude samples of low quality using the exclude.trio.index argument.")
-			J <- seq(length=nc)
-			if(!missing(exclusionRule)) {
-				exclude.index <- exclusionRule(container[[1]])
-				if(length(exclude.index) > 0)
-					J <- J[-exclude.trio.index]
-			}
-			for(i in seq_along(container)){
-				trioSet <- container[[i]]
-				lR <- logR(trioSet)[, J, "O"]
-			}
-		}
+		container <- calculateMads(object, exclusionRule, verbose)
 		save(container, file=container.filename)
 	}
+	return(container)
+}
 
-
-
+calculateMads <- function(container, exlusionRule, verbose){
+	if(verbose) message("Calculating MAD of the log R ratios across chromosomes ", paste(chromosomes, collapse=", "))
+	sapply(container, function(x) invisible(open(logR(x))))
+	nc <- ncol(container[[1]])
+	mads <- matrix(NA, nc, 3)
+	for(j in 1:nc){
+		r <- lapply(container, function(x, j) logR(x)[, j, ], j=j)
+		if(length(r) > 1){
+			rr <- do.call("rbind", r)
+		} else rr <- r[[1]]
+		mads[j, ] <- apply(rr, 2, mad, na.rm=TRUE)
+	}
+	sapply(container, function(x) invisible(close(logR(x))))
+	##---------------------------------------------------------------------------
+	##
+	## Calculate the MAD of minimum distance
+	##    -> put in phenoData slot
+	##
+	##---------------------------------------------------------------------------
+	sapply(container, function(x) invisible(open(mindist(x))))
+	mads.md <- rep(NA, nc)
+	for(j in 1:nc){
+		m <- lapply(container, function(x, j) mindist(x)[, j], j=j)
+		mm <- unlist(m)
+		mads.md[j] <- mad(mm, na.rm=TRUE)
+	}
+	sapply(container, function(x) invisible(close(mindist(x))))
+	## inefficient to put mad in each TrioSet if there is a large number of samples
+	## just put in first
+	if(verbose) message("\tStoring MAD in first element of the TrioSetList container")
+	mad(container[[1]]) <- mads
+	container[[1]]$mindist.mad <- mads.md
+	rm(mads.md, mads, r, rr, m, mm); gc()
+	## this is not a ff object, so we might want to update the .rda file here
+	if(verbose) message("\tSaving updated container to ", container.filename)
+	##---------------------------------------------------------------------------
+	##
+	## Calculate the MAD of the logR ratios (across samples) for each marker
+	##    -> put in featureData slot
+	##
+	##---------------------------------------------------------------------------
+	if(nc > 1){
+		if(verbose) message("\tCalculating mad of log R ratios across offspring samples for each marker.  Can be helpful to exclude samples of low quality using the exclude.trio.index argument.")
+		J <- seq(length=nc)
+		if(!missing(exclusionRule)) {
+			exclude.index <- exclusionRule(container[[1]])
+			if(length(exclude.index) > 0){
+				if(verbose) message("\t\tExcluding trio index ", exclude.index, " from MAD calculation")
+				J <- J[-exclude.index]
+			}
+		}
+		for(i in seq_along(container)){
+			trioSet <- container[[i]]
+			invisible(open(logR(trioSet)))
+			lR <- logR(trioSet)[, J, "O"]
+			if(is.matrix(lR)){
+				if(ncol(lR) > 1){
+					invisible(close(logR(trioSet)))
+					fData(container[[i]])$marker.mad <- Beaty:::rowMAD(lR, na.rm=TRUE)
+				}
+			}
+		}
+	}
 	return(container)
 }
 
