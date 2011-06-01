@@ -116,7 +116,7 @@ setClass("LikSet",
 	     versions=c(classVersion("LogRatioSet"), LikSet="1.0.0"))))
 
 ## could include file.ext, cdfname
-setClass("SampleSheet", contains="dataFrame")
+setClass("SampleSheet", contains="data.frame")
 setValidity("SampleSheet", function(object) "Sample.Name" %in% colnames(object))
 
 setClass("TrioSet", contains="LogRatioSet",

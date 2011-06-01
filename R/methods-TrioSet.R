@@ -10,7 +10,27 @@ setMethod("initialize", signature(.Object="TrioSet"),
 		  .Object@phenoData2 <- phenoData2
 		  .Object@mad <- matrix(NA, ncol(.Object), 3)
 		  dimnames(.Object@mad) <- list(sampleNames(.Object), c("F", "M", "O"))
+		  if(nrow(.Object) > 0){
+			  CHR <- unique(chromosome(.Object))
+			  md <- createFF(paste("mindist_chr", CHR, "_", sep=""),
+					 vmode="double",
+					 dim=c(nrow(.Object), ncol(.Object)),
+					 initdata=NA)
+			  dimnames(md) <- list(featureNames(.Object), sampleNames(.Object))
+			  mindist(.Object) <- md
+		  }
 		  .Object
+})
+
+setReplaceMethod("sampleNames", signature(object="TrioSet"), function(object, value){
+	object <- callNextMethod(object, value)
+	if(!is.null(mindist(object))){
+		colnames(mindist(object)) <- value
+	}
+	if(!is.null(mad(object))){
+		colnames(mad(object)) <- value
+	}
+	return(object)
 })
 
 setMethod("show", signature(object="TrioSet"), function(object){
@@ -227,7 +247,7 @@ setMethod("calculateMindist", signature(object="TrioSet"), function(object, ...)
 	##stopifnot(identical(sns[offspring], ssampleNames(minDistanceSet)))
 	invisible(open(logR(object)))
 	invisible(open(mindist(object)))
-	object$MAD <- NA
+	##object$MAD <- NA
 	##invisible(open(copyNumber(minDistanceSet)))
 	##min.resid <- rep(NA, nrow(bsSet))
 	for(j in seq(length=ncol(object))){

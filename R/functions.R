@@ -1367,6 +1367,11 @@ getDnaSource <- function(bsSet){
 }
 
 harmonizeDnaLabels <- function(dnaLabels){
+	dnaLabels <- harmonizeDnaLabels2(dnaLabels)
+	dnaLabels <- matrix(dnaLabels, ncol=3)
+}
+
+harmonizeDnaLabels2 <- function(dnaLabels){
 	dnaLabels <- as.character(dnaLabels)
 	cell.lines <- c(grep("CEPH", dnaLabels),
 			grep("HAN CHINESE", dnaLabels),
@@ -1378,7 +1383,7 @@ harmonizeDnaLabels <- function(dnaLabels){
 	dnaLabels[dnaLabels=="dried blood spot"] <- "blood"
 	which.mouth <- match("mouth", dnaLabels)
 	dnaLabels[which.mouth] <- "saliva"
-	dnaLabels <- matrix(dnaLabels, ncol=3)
+	dnaLabels
 }
 
 combineRanges <- function(deletion.ranges, amp.ranges){
@@ -4272,7 +4277,11 @@ initializeTrioContainer <- function(filenames, samplesheet, pedigree, container.
 	marker.index.list <- split(seq(length=nrow(fD)), fD$chromosome)
 	stopifnot(all(diff(order(fD$chromosome, fD$position))>0))
 	trioSets <- vector("list", length(chromosomes))
-	for(CHR in chromosomes){
+	##pD <- new("AnnotatedDataFrame", data=data.frame(Sample.Name=pedigree[, "O"]))
+	##sampleNames(pD) <- pedigree[, "O"]
+	##pd <- annotatedDataFrameFrom(logR, byrow=FALSE)
+	for(j in seq_along(chromosomes)){
+		CHR <- chromosomes[j]
 		if(verbose) message("\t Chromosome ", CHR)
 		L <- length(marker.index.list[[CHR]])
 		logR <- createFF(paste("logR_chr", CHR, "_", sep=""),
@@ -4281,13 +4290,18 @@ initializeTrioContainer <- function(filenames, samplesheet, pedigree, container.
 		baf <- createFF(paste("baf_chr", CHR, "_", sep=""),
 				dim=c(L, nrow(pedigree), 3),
 				vmode="double")
-		trioSets[[CHR]] <- new("TrioSet", logRRatio=logR,
-				       BAF=baf,
-				       featureData=fD[marker.index.list[[CHR]], ],
-				       mindist=NULL,
-				       annotation=cdfName)
-
-		sampleNames(phenoData(trioSets[[CHR]])) <- pedigree[, "O"]
+		fd <- fD[marker.index.list[[j]], ]
+		dimnames(logR) <- dimnames(baf) <- list(featureNames(fd),
+							as.character(pedigree[, "O"]),
+							c("F", "M", "O"))
+		pD <- annotatedDataFrameFrom(logR[, , 1], byrow=FALSE)
+		trioSets[[j]] <- new("TrioSet", logRRatio=logR,
+				     BAF=baf,
+				     phenoData=pD,
+				     featureData=fD[marker.index.list[[CHR]], ],
+				     mindist=NULL,
+				     annotation=cdfName)
+		##sampleNames(phenoData(trioSets[[CHR]])) <- pedigree[, "O"]
 		## add data to phenoData2 slot
 		## (note: parents with multiple sibs are repeated)
 		trioSets[[CHR]]@phenoData2 <- ss
@@ -4299,9 +4313,13 @@ initializeTrioContainer <- function(filenames, samplesheet, pedigree, container.
 
 minimumDistance <- function(filenames, samplesheet, pedigree, container.filename, chromosomes,
 			    cdfName, file.ext=".txt",
-			    readFiles=TRUE, ..., verbose=TRUE){#samplesheet, ...){
+			    readFiles=TRUE,
+			    calculate.md=TRUE,
+			    calculate.mad=TRUE,
+			    exlusionRule, ## for calculateing row-wise mads
+			    ..., verbose=TRUE){#samplesheet, ...){
+	stopifnot(nrow(pedigree) > 1) ## need to fix initialization of trioSet object otherwise
 	if(!file.exists(container.filename)){
-
 	##---------------------------------------------------------------------------
 	##
 	## initialize container
@@ -4311,7 +4329,7 @@ minimumDistance <- function(filenames, samplesheet, pedigree, container.filename
 		stopifnot("Sample.Name" %in% colnames(samplesheet))
 		stopifnot(colnames(pedigree) == c("F", "M", "O"))
 		if(verbose) message("Instantiating a container for the assay data.")
-		container <- initializeTrioContainer(filenames, samplenames, pedigree, container.filename, chromosomes, cdfName,
+		container <- initializeTrioContainer(filenames, samplesheet, pedigree, container.filename, chromosomes, cdfName,
 						     verbose=verbose)
 	} else {
 		load(container.filename)
@@ -4323,17 +4341,104 @@ minimumDistance <- function(filenames, samplesheet, pedigree, container.filename
 	##
 	##----------------------------------------------------------------------------
 	if(readFiles){
-		if(verbose) message("Reading ", length(filenames), " files")
-		ok <- readParsedFiles(filenames, container, file.ext, verbose)
+		if(verbose) message("Reading ", nrow(pedigree), " files")
+		##fatherIds <- as.character(paste(fullId(container[[1]])[, "F"], file.ext, sep=""))
+		ok <- readParsedFiles(filenames, "F", container, chromosomes, file.ext, verbose)
+		##motherIds <- as.character(paste(fullId(container[[1]])[, "M"], file.ext, sep=""))
+		ok <- readParsedFiles(filenames, "M", container, chromosomes, file.ext, verbose)
+		##offspringIds <- as.character(paste(fullId(container[[1]])[, "O"], file.ext, sep=""))
+		ok <- readParsedFiles(filenames, "O", container, chromosomes, file.ext, verbose)
 		stopifnot(ok)
+	} else {
+		if(verbose) message("readFiles is FALSE.")
 	}
+	##---------------------------------------------------------------------------
+	##
+	## calculate minimum distance
+	##
+	##----------------------------------------------------------------------------
+	if(calculate.md){
+		if(verbose) message("Computing the minimum distance")
+		container <- lapply(container, calculateMindist)
+	}
+	##---------------------------------------------------------------------------
+	##
+	## Calculate the MAD of the log R ratios for every sample
+	##    -> ntrios x 3 matrix
+	##    -> put in slot 'mad'
+	##---------------------------------------------------------------------------
+	if(calculate.mad){
+		if(verbose) message("Calculating MAD of the log R ratios across chromosomes ", paste(chromosomes, collapse=", "))
+		sapply(container, function(x) invisible(open(logR(x))))
+		nc <- ncol(container[[1]])
+		mads <- matrix(NA, nc, 3)
+		for(j in 1:nc){
+			r <- lapply(container, function(x, j) logR(x)[, j, ], j=j)
+			if(length(r) > 1){
+				rr <- do.call("rbind", r)
+			} else rr <- r[[1]]
+			mads[j, ] <- apply(rr, 2, mad, na.rm=TRUE)
+		}
+		sapply(container, function(x) invisible(close(logR(x))))
+		##---------------------------------------------------------------------------
+		##
+		## Calculate the MAD of minimum distance
+		##    -> put in phenoData slot
+		##
+		##---------------------------------------------------------------------------
+		sapply(container, function(x) invisible(open(mindist(x))))
+		mads.md <- rep(NA, nc)
+		for(j in 1:nc){
+			m <- lapply(container, function(x, j) mindist(x)[, j], j=j)
+			mm <- unlist(m)
+			mads.md[j] <- mad(mm, na.rm=TRUE)
+		}
+		sapply(container, function(x) invisible(close(mindist(x))))
+		## inefficient to put mad in each TrioSet if there is a large number of samples
+		## just put in first
+		if(verbose) message("\tStoring MAD in first element of the TrioSetList container")
+		mad(container[[1]]) <- mads
+		container[[1]]$mindist.mad <- mads.md
+		rm(mads.md, mads, r, rr, m, mm); gc()
+
+		## this is not a ff object, so we might want to update the .rda file here
+		if(verbose) message("\tSaving updated container to ", container.filename)
+		##---------------------------------------------------------------------------
+		##
+		## Calculate the MAD of the logR ratios (across samples) for each marker
+		##    -> put in featureData slot
+		##
+		##---------------------------------------------------------------------------
+		if(nc > 1){
+			if(verbose) message("\tCalculating mad of log R ratios across offspring samples for each marker.  Can be helpful to exclude samples of low quality using the exclude.trio.index argument.")
+			J <- seq(length=nc)
+			if(!missing(exclusionRule)) {
+				exclude.index <- exclusionRule(container[[1]])
+				if(length(exclude.index) > 0)
+					J <- J[-exclude.trio.index]
+			}
+			for(i in seq_along(container)){
+				trioSet <- container[[i]]
+				lR <- logR(trioSet)[, J, "O"]
+			}
+		}
+		save(container, file=container.filename)
+	}
+
+
+
 	return(container)
 }
 
-readParsedFiles <- function(filenames, container, file.ext, verbose){
-	fatherIds <- as.character(paste(fullId(container[[1]])[, "F"], file.ext, sep=""))
-	stopifnot(all(fatherIds %in% basename(filenames)))
-	sample.index <- match(fatherIds, basename(filenames))
+readParsedFiles <- function(filenames, member, container, chromosomes, file.ext, verbose){
+	ids <- switch(member,
+		      F=as.character(paste(fullId(container[[1]])[, "F"], file.ext, sep="")),
+		      M=as.character(paste(fullId(container[[1]])[, "M"], file.ext, sep="")),
+		      O=as.character(paste(fullId(container[[1]])[, "O"], file.ext, sep="")))
+	stopifnot(!is.null(ids))
+	col.index <- switch(member, F=1, M=2, O=3)
+	stopifnot(all(ids %in% basename(filenames)))
+	sample.index <- match(ids, basename(filenames))
 	for(i in seq_along(sample.index)){
 		if(verbose){
 			if(i %% 10 == 0) message("\tFile ", i, " of ", length(sample.index))
@@ -4344,14 +4449,15 @@ readParsedFiles <- function(filenames, container, file.ext, verbose){
 			nms <- dat[[1]]
 			dat <- dat[-1]
 		} else dat <- read.delim(filenames[j], colClasses=c("NULL", "numeric", "numeric"))
-		for(CHR in 1:22){
+		for(k in seq_along(chromosomes)){
+			CHR <- chromosomes[k]
 			open(logR(container[[CHR]]))
 			open(baf(container[[CHR]]))
-			marker.index <- match(featureNames(container[[CHR]]), nms)
-			logR(container[[CHR]])[, i, "F"] <- dat[[1]][marker.index]
-			baf(container[[CHR]])[, i, "F"] <- dat[[2]][marker.index]
-			close(logR(container[[CHR]]))
-			close(baf(container[[CHR]]))
+			marker.index <- match(featureNames(container[[k]]), nms)
+			logR(container[[k]])[, i, col.index] <- dat[[1]][marker.index]
+			baf(container[[k]])[, i, col.index] <- dat[[2]][marker.index]
+			close(logR(container[[k]]))
+			close(baf(container[[k]]))
 		}
 	}
 	return(TRUE)
