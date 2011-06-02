@@ -4343,7 +4343,7 @@ minimumDistance <- function(path, samplesheet, pedigree,
 		save(container, file=container.filename)
 	} else {
 		load(container.filename)
-		container <- get("trioSets")
+		container <- get("container")
 	}
 	##---------------------------------------------------------------------------
 	##
@@ -4390,9 +4390,20 @@ minimumDistance <- function(path, samplesheet, pedigree,
 	##
 	##---------------------------------------------------------------------------
 	if(segment.md){
-		md.segs <- xsegment(container, id=sampleNames(container), ..., verbose)
+		df <- xsegment(container, id=sampleNames(container), ..., verbose=verbose)
+		df$ID <- gsub("^[X]", "", df$ID)
+		mdRanges <- RangedDataCBS(ranges=IRanges(df$loc.start, df$loc.end),
+					  chromosome=df$chrom,
+					  sampleId=df$ID,
+					  coverage=df$num.mark,
+					  seg.mean=df$seg.mean,
+					  startIndexInChromosome=df$start.index,
+					  endIndexInChromosome=df$end.index)
+		mads <- container[[1]]$mindist.mad
+		ix <- match(sampleNames(mdRanges), sampleNames(container))
+		mdRanges$mindist.mad <- mads[ix]
 	}
-	return(md.segs)
+	return(mdRanges)
 }
 
 calculateMads <- function(container, exclusionRule, chromosomes, verbose){

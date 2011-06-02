@@ -346,7 +346,7 @@ setMethod("xsegment", signature(object="TrioSet"),
 		  iMax <- sapply(split(marker.index, arm), max)
 		  pMax <- pos[iMax]
 		  md.segs <- list()
-		  NR <- nrow(object)
+		  ##NR <- nrow(object)
 		  ##if(verbose) message("Running CBS by chromosome arm")
 		  for(i in seq_along(index.list)){
 			  j <- index.list[[i]]
