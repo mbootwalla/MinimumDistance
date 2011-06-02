@@ -4254,7 +4254,8 @@ gridwrap <- function(trioList, rd, index, ylim=c(-2.5,1), unit="Mb", ...){
 initializeTrioContainer <- function(path, samplesheet, pedigree, trio.phenodata, chromosomes=1:22, cdfName, ..., verbose){
 	stopifnot(require(ff))
 	stopifnot(all(chromosomes %in% 1:22))
-	stopifnot(all(file.exists(dirname(filenames))))
+	##stopifnot(all(file.exists(dirname(filenames))))
+	stopifnot(all(file.exists(file.path(path, paste(rownames(samplesheet), ".txt", sep="")))))
 	stopifnot(!missing(pedigree))
 	if(is.null(rownames(pedigree))){
 		rns <- apply(pedigree, 1, paste, collapse=",")
@@ -4315,7 +4316,6 @@ minimumDistance <- function(path, samplesheet, pedigree,
 			    readFiles=TRUE,
 			    calculate.md=TRUE,
 			    calculate.mad=TRUE,
-			    segment.md=TRUE,
 			    exclusionRule, ## for calculateing row-wise mads
 			    ..., ##additional arguments for segment
 			    verbose=TRUE){#samplesheet, ...){
@@ -4383,7 +4383,12 @@ minimumDistance <- function(path, samplesheet, pedigree,
 		if(verbose) message("\tSaving updated container to ", container.filename)
 		save(container, file=container.filename)
 	}
+	return(container)
+}
 
+minimumDistanceCalls <- function(container, segment.md=TRUE,
+				 calculate.lr=TRUE,
+				 cbs.filename, ..., verbose=TRUE){
 	##---------------------------------------------------------------------------
 	##
 	## Segment the minimum distance
@@ -4402,8 +4407,42 @@ minimumDistance <- function(path, samplesheet, pedigree,
 		mads <- container[[1]]$mindist.mad
 		ix <- match(sampleNames(mdRanges), sampleNames(container))
 		mdRanges$mindist.mad <- mads[ix]
+		if(!missing(cbs.filename)) save(mdRanges, file=cbs.filename)
+	} else {
+		if(missing(cbs.filename)) stop("cbs.filename is missing, but segment.md=FALSE")
+		if(verbose) message("Loading saved cbs segmentation results")
+		load(cbs.filename)
+		mdRanges <- get("mdRanges")
 	}
-	return(mdRanges)
+	##---------------------------------------------------------------------------
+	##
+	## Prune the minimum distance ranges
+	##
+	##---------------------------------------------------------------------------
+	## compute likelihood ratio to infer most likely state
+	if(calculate.lr){
+		pruned.segs <- prune(container, ranges=mdRanges,
+				     id=sampleNames(container),
+				     lambda=0.05,
+				     min.change=0.1,
+				     min.coverage=10, scale.exp=0.02,
+				     verbose=verbose)
+		rd <- stack(RangedDataList(pruned.segs))
+		rd <- rd[, -ncol(rd)]
+		prunedRanges <- RangedDataCBS(ranges=ranges(rd), values=values(rd))
+		rm(rd, pruned.segs); gc()
+		tau <- transitionProbability(states=0:4, epsilon=0.5)
+		log.pi <- log(initialStateProbs(states=0:4, epsilon=0.5))
+		prunedRanges <- computeBayesFactor(object=container,
+						   ranges=prunedRanges,
+						   tau=tau, log.pi=log.pi)
+		## do a second round of pruning for adjacent segments
+		## that have the same state
+		rd <- pruneByFactor(prunedRanges, f=prunedRanges$argmax)
+		rd <- stack(RangedDataList(rd))
+		prunedRanges <- rd[, -ncol(rd)]
+	}
+	return(prunedRanges)
 }
 
 calculateMads <- function(container, exclusionRule, chromosomes, verbose){
