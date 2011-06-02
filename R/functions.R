@@ -4251,7 +4251,7 @@ gridwrap <- function(trioList, rd, index, ylim=c(-2.5,1), unit="Mb", ...){
 	gridsetup(lattice.object=fig, rd=rd[index, ], width=8, height=5)
 }
 
-initializeTrioContainer <- function(filenames, samplesheet, pedigree, container.filename, chromosomes=1:22, cdfName, ..., verbose){
+initializeTrioContainer <- function(path, samplesheet, pedigree, trio.phenodata, chromosomes=1:22, cdfName, ..., verbose){
 	stopifnot(require(ff))
 	stopifnot(all(chromosomes %in% 1:22))
 	stopifnot(all(file.exists(dirname(filenames))))
@@ -4262,7 +4262,7 @@ initializeTrioContainer <- function(filenames, samplesheet, pedigree, container.
 	}
 	stopifnot(!any(duplicated(rownames(pedigree))))
 	##samplesheet <- samplesheet[-match(c("sampleNames", "filenames"), names(samplesheet))]
-	fD <- Beaty:::constructFeatureData(filenames[1],
+	fD <- Beaty:::constructFeatureData(list.files(path, full.names=TRUE)[1],
 					   cdfName=cdfName)
 	ss <- array(NA, dim=c(nrow(pedigree), ncol(samplesheet), 3),
 		    dimnames=list(rownames(pedigree),
@@ -4277,9 +4277,7 @@ initializeTrioContainer <- function(filenames, samplesheet, pedigree, container.
 	marker.index.list <- split(seq(length=nrow(fD)), fD$chromosome)
 	stopifnot(all(diff(order(fD$chromosome, fD$position))>0))
 	trioSets <- vector("list", length(chromosomes))
-	##pD <- new("AnnotatedDataFrame", data=data.frame(Sample.Name=pedigree[, "O"]))
-	##sampleNames(pD) <- pedigree[, "O"]
-	##pd <- annotatedDataFrameFrom(logR, byrow=FALSE)
+
 	for(j in seq_along(chromosomes)){
 		CHR <- chromosomes[j]
 		if(verbose) message("\t Chromosome ", CHR)
@@ -4306,12 +4304,13 @@ initializeTrioContainer <- function(filenames, samplesheet, pedigree, container.
 		## (note: parents with multiple sibs are repeated)
 		trioSets[[CHR]]@phenoData2 <- ss
 	}
-	if(verbose) message("Saving as ", container.filename)
-	save(trioSets, file=container.filename)
+
 	return(trioSets)
 }
 
-minimumDistance <- function(filenames, samplesheet, pedigree, container.filename, chromosomes,
+minimumDistance <- function(path, samplesheet, pedigree,
+			    container.filename,
+			    chromosomes,
 			    cdfName, file.ext=".txt",
 			    readFiles=TRUE,
 			    calculate.md=TRUE,
@@ -4319,6 +4318,8 @@ minimumDistance <- function(filenames, samplesheet, pedigree, container.filename
 			    exclusionRule, ## for calculateing row-wise mads
 			    ..., verbose=TRUE){#samplesheet, ...){
 	stopifnot(nrow(pedigree) > 1) ## need to fix initialization of trioSet object otherwise
+	## the rownames of the samplesheet correspond to the name of the parsed beadstudio data
+	stopifnot(all(file.exists(file.path(path, paste(rownames(samplesheet), ".txt", sep="")))))
 	if(!file.exists(container.filename)){
 	##---------------------------------------------------------------------------
 	##
@@ -4329,8 +4330,14 @@ minimumDistance <- function(filenames, samplesheet, pedigree, container.filename
 		stopifnot("Sample.Name" %in% colnames(samplesheet))
 		stopifnot(colnames(pedigree) == c("F", "M", "O"))
 		if(verbose) message("Instantiating a container for the assay data.")
-		container <- initializeTrioContainer(filenames, samplesheet, pedigree, container.filename, chromosomes, cdfName,
+		container <- initializeTrioContainer(path,
+						     samplesheet,
+						     pedigree,
+						     trio.phenodata,
+						     chromosomes, cdfName,
 						     verbose=verbose)
+		if(verbose) message("Saving as ", container.filename)
+		save(container, file=container.filename)
 	} else {
 		load(container.filename)
 		container <- get("trioSets")
@@ -4343,11 +4350,11 @@ minimumDistance <- function(filenames, samplesheet, pedigree, container.filename
 	if(readFiles){
 		if(verbose) message("Reading ", nrow(pedigree), " files")
 		##fatherIds <- as.character(paste(fullId(container[[1]])[, "F"], file.ext, sep=""))
-		ok <- readParsedFiles(filenames, "F", container, chromosomes, file.ext, verbose)
+		ok <- readParsedFiles(path, "F", container, chromosomes, file.ext, verbose)
 		##motherIds <- as.character(paste(fullId(container[[1]])[, "M"], file.ext, sep=""))
-		ok <- readParsedFiles(filenames, "M", container, chromosomes, file.ext, verbose)
+		ok <- readParsedFiles(path, "M", container, chromosomes, file.ext, verbose)
 		##offspringIds <- as.character(paste(fullId(container[[1]])[, "O"], file.ext, sep=""))
-		ok <- readParsedFiles(filenames, "O", container, chromosomes, file.ext, verbose)
+		ok <- readParsedFiles(path, "O", container, chromosomes, file.ext, verbose)
 		stopifnot(ok)
 	} else {
 		if(verbose) message("readFiles is FALSE.")
@@ -4368,13 +4375,14 @@ minimumDistance <- function(filenames, samplesheet, pedigree, container.filename
 	##    -> put in slot 'mad'
 	##---------------------------------------------------------------------------
 	if(calculate.mad){
-		container <- calculateMads(object, exclusionRule, verbose)
+		container <- calculateMads(container, exclusionRule, chromosomes, verbose)
+		if(verbose) message("\tSaving updated container to ", container.filename)
 		save(container, file=container.filename)
 	}
 	return(container)
 }
 
-calculateMads <- function(container, exlusionRule, verbose){
+calculateMads <- function(container, exclusionRule, chromosomes, verbose){
 	if(verbose) message("Calculating MAD of the log R ratios across chromosomes ", paste(chromosomes, collapse=", "))
 	sapply(container, function(x) invisible(open(logR(x))))
 	nc <- ncol(container[[1]])
@@ -4408,7 +4416,7 @@ calculateMads <- function(container, exlusionRule, verbose){
 	container[[1]]$mindist.mad <- mads.md
 	rm(mads.md, mads, r, rr, m, mm); gc()
 	## this is not a ff object, so we might want to update the .rda file here
-	if(verbose) message("\tSaving updated container to ", container.filename)
+
 	##---------------------------------------------------------------------------
 	##
 	## Calculate the MAD of the logR ratios (across samples) for each marker
@@ -4440,21 +4448,24 @@ calculateMads <- function(container, exlusionRule, verbose){
 	return(container)
 }
 
-readParsedFiles <- function(filenames, member, container, chromosomes, file.ext, verbose){
+readParsedFiles <- function(path, member, container, chromosomes, file.ext, verbose){
 	ids <- switch(member,
 		      F=as.character(paste(fullId(container[[1]])[, "F"], file.ext, sep="")),
 		      M=as.character(paste(fullId(container[[1]])[, "M"], file.ext, sep="")),
 		      O=as.character(paste(fullId(container[[1]])[, "O"], file.ext, sep="")))
 	stopifnot(!is.null(ids))
 	col.index <- switch(member, F=1, M=2, O=3)
-	stopifnot(all(ids %in% basename(filenames)))
-	sample.index <- match(ids, basename(filenames))
-	for(i in seq_along(sample.index)){
+	##stopifnot(all(ids %in% basename(filenames)))
+	##sample.index <- match(ids, basename(filenames))
+	filenames <- file.path(path, ids)
+	stopifnot(all(file.exists(filenames)))
+##	for(i in seq_along(sample.index)){
+	for(j in seq_along(filenames)){
 		if(verbose){
-			if(i %% 10 == 0) message("\tFile ", i, " of ", length(sample.index))
+			if(j %% 10 == 0) message("\tFile ", j, " of ", length(filenames))
 		}
-		j <- sample.index[i]
-		if(i == 1){
+		##j <- sample.index[i]
+		if(j == 1){
 			dat <- read.delim(filenames[j], colClasses=c("character", "numeric", "numeric"))
 			nms <- dat[[1]]
 			dat <- dat[-1]
@@ -4464,8 +4475,8 @@ readParsedFiles <- function(filenames, member, container, chromosomes, file.ext,
 			open(logR(container[[CHR]]))
 			open(baf(container[[CHR]]))
 			marker.index <- match(featureNames(container[[k]]), nms)
-			logR(container[[k]])[, i, col.index] <- dat[[1]][marker.index]
-			baf(container[[k]])[, i, col.index] <- dat[[2]][marker.index]
+			logR(container[[k]])[, j, col.index] <- dat[[1]][marker.index]
+			baf(container[[k]])[, j, col.index] <- dat[[2]][marker.index]
 			close(logR(container[[k]]))
 			close(baf(container[[k]]))
 		}
