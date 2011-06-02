@@ -1408,10 +1408,15 @@ combineRanges <- function(deletion.ranges, amp.ranges){
 
 pruneByFactor <- function(range.object, f){
 	rd <- list()
-	for(i in seq_along(unique(range.object$id))){
-		if(i %% 100==0) message(i, "/", length(unique(range.object$id)))
-		id <- unique(range.object$id)[i]
-		(index <- which(range.object$id == id))
+	id.chr <- paste(range.object$id, chromosome(range.object), sep="_")
+	ff <- unique(id.chr)
+	##for(i in seq_along(unique(range.object$id))){
+	for(i in seq_along(ff)){
+		##if(i %% 100==0) message(i, "/", length(unique(range.object$id)))
+		if(i %% 100==0) message(i, "/", length(ff[i]))
+		##id <- unique(range.object$id)[i]
+		##(index <- which(range.object$id == id))
+		index <- which(id.chr==ff[i])
 		##trace(combineRangesByFactor, browser)
 		rd[[i]] <- combineRangesByFactor(range.object[index, ], f=f[index])
 	}
@@ -3779,25 +3784,28 @@ readMultiplexData <- function(filenames){
 		##flds <- count.fields(fn[i], sep="\t")
 		##rows <- which(flds==27)
 		dat <- read.table(fn[i], header=TRUE, as.is=TRUE, sep="\t", fill=TRUE)
-		cols <- c(3:5, 12)
-		tmp <- as.matrix(dat[cols])
-		tmp <- suppressWarnings(matrix(as.numeric(tmp), nrow(tmp), ncol(tmp)))
-		colnames(tmp) <- colnames(dat)[cols]
-		probename <- dat$Sample.Name
-		df <- data.frame(tmp)
-		if(i > 1){
-			df$probeid <- sapply(dat$Sample.Name, function(x) strsplit(x, "\\.")[[1]][1])
-			df$sampleid <- sapply(dat$Sample.Name, function(x) strsplit(x, "\\.")[[1]][2])
-			##stopifnot(df$sampleid[1] == strsplit(basename(fn)[i], "\\.")[[1]][[1]])
-		} else {
-			df$probeid <- dat$Sample.Name
-			df$sampleid <- strsplit(basename(fn)[i], "\\.")[[1]][[1]]
-		}
-		dfList[[i]] <- df
+		for(j in 3:5) dat[, j] <- suppressWarnings(as.numeric(dat[, j]))
+		dat$plate <- basename(fn[i])
+		##cols <- c(3:5, 12)
+		##tmp <- as.matrix(dat[cols])
+		##tmp <- suppressWarnings(matrix(as.numeric(tmp), nrow(tmp), ncol(tmp)))
+		##colnames(tmp) <- colnames(dat)[cols]
+		##probename <- dat$Sample.Name
+		##df <- data.frame(dat)
+##		if(i > 1){
+##			df$probeid <- sapply(dat$Sample.Name, function(x) strsplit(x, "\\.")[[1]][1])
+##			df$sampleid <- sapply(dat$Sample.Name, function(x) strsplit(x, "\\.")[[1]][2])
+##			##stopifnot(df$sampleid[1] == strsplit(basename(fn)[i], "\\.")[[1]][[1]])
+##		} else {
+##			df$probeid <- dat$Sample.Name
+##			df$sampleid <- strsplit(basename(fn)[i], "\\.")[[1]][[1]]
+##		}
+##		dfList[[i]] <- df
+		dfList[[i]] <- dat
 	}
 	df <- do.call("rbind", dfList)
-	colnames(df)[5] <- "sampleid"
-	colnames(df)[6] <- "probeid"
+	##colnames(df)[5] <- "sampleid"
+	##colnames(df)[6] <- "probeid"
 	return(df)
 }
 
@@ -3853,12 +3861,21 @@ mapTaqmanSampleIds <- function(multiplex){
 			      , ncol=2, byrow=TRUE)
 	colnames(sample.hash) <- c("gwasid", "taqmanid")
 	sample.hash <- as.data.frame(sample.hash)
-	index <- match(multiplex$sampleid, sample.hash$taqman)
-	not.missing.index <- which(!is.na(index))
-	index <- index[!is.na(index)]
-	gwas.id <- rep(NA, nrow(multiplex))
-	gwas.id[not.missing.index] <- as.character(sample.hash$gwasid[index])
-	gwas.id
+	##multiplex.id <- multiplex$Sample.Name
+	multiplex$id <- substr(multiplex$Sample.Name, 1, 8)
+	##multiplex.id <- substr(multiplex.id, 1, 8)
+	##multiplex$sample.id <- multiplex.id
+	index <- match(multiplex$id, sample.hash$taqman)
+	multiplex$cidr_name <- sample.hash$gwasid[index]
+	##index <- index[!is.na(index)]
+	##tmp <- which(is.na(index))
+	##gwas.id <-
+	##multiplex.id[tmp]
+	##not.missing.index <- which(!is.na(index))
+	##index <- index[!is.na(index)]
+	##gwas.id <- rep(NA, nrow(multiplex))
+	##gwas.id[not.missing.index] <- as.character(sample.hash$gwasid[index])
+	multiplex
 }
 
 updateWithGwasFindings <- function(multiplex, fd){
@@ -4311,7 +4328,7 @@ initializeTrioContainer <- function(path, samplesheet, pedigree, trio.phenodata,
 
 minimumDistance <- function(path, samplesheet, pedigree,
 			    container.filename,
-			    chromosomes,
+			    chromosomes=1:22,
 			    cdfName, file.ext=".txt",
 			    readFiles=TRUE,
 			    calculate.md=TRUE,
@@ -4386,7 +4403,8 @@ minimumDistance <- function(path, samplesheet, pedigree,
 	return(container)
 }
 
-minimumDistanceCalls <- function(container, segment.md=TRUE,
+minimumDistanceCalls <- function(id, container, chromosomes=1:22,
+				 segment.md=TRUE,
 				 calculate.lr=TRUE,
 				 cbs.filename, ..., verbose=TRUE){
 	##---------------------------------------------------------------------------
@@ -4394,8 +4412,12 @@ minimumDistanceCalls <- function(container, segment.md=TRUE,
 	## Segment the minimum distance
 	##
 	##---------------------------------------------------------------------------
+	if(missing(id)) {
+		id <- sampleNames(container)
+	} else stopifnot(all(id %in% sampleNames(container)))
+	stopifnot(all(chromosomes %in% 1:22))
 	if(segment.md){
-		df <- xsegment(container, id=sampleNames(container), ..., verbose=verbose)
+		df <- xsegment(container[chromosomes], id=id, ..., verbose=verbose)
 		df$ID <- gsub("^[X]", "", df$ID)
 		mdRanges <- RangedDataCBS(ranges=IRanges(df$loc.start, df$loc.end),
 					  chromosome=df$chrom,
@@ -4405,7 +4427,7 @@ minimumDistanceCalls <- function(container, segment.md=TRUE,
 					  startIndexInChromosome=df$start.index,
 					  endIndexInChromosome=df$end.index)
 		mads <- container[[1]]$mindist.mad
-		ix <- match(sampleNames(mdRanges), sampleNames(container))
+		ix <- match(sampleNames(mdRanges), id)
 		mdRanges$mindist.mad <- mads[ix]
 		if(!missing(cbs.filename)) save(mdRanges, file=cbs.filename)
 	} else {
@@ -4421,8 +4443,9 @@ minimumDistanceCalls <- function(container, segment.md=TRUE,
 	##---------------------------------------------------------------------------
 	## compute likelihood ratio to infer most likely state
 	if(calculate.lr){
-		pruned.segs <- prune(container, ranges=mdRanges,
-				     id=sampleNames(container),
+		pruned.segs <- prune(container[chromosomes],
+				     ranges=mdRanges,
+				     id=id,
 				     lambda=0.05,
 				     min.change=0.1,
 				     min.coverage=10, scale.exp=0.02,
@@ -4433,7 +4456,7 @@ minimumDistanceCalls <- function(container, segment.md=TRUE,
 		rm(rd, pruned.segs); gc()
 		tau <- transitionProbability(states=0:4, epsilon=0.5)
 		log.pi <- log(initialStateProbs(states=0:4, epsilon=0.5))
-		prunedRanges <- computeBayesFactor(object=container,
+		prunedRanges <- computeBayesFactor(object=container[chromosomes],
 						   ranges=prunedRanges,
 						   tau=tau, log.pi=log.pi)
 		## do a second round of pruning for adjacent segments
@@ -4545,4 +4568,12 @@ readParsedFiles <- function(path, member, container, chromosomes, file.ext, verb
 		}
 	}
 	return(TRUE)
+}
+
+excludeWGA <- function(x, label="DNA", flag="WGA"){
+	ss <- phenoData2(x)
+	j <- grep(label, colnames(ss))
+	ss <- ss[, j, ]
+	index <- which(rowSums(ss==flag) > 0)
+	return(index)
 }

@@ -2,22 +2,75 @@
 library(Beaty)
 fns <- list.files("~/Projects/Beaty/inst/extdata", full.names=TRUE)
 fn <- fns[grep("HS0", fns)]
-##trace(readMultiplexData, browser)
+trace(Beaty:::readMultiplexData, browser)
 multiplex <- readMultiplexData(fn)
-##
+
+## Look at the mean Ct values across all wells for target sample and reference
+## Why not assume that the median Ct should be the same.
+plt3 <- names(table(multiplex$plate))[3]
+index <- which(multiplex$plate == plt3)
+boxplot(list(multiplex[index, "FAM.Ct"], multiplex[index, "VIC.Ct"]))
+
+## HS01502562, HS02102421, and HS01512766 we did not have a calibrator sample.
+# HS04085807 and HS02053540 we used 1341-01 as a calibrator sample
+## Assay HS04504215 we used 1408-12 which again is a sample we had in the lab.
+calibrator <- c(rep(TRUE, 3), rep(FALSE, 3))
+names(calibrator) <- c("HS01502562", "HS02102421", "HS01512766",
+		       "HS04085807", "HS02053540",
+		       "HS045004215")
+names(calibrator) <- paste(names(calibrator), ".txt", sep="")
+
+Ct <- c(multiplex$FAM.Ct, multiplex$VIC.Ct)
+sample <- rep(c("FAM", "VIC"), each=nrow(multiplex))
+plt <- rep(multiplex$plate, 2)
+ix <- match(plt, names(calibrator))
+cal <- calibrator[ix]
+stopifnot(all.equal(names(cal), plt))
+dat <- data.frame(plate=plt, sample=sample, Ct=Ct, calibrator=cal)
+##dat$plate <- factor(dat$plate, levels=unique(dat$plate), ordered=TRUE)
+##dat$sample <- factor(dat$sample, levels=c("target", "reference"), ordered=TRUE)
+
+library(lattice)
+pdf("multiplexCt.pdf")
+bwplot(Ct~sample|plate, data=dat)
+dev.off()
 @
 
 <<>>=
-fd <- probeCoordinates()
-uid <- unique(multiplex$probeid, na.rm=TRUE)
-fd <- fd[fd$probeid %in% uid, ]
-multiplex$start <- fd$st[match(multiplex$probeid, fd$probeids)]
-multiplex$end <- fd$en[match(multiplex$probeid, fd$probeids)]
-trace(mapTaqmanSampleIds, browser)
-multiplex$gwas.id <- mapTaqmanSampleIds(multiplex)
-multiplex <- updateWithGwasFindings(multiplex, fd)
+fd <- Beaty:::probeCoordinates()
+rownames(fd) <- paste(fd$probeids, ".txt",sep="")
+fd <- fd[rownames(fd) %in% multiplex$plate, ]
+##uid <- unique(multiplex$probeid, na.rm=TRUE)
+##fd <- fd[fd$probeid %in% uid, ]
+multiplex$start <- fd$st[match(multiplex$plate, rownames(fd))]
+multiplex$end <- fd$en[match(multiplex$plate, rownames(fd))]
+trace(Beaty:::mapTaqmanSampleIds, browser)
+multiplex <- mapTaqmanSampleIds(multiplex)
+
+
+library(RColorBrewer)
+ix <- which(ss(penn.offspring$id)=="17013" & penn.offspring$chrom==4 & isDenovo(penn.offspring$state))
+index <- ix[1]
+panelLabels <- c("father", "mother", "offspring")
+frame <- 3e6
+f1a <- xyplot(r ~ x | id, trioSets, range=penn.offspring[index, ],
+	     panelLabels=panelLabels,
+	     layout=c(1,3), index.cond=list(3:1), frame=frame,
+	     md.segs=mdRanges, ylim=c(-2.5, 2),
+	     par.settings=list(plot.symbol=list(pch=21, cex=0.2, col="grey50"),
+	                       par.xlab.text=list(cex=0.8),
+	                       par.ylab.text=list(cex=0.8)),
+	     xlab="",
+	     ylab="log R ratio",
+	     scales=list(x=list(tick.number=10, cex=0.5, tck=c(1,0), axs="i"),
+	                 alternating=rep(1,3),
+	                 y=list(cex=0.5)),
+	     par.strip.text=list(lines=0.8, cex=0.7),
+	     segments=FALSE)
+
+
 ## make plot for positive controls
-multiplex$seg.mean <- 2*2^(multiplex$seg.mean) ## put on same scale
+##multiplex$seg.mean <- 2*2^(multiplex$seg.mean) ## put on same scale
 save(multiplex, file="~/Papers/2011/CleftCnv/data/multiplex.rda")
 df <- multiplex[!is.na(multiplex$family) & !is.na(multiplex$triostate), ]
 df <- df[df$triostate==332, ]
