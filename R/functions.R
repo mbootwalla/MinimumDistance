@@ -4315,8 +4315,10 @@ minimumDistance <- function(path, samplesheet, pedigree,
 			    readFiles=TRUE,
 			    calculate.md=TRUE,
 			    calculate.mad=TRUE,
+			    segment.md=TRUE,
 			    exclusionRule, ## for calculateing row-wise mads
-			    ..., verbose=TRUE){#samplesheet, ...){
+			    ..., ##additional arguments for segment
+			    verbose=TRUE){#samplesheet, ...){
 	stopifnot(nrow(pedigree) > 1) ## need to fix initialization of trioSet object otherwise
 	## the rownames of the samplesheet correspond to the name of the parsed beadstudio data
 	stopifnot(all(file.exists(file.path(path, paste(rownames(samplesheet), ".txt", sep="")))))
@@ -4337,6 +4339,7 @@ minimumDistance <- function(path, samplesheet, pedigree,
 						     chromosomes, cdfName,
 						     verbose=verbose)
 		if(verbose) message("Saving as ", container.filename)
+		container <- as(container, "TrioSetList")
 		save(container, file=container.filename)
 	} else {
 		load(container.filename)
@@ -4367,6 +4370,7 @@ minimumDistance <- function(path, samplesheet, pedigree,
 	if(calculate.md){
 		if(verbose) message("Computing the minimum distance")
 		container <- lapply(container, calculateMindist)
+		container <- as(container, "TrioSetList")
 	}
 	##---------------------------------------------------------------------------
 	##
@@ -4379,7 +4383,16 @@ minimumDistance <- function(path, samplesheet, pedigree,
 		if(verbose) message("\tSaving updated container to ", container.filename)
 		save(container, file=container.filename)
 	}
-	return(container)
+
+	##---------------------------------------------------------------------------
+	##
+	## Segment the minimum distance
+	##
+	##---------------------------------------------------------------------------
+	if(segment.md){
+		md.segs <- xsegment(container, id=sampleNames(container), ..., verbose)
+	}
+	return(md.segs)
 }
 
 calculateMads <- function(container, exclusionRule, chromosomes, verbose){
