@@ -920,37 +920,37 @@ askHolger <- function(trios){
 	return(incomplete)
 }
 
-pennStats <- function(penn.all, penn.offspring){
-	id <- penn.all$id
-	nSamples.penn <- length(unique(id))
-	nTrios.penn <- length(unique(ss(id)))
-	stopifnot(nSamples.penn/3 == nTrios.penn)
-	triostates <- penn.all$triostate
-	MIN.COV <- 10
+pennStats <- function(penn.offspring, MIN.COV=10){
+	##id <- penn.all$id
+	##nSamples.penn <- length(unique(id))
+	##nTrios.penn <- length(unique(ss(id)))
+	##stopifnot(nSamples.penn/3 == nTrios.penn)
+	##triostates <- penn.all$triostate
+	triostates <- penn.offspring$triostate
 	##fmo <- substr(penn.all$id, 8, 8)
-	nM <- nMarkers(penn.all)
-	is.o <- sampleNames(penn.all) %in% trios[, "O"]
-
-	del.o <- which(substr(triostates, 3, 3) < 3 & nM >=MIN.COV & is.o)
-	amp.o <- which(substr(triostates, 3, 3) > 3 & nM >=MIN.COV & is.o)
-	ndel.all <- sum(substr(triostates, 3, 3) < 3 & is.o)
-	namp.all <- sum(substr(triostates, 3, 3) > 3 & is.o)
+	##nM <- nMarkers(penn.all)
+	nM <- coverage(penn.offspring)
+	##is.o <- sampleNames(penn.all) %in% trios[, "O"]
+	del.o <- which(substr(triostates, 3, 3) < 3 & nM >=MIN.COV)
+	amp.o <- which(substr(triostates, 3, 3) > 3 & nM >=MIN.COV)
+	ndel.all <- sum(substr(triostates, 3, 3) < 3)
+	namp.all <- sum(substr(triostates, 3, 3) > 3)
 	ndel.o <- length(del.o)
 	namp.o <- length(amp.o)
 	avgndel.o <- median(sapply(split(del.o, id[del.o]), length))
 	avgnamp.o <- median(sapply(split(amp.o, id[amp.o]), length))
 	cov.o <- median(nM[del.o])
 	## for offspring
-	nMo <- nMarkers(penn.offspring)
-	tstate <- penn.offspring$triostate
+	##nMo <- nMarkers(penn.offspring)
+	##tstate <- penn.offspring$triostate
 	id <- sampleNames(penn.offspring)
-	denovo.hemi <- which(tstate %in% Beaty:::offspring.hemizygous() & nMo >= MIN.COV)
+	denovo.hemi <- which(triostates %in% Beaty:::offspring.hemizygous() & nM >= MIN.COV)
 	ndenovo.hemi <- length(denovo.hemi)
 	avgndenovo.hemi <- median(sapply(split(denovo.hemi, id[denovo.hemi]), length))
-	denovo.hom <- which(tstate %in% Beaty:::offspring.homozygous() & nMo >= MIN.COV)
+	denovo.hom <- which(triostates %in% offspring.homozygous() & nM >= MIN.COV)
 	ndenovo.hom <- length(denovo.hom)
 	avgndenovo.hom <- median(sapply(split(denovo.hom, id[denovo.hom]), length))
-	denovo.dup <- which(tstate %in% Beaty:::duplicationStates() & nMo >= MIN.COV)
+	denovo.dup <- which(triostates %in% duplicationStates() & nM >= MIN.COV)
 	ndenovo.dup <- length(denovo.dup)
 	avgndenovo.dup <- median(sapply(split(denovo.dup, id[denovo.dup]), length))
 	stats <- c(ndel.all,
@@ -4561,7 +4561,7 @@ readParsedFiles <- function(path, member, container, chromosomes, file.ext, verb
 			if(j %% 10 == 0) message("\tFile ", j, " of ", length(filenames))
 		}
 		if(j > 1) dat <- read.delim(filenames[j], colClasses=c("NULL", "numeric", "numeric"))
-		mads[j] <- mad(dat[[1]])
+		mads[j] <- mad(dat[[1]], na.rm=TRUE)
 		for(k in seq_along(chromosomes)){
 			CHR <- chromosomes[k]
 			open(logR(container[[CHR]]))
