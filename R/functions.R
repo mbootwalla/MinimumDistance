@@ -926,6 +926,7 @@ pennStats <- function(penn.offspring, MIN.COV=10){
 	##nTrios.penn <- length(unique(ss(id)))
 	##stopifnot(nSamples.penn/3 == nTrios.penn)
 	##triostates <- penn.all$triostate
+	id <- sampleNames(penn.offspring)
 	triostates <- penn.offspring$triostate
 	##fmo <- substr(penn.all$id, 8, 8)
 	##nM <- nMarkers(penn.all)
@@ -3658,42 +3659,12 @@ getAllBayesFactorRanges <- function(path=beadstudiodir()){
 }
 
 calculateDenovoFrequency <- function(ranges.md, penn.offspring, bychrom=FALSE){
-	## frequency of denovo event
-	trio.states <- trioStates()
-	##tmp <- trio.states[ranges.md$argmax, ]
-	##calls <- paste(paste(tmp[, 1], tmp[, 2], sep=""), tmp[,3], sep="")
-	##calls <- gsub("5", "4", calls)
 	ranges.md$state <- gsub("5", "4", ranges.md$state)
-	##not.normal <- ranges.md$state != "333"
 	not.normal <- isDenovo(ranges.md$state)
-##	if(bychrom){
-##		df <- list()
-##		for(i in 1:22) {
-##			ii <- which(ranges.md$chrom==i)
-##			tmp <- ranges.md[ii, ]
-##			nn <- not.normal[ii]
-##			df[[i]] <- table(tmp$state[nn])
-##		}
-##		state <- sapply(df, names)
-##		chrom <- rep(1:22, sapply(df, length))
-##		df <- data.frame(freq=unlist(df),chrom=chrom, state=unlist(state))
-##	} else {
 	df <- as.data.frame(table(ranges.md$state[not.normal]))
-	##}
 	df$method <- "mindist"
-	not.normal <- penn.offspring$pass.qc & penn.offspring$nmarkers >= 10 & isDenovo(penn.offspring$state)
-##	if(bychrom){
-##		df2 <- list()
-##		for(i in 1:22) {
-##			ii <- which(penn.offspring$chrom==i)
-##			tmp <- penn.offspring[ii, ]
-##			nn <- not.normal[ii]
-##			df2[[i]] <- table(tmp$state[nn])
-##		}
-##		state <- sapply(df2, names)
-##		chrom <- rep(1:22, sapply(df2, length))
-##		df2 <- data.frame(freq=unlist(df2),chrom=chrom, state=unlist(state))
-##	} else
+	stopifnot(all(penn.offspring$pass.qc))
+	not.normal <- coverage(penn.offspring) >= 10 & isDenovo(penn.offspring$state)
 	df2 <- as.data.frame(table(penn.offspring$state[not.normal]))
 	df2$method <- "PennCNV"
 	if(!bychrom){
@@ -4014,13 +3985,13 @@ taqmanFigs <- function(multiplex, xlim=c(0,5), ylim=c(0,5)){
 				  ylim=ylim)
 	return(taqmanfigs)
 }
-load12307 <- function(path=beadstudiodir()){
-	load(file.path(path, "ranges.bf8.rda"))
-	rd <- RangedDataList(ranges.bf)
-	rd <- stack(rd)
-	rd <- rd[ss(rd$id)=="12307", ]
-	return(rd)
-}
+##load12307 <- function(path=beadstudiodir()){
+##	load(file.path(path, "ranges.bf8.rda"))
+##	rd <- RangedDataList(ranges.bf)
+##	rd <- stack(rd)
+##	rd <- rd[ss(rd$id)=="12307", ]
+##	return(rd)
+##}
 
 printMadFig <- function(madfig, dna){
 	pars <- trellis.par.get()
@@ -4147,7 +4118,8 @@ pennDenovoFreq <- function(penn.offspring, bsSet, MIN.COV=10){
 				wga=wga,
 				mad=mad.offspring,
 				plate=plate,
-				id=names(is.denovo.split)), stringsAsFactors=FALSE)##sampleNames(bsSet)[index]))
+				id=names(is.denovo.split)),
+			   stringsAsFactors=FALSE)##sampleNames(bsSet)[index]))
 	return(dat2)
 }
 
