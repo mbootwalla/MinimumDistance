@@ -1413,7 +1413,7 @@ pruneByFactor <- function(range.object, f){
 	##for(i in seq_along(unique(range.object$id))){
 	for(i in seq_along(ff)){
 		##if(i %% 100==0) message(i, "/", length(unique(range.object$id)))
-		if(i %% 100==0) message(i, "/", length(ff[i]))
+		if(i %% 100==0) message("\tPruning ", i, " of ", length(ff))
 		##id <- unique(range.object$id)[i]
 		##(index <- which(range.object$id == id))
 		index <- which(id.chr==ff[i])
@@ -4322,7 +4322,6 @@ initializeTrioContainer <- function(path, samplesheet, pedigree, trio.phenodata,
 		## (note: parents with multiple sibs are repeated)
 		trioSets[[CHR]]@phenoData2 <- ss
 	}
-
 	return(trioSets)
 }
 
@@ -4370,12 +4369,15 @@ minimumDistance <- function(path, samplesheet, pedigree,
 	if(readFiles){
 		if(verbose) message("Reading ", nrow(pedigree), " files")
 		##fatherIds <- as.character(paste(fullId(container[[1]])[, "F"], file.ext, sep=""))
-		ok <- readParsedFiles(path, "F", container, chromosomes, file.ext, verbose)
+		mads <- matrix(NA, nrow(pedigree), 3)
+		dimnames(mads) <- list(sampleNames(container), c("F", "M", "O"))
+		mads[, "F"] <- readParsedFiles(path, "F", container, chromosomes, file.ext, verbose)
 		##motherIds <- as.character(paste(fullId(container[[1]])[, "M"], file.ext, sep=""))
-		ok <- readParsedFiles(path, "M", container, chromosomes, file.ext, verbose)
+		mads[, "M"] <- readParsedFiles(path, "M", container, chromosomes, file.ext, verbose)
 		##offspringIds <- as.character(paste(fullId(container[[1]])[, "O"], file.ext, sep=""))
-		ok <- readParsedFiles(path, "O", container, chromosomes, file.ext, verbose)
-		stopifnot(ok)
+		mads[, "O"] <- readParsedFiles(path, "O", container, chromosomes, file.ext, verbose)
+		mad(container[[1]]) <- mads
+		save(container, file=container.filename)
 	} else {
 		if(verbose) message("readFiles is FALSE.")
 	}
@@ -4465,28 +4467,33 @@ minimumDistanceCalls <- function(id, container, chromosomes=1:22,
 		rd <- stack(RangedDataList(rd))
 		prunedRanges <- rd[, -ncol(rd)]
 	}
+	prunedRanges$state <- trioStateNames()[prunedRanges$argmax]
 	return(prunedRanges)
 }
 
 calculateMads <- function(container, exclusionRule, chromosomes, verbose){
-	if(verbose) message("Calculating MAD of the log R ratios across chromosomes ", paste(chromosomes, collapse=", "))
-	sapply(container, function(x) invisible(open(logR(x))))
-	nc <- ncol(container[[1]])
-	mads <- matrix(NA, nc, 3)
-	for(j in 1:nc){
-		r <- lapply(container, function(x, j) logR(x)[, j, ], j=j)
-		if(length(r) > 1){
-			rr <- do.call("rbind", r)
-		} else rr <- r[[1]]
-		mads[j, ] <- apply(rr, 2, mad, na.rm=TRUE)
-	}
-	sapply(container, function(x) invisible(close(logR(x))))
+##	if(verbose) message("Computing sample-level MAD of the log R ratios across chromosomes ", paste(chromosomes, collapse=", "))
+##	sapply(container, function(x) invisible(open(logR(x))))
+##	nc <- ncol(container[[1]])
+##	mads <- matrix(NA, nc, 3)
+##	for(j in 1:nc){
+##		## the log R ratios from every chromosome for sample j
+##		##r <- lapply(container, function(x, j) logR(x)[, j, ], j=j)
+##		system.time(R <- lapply(container, function(x, j) logR(x)[, , j], j=j))
+##		if(length(r) > 1){
+##			system.time(rr <- do.call("rbind", r))
+##		} else rr <- r[[1]]
+##		mads[j, ] <- apply(rr, 2, mad, na.rm=TRUE)
+##	}
+##	mad(container[[1]]) <- mads
+##	sapply(container, function(x) invisible(close(logR(x))))
 	##---------------------------------------------------------------------------
 	##
 	## Calculate the MAD of minimum distance
 	##    -> put in phenoData slot
 	##
 	##---------------------------------------------------------------------------
+	message("Computing mad of the minimum distance.")
 	sapply(container, function(x) invisible(open(mindist(x))))
 	mads.md <- rep(NA, nc)
 	for(j in 1:nc){
@@ -4498,11 +4505,9 @@ calculateMads <- function(container, exclusionRule, chromosomes, verbose){
 	## inefficient to put mad in each TrioSet if there is a large number of samples
 	## just put in first
 	if(verbose) message("\tStoring MAD in first element of the TrioSetList container")
-	mad(container[[1]]) <- mads
 	container[[1]]$mindist.mad <- mads.md
 	rm(mads.md, mads, r, rr, m, mm); gc()
 	## this is not a ff object, so we might want to update the .rda file here
-
 	##---------------------------------------------------------------------------
 	##
 	## Calculate the MAD of the logR ratios (across samples) for each marker
@@ -4510,7 +4515,7 @@ calculateMads <- function(container, exclusionRule, chromosomes, verbose){
 	##
 	##---------------------------------------------------------------------------
 	if(nc > 1){
-		if(verbose) message("\tCalculating mad of log R ratios across offspring samples for each marker.  Can be helpful to exclude samples of low quality using the exclude.trio.index argument.")
+		if(verbose) message("\tCalculating mad of log R ratios across offspring samples for each marker.  Can be helpful to exclude samples of low quality using the exclusionRule argument.")
 		J <- seq(length=nc)
 		if(!missing(exclusionRule)) {
 			exclude.index <- exclusionRule(container[[1]])
@@ -4545,17 +4550,18 @@ readParsedFiles <- function(path, member, container, chromosomes, file.ext, verb
 	##sample.index <- match(ids, basename(filenames))
 	filenames <- file.path(path, ids)
 	stopifnot(all(file.exists(filenames)))
-##	for(i in seq_along(sample.index)){
+	## Read in the first file
+	dat <- read.delim(filenames[1], colClasses=c("character", "numeric", "numeric"))
+	nms <- dat[[1]]
+	dat <- dat[-1]
+	nr <- nrow(dat)
+	mads <- rep(NA, length(filenames))
 	for(j in seq_along(filenames)){
 		if(verbose){
 			if(j %% 10 == 0) message("\tFile ", j, " of ", length(filenames))
 		}
-		##j <- sample.index[i]
-		if(j == 1){
-			dat <- read.delim(filenames[j], colClasses=c("character", "numeric", "numeric"))
-			nms <- dat[[1]]
-			dat <- dat[-1]
-		} else dat <- read.delim(filenames[j], colClasses=c("NULL", "numeric", "numeric"))
+		if(j > 1) dat <- read.delim(filenames[j], colClasses=c("NULL", "numeric", "numeric"))
+		mads[j] <- mad(dat[[1]])
 		for(k in seq_along(chromosomes)){
 			CHR <- chromosomes[k]
 			open(logR(container[[CHR]]))
@@ -4567,7 +4573,7 @@ readParsedFiles <- function(path, member, container, chromosomes, file.ext, verb
 			close(baf(container[[k]]))
 		}
 	}
-	return(TRUE)
+	return(mads)
 }
 
 excludeWGA <- function(x, label="DNA", flag="WGA"){

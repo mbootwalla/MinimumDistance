@@ -2,14 +2,8 @@
 library(Beaty)
 fns <- list.files("~/Projects/Beaty/inst/extdata", full.names=TRUE)
 fn <- fns[grep("HS0", fns)]
-trace(Beaty:::readMultiplexData, browser)
-multiplex <- readMultiplexData(fn)
-
-## Look at the mean Ct values across all wells for target sample and reference
-## Why not assume that the median Ct should be the same.
-plt3 <- names(table(multiplex$plate))[3]
-index <- which(multiplex$plate == plt3)
-boxplot(list(multiplex[index, "FAM.Ct"], multiplex[index, "VIC.Ct"]))
+##trace(Beaty:::readMultiplexData, browser)
+multiplex <- Beaty:::readMultiplexData(fn)
 
 ## HS01502562, HS02102421, and HS01512766 we did not have a calibrator sample.
 # HS04085807 and HS02053540 we used 1341-01 as a calibrator sample
@@ -44,30 +38,43 @@ fd <- fd[rownames(fd) %in% multiplex$plate, ]
 ##fd <- fd[fd$probeid %in% uid, ]
 multiplex$start <- fd$st[match(multiplex$plate, rownames(fd))]
 multiplex$end <- fd$en[match(multiplex$plate, rownames(fd))]
-trace(Beaty:::mapTaqmanSampleIds, browser)
-multiplex <- mapTaqmanSampleIds(multiplex)
+##trace(Beaty:::mapTaqmanSampleIds, browser)
+multiplex <- Beaty:::mapTaqmanSampleIds(multiplex)
+data(trioSets)
 
+##library(RColorBrewer)
+##ix <- which(ss(penn.offspring$id)=="17013" & penn.offspring$chrom==4 & isDenovo(penn.offspring$state))
+##index <- ix[1]
+##panelLabels <- c("father", "mother", "offspring")
+##frame <- 3e6
+##f1a <- xyplot(r ~ x | id, trioSets, range=penn.offspring[index, ],
+##	     panelLabels=panelLabels,
+##	     layout=c(1,3), index.cond=list(3:1), frame=frame,
+##	     md.segs=mdRanges, ylim=c(-2.5, 2),
+##	     par.settings=list(plot.symbol=list(pch=21, cex=0.2, col="grey50"),
+##	                       par.xlab.text=list(cex=0.8),
+##	                       par.ylab.text=list(cex=0.8)),
+##	     xlab="",
+##	     ylab="log R ratio",
+##	     scales=list(x=list(tick.number=10, cex=0.5, tck=c(1,0), axs="i"),
+##	                 alternating=rep(1,3),
+##	                 y=list(cex=0.5)),
+##	     par.strip.text=list(lines=0.8, cex=0.7),
+##	     segments=FALSE)
+library(BeatyExperimentData)
+##data(mdRanges)
 
-library(RColorBrewer)
-ix <- which(ss(penn.offspring$id)=="17013" & penn.offspring$chrom==4 & isDenovo(penn.offspring$state))
-index <- ix[1]
-panelLabels <- c("father", "mother", "offspring")
-frame <- 3e6
-f1a <- xyplot(r ~ x | id, trioSets, range=penn.offspring[index, ],
-	     panelLabels=panelLabels,
-	     layout=c(1,3), index.cond=list(3:1), frame=frame,
-	     md.segs=mdRanges, ylim=c(-2.5, 2),
-	     par.settings=list(plot.symbol=list(pch=21, cex=0.2, col="grey50"),
-	                       par.xlab.text=list(cex=0.8),
-	                       par.ylab.text=list(cex=0.8)),
-	     xlab="",
-	     ylab="log R ratio",
-	     scales=list(x=list(tick.number=10, cex=0.5, tck=c(1,0), axs="i"),
-	                 alternating=rep(1,3),
-	                 y=list(cex=0.5)),
-	     par.strip.text=list(lines=0.8, cex=0.7),
-	     segments=FALSE)
+##load(md)
+data(alternativeTrioRanges)
+mdr <- md[sampleNames(md) %in% ss(as.character(multiplex$cidr_name)), ]
+mdr$state <- Beaty:::trioStateNames()[mdr$argmax]
+df <- RangedDataHMM(ranges=ranges(mdr), values=values(mdr))
+df22 <- df[chromosome(df)==22, ]
+library(RColorBrewer); palette <- brewer.pal(3, "Set2")
+df22 <- Beaty:::todf(df22,col=palette)
+fig <- xyplot(x=y~midpoint, data=df22, show.coverage=FALSE, ylim=c(-1,7))
 
+## tick marks at probe locations
 
 ## make plot for positive controls
 ##multiplex$seg.mean <- 2*2^(multiplex$seg.mean) ## put on same scale

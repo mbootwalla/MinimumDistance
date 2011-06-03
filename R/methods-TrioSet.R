@@ -238,65 +238,20 @@ fullId <- function(object) object@phenoData2[, "Sample.Name", ]
 
 setMethod("calculateMindist", signature(object="TrioSet"), function(object, ...){
 	sns <- sampleNames(object)
-	##sns <- ssampleNames(bsSet)
-	##sns.all <- sampleNames(bsSet)
-	##trios <- completeTrios(bsSet)
-	##father <- match(trios[, "F"], sns)
-	##mother <- match(trios[, "M"], sns)
-	##offspring <- match(trios[, "O"], sns)
-	##stopifnot(identical(sns[offspring], ssampleNames(minDistanceSet)))
 	invisible(open(logR(object)))
 	invisible(open(mindist(object)))
-	##object$MAD <- NA
-	##invisible(open(copyNumber(minDistanceSet)))
-	##min.resid <- rep(NA, nrow(bsSet))
 	for(j in seq(length=ncol(object))){
-		##for(j in seq_along(father)){ ## column by column so as not to swamp RAM
 		if(j %% 100 == 0) cat(".")
-##		f <- father[j]
-##		m <- mother[j]
-##		o <- offspring[j]
-##		logR.f <- logR(bsSet)[, f]
-##		logR.m <- logR(bsSet)[, m]
-##		logR.o <- logR(bsSet)[, o]
 		lr <- logR(object)[, j, ]
 		d1 <- lr[, "F"] - lr[, "O"]
 		d2 <- lr[, "M"] - lr[, "O"]
 		I <- as.numeric(abs(d1) <= abs(d2))
 		md <- I*d1 + (1-I)*d2
 		mindist(object)[, j] <- md
-		##copyNumber(minDistanceSet)[,j] <- md
 		object$MAD[j] <- mad(md, na.rm=TRUE)
-		##minDistanceSet$MAD[j] <- mad(md, na.rm=TRUE)
 	}
 	close(mindist(object))
 	close(logR(object))
-	##mindist[index, j] <- d2[-index]
-##	for(j in seq_along(sns)){
-##		offspring.name <- sns[j]
-##		family <- substr(offspring.name, 1, 5)
-##		father.name <- paste(family, "03", sep="_")
-##		father.index <- match(father.name, sns.all)
-##		mother.name <- paste(family, "02", sep="_")
-##		mother.index <- match(mother.name, sns.all)
-##		offspring.index <- match(offspring.name, sns.all)
-##		lR <- as.matrix(logR(bsSet)[, c(mother.index, father.index)])
-##		resid <- lR - logR(bsSet)[, offspring.index]
-##		na.index <- which(rowSums(is.na(resid)) > 0)
-##		##resid[is.na(resid)] <- 0
-##		sign.resid <- sign(resid)
-##		min.resid[-na.index] <- rowMin(abs(resid[-na.index, ]))
-##		## now give the appropriate sign
-##		column.index <- ifelse(abs(resid[,1]) < abs(resid[, 2]), 1, 2)
-##		col2 <- which(column.index == 2)
-##		col1 <- which(column.index == 1)
-##		min.resid[col2] <- min.resid[col2] * sign.resid[col2, 2]
-##		min.resid[col1] <- min.resid[col1] * sign.resid[col1, 1]
-##		##min.resid <- rowMin(resid)
-##		copyNumber(minDistanceSet)[, j] <- min.resid
-##		if(j %% 100 == 0) cat(j, " ")
-##		minDistanceSet$MAD[j] <- mad(min.resid, na.rm=TRUE)
-##	}
 	return(object)
 })
 
@@ -531,6 +486,7 @@ fmoNames <- function(object){
 xypanel <- function(x, y, panelLabels,
 		    xlimit,
 		    segments=TRUE,
+		    segments.md=TRUE,
 		    range, fmonames,
 		    cbs.segs,
 		    md.segs,
@@ -540,31 +496,35 @@ xypanel <- function(x, y, panelLabels,
 	index <- which(x >= start(range)/1e6 & x <= end(range)/1e6)
 	panelLabels <- rev(panelLabels)
 	CHR <- range$chrom
-	if(segments){
-		if(missing(cbs.segs)){
-			cbs.segs <- loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, sep=""), name="cbs.segs")
-		}
-		what <- switch(paste("p", panel.number(), sep=""),
-			       p1="min dist",
-			       p2="offspring",
-			       p3="mother",
-			       p4="father",
-			       NULL)
-		stopifnot(!is.null(what))
-		if(what=="father")
-			cbs.sub <- cbs.segs[cbs.segs$id==fmonames[1], ]
-		if(what=="mother")
-			cbs.sub <- cbs.segs[cbs.segs$id==fmonames[2], ]
-		if(what=="offspring")
-			cbs.sub <- cbs.segs[cbs.segs$id==fmonames[3], ]
-		if(what=="min dist"){
-			if(!missing(md.segs)){
-				cbs.sub <- md.segs[md.segs$id %in% ss(range$id), ]
-				cbs.sub <- cbs.sub[cbs.sub$chrom == range$chrom, ]
-				##cbs.sub <- dranges[substr(dranges$id, 1, 5) %in% id, ]
-				cbs.sub$seg.mean <- -1*cbs.sub$seg.mean
+	if(panel.number() > 1){
+		if(segments){
+			if(missing(cbs.segs)){
+				message("loading segmentation results for chromosome ", CHR)
+				cbs.segs <- loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, sep=""), name="cbs.segs")
 			}
+			what <- switch(paste("p", panel.number(), sep=""),
+				       p2="offspring",
+				       p3="mother",
+				       p4="father",
+				       NULL)
+			stopifnot(!is.null(what))
+			if(what=="father")
+				cbs.sub <- cbs.segs[cbs.segs$id==fmonames[1], ]
+			if(what=="mother")
+				cbs.sub <- cbs.segs[cbs.segs$id==fmonames[2], ]
+			if(what=="offspring")
+				cbs.sub <- cbs.segs[cbs.segs$id==fmonames[3], ]
 		}
+	}
+	if(segments.md){
+		if(!missing(md.segs)){
+			cbs.sub <- md.segs[md.segs$id %in% ss(range$id), ]
+			cbs.sub <- cbs.sub[cbs.sub$chrom == range$chrom, ]
+			##cbs.sub <- dranges[substr(dranges$id, 1, 5) %in% id, ]
+			cbs.sub$seg.mean <- -1*cbs.sub$seg.mean
+		}
+	}
+	if(segments | segments.md){
 		if(missing(ylim)) ylimit <- range(y, na.rm=TRUE) else ylim <- ylimit
 		if(nrow(cbs.sub) > 0){
 			cbs.sub$seg.mean[cbs.sub$seg.mean < ylimit[1]] <- ylimit[1] + 0.2
