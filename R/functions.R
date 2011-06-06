@@ -79,6 +79,7 @@ populateAssayData <- function(path, readScriptFilename="ReadBsScript2.R"){
 ##pedfile="~/Projects/Beaty/inst/extdata/may_peds.csv"
 readPedfile <- function(fnames, pedfile){
 	stopifnot(file.exists(pedfile))
+	message("Reading ", pedfile)
 	mayped <- read.csv(pedfile, sep=";", as.is=TRUE)
 	is.father <- which(mayped$father != "0")
 	is.mother <- which(mayped$mother != "0")
@@ -91,8 +92,22 @@ readPedfile <- function(fnames, pedfile){
 	colnames(trio.matrix) <- c("F", "M", "O")
 	rownames(trio.matrix) <- ss(trio.matrix[,1])
 	index <- which(trio.matrix[, "F"] %in% fnames & trio.matrix[, "M"] %in% fnames & trio.matrix[, "O"] %in% fnames)
-	trio.matrix <- trio.matrix[index, ]
-	return(trio.matrix)
+	trios <- trio.matrix[index, ]
+	message("Duplicate rownames exist")
+	rns <- rownames(trios)
+	##
+	##
+	dup.index <- which(duplicated(rownames(trios)))
+	message("\tAppending _sib2 postfix to duplicate rownames")
+	rownames(trios)[dup.index] <- paste(rns[dup.index], "_sib2", sep="")
+	dup.index <- which(duplicated(rownames(trios)))
+	message("\tAppending _sib3 postfix to duplicate rownames")
+	rownames(trios)[dup.index] <- paste(rns[dup.index], "_sib3", sep="")
+	dup.index <- which(duplicated(rownames(trios)))
+	message("\tAppending _sib4 postfix to duplicate rownames")
+	rownames(trios)[dup.index] <- paste(rns[dup.index], "_sib4", sep="")
+	stopifnot(!any(duplicated(rownames(trios))))
+	return(trios)
 }
 
 addPhenoData <- function(bsSet,
@@ -4467,6 +4482,7 @@ calculateMads <- function(container, exclusionRule, chromosomes, verbose){
 	##---------------------------------------------------------------------------
 	message("Computing mad of the minimum distance.")
 	sapply(container, function(x) invisible(open(mindist(x))))
+	nc <- ncol(container[[1]])
 	mads.md <- rep(NA, nc)
 	for(j in 1:nc){
 		m <- lapply(container, function(x, j) mindist(x)[, j], j=j)
@@ -4478,7 +4494,7 @@ calculateMads <- function(container, exclusionRule, chromosomes, verbose){
 	## just put in first
 	if(verbose) message("\tStoring MAD in first element of the TrioSetList container")
 	container[[1]]$mindist.mad <- mads.md
-	rm(mads.md, mads, r, rr, m, mm); gc()
+	rm(mads.md, m, mm); gc()
 	## this is not a ff object, so we might want to update the .rda file here
 	##---------------------------------------------------------------------------
 	##
