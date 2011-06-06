@@ -88,3 +88,4 @@ my.xypanel <- function(x, y,
 prepanel.fxn <- function(x,y, chr.size, ..., subscripts){
 	list(xlim=c(0, unique(chr.size[subscripts])), ylim=range(as.integer(as.factor(y[subscripts]))))
 }
+

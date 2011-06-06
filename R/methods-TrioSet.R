@@ -389,7 +389,7 @@ setMethod("todf", signature(object="TrioSet", range="RangedData"),
 		w <- width(range)
 		frame <- w/0.05  * 1/2
 	}
-	marker.index <- Beaty:::featuresInRange(object, range, FRAME=frame)
+	marker.index <- featuresInRange(object, range, FRAME=frame)
 	id <- range$id
 	sample.index <- match(id, offspringNames(object))
 	stopifnot(length(sample.index)==1)
@@ -651,8 +651,9 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 setMethod("xyplot", signature(x="formula", data="TrioSet"),
 	  function(x, data, ...){
 		  if(!"panel" %in% names(list(...))){
+			  panel.specified <- TRUE
 			  panel <- xypanel
-		  }
+		  } else panel.specified <- FALSE
 		  stopifnot("range" %in% names(list(...)))
 		  range <- list(...)[["range"]]
 		  fmonames <- fmoNames(data)[match(range$id, offspringNames(data)), ]
@@ -662,7 +663,12 @@ setMethod("xyplot", signature(x="formula", data="TrioSet"),
 			  data <- data[data$id %in% panelLabels, ]
 		  }
 		  if("xlim" %in% names(list(...))) xlimit <- list(...)[["xlim"]] else xlimit <- range(data$x, na.rm=TRUE)
-		  xyplot(x=x, data=data,
-			 panel=panel, fmonames=fmonames, xlimit=xlimit, ...)
+		  if(!panel.specified){
+			  xyplot(x=x, data=data,
+				 panel=panel, fmonames=fmonames, xlimit=xlimit, ...)
+		  } else{
+			  xyplot(x=x, data=data,
+				 fmonames=fmonames, xlimit=xlimit, ...)
+		  }
 	  })
 

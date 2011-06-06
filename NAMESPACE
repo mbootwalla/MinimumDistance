@@ -68,6 +68,6 @@ export(beadstudiodir,
        RangedDataCBS,
        RangedDataHMM,
        ssampleNames, sssampleNames, ss, s,
-       wrapperPosteriorProbs)
+       xypanel)
 
 
