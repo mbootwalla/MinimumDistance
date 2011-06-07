@@ -13,21 +13,29 @@ catFun <- function(rd.query, rd.subject, size){
 	}
 	return(count)
 }
-concAtTop <- function(ranges.query, ranges.subject, listSize, state){
+concAtTop <- function(ranges.query, ranges.subject, listSize, state,
+		      verbose=TRUE, msg="."){
+	if(verbose) message("Subsetting query and subject ranges by state ", state)
 	ranges.subject <- ranges.subject[state(ranges.subject) == state, ]
 	ranges.query <- ranges.query[state(ranges.query) == state, ]
+	stopifnot(listSize <= nrow(ranges.subject) & listSize <= nrow(ranges.query))
+	if(verbose) message("Ranking query and subject ranges by coverage")
 	ranges.subject$rank <- rank(-coverage(ranges.subject))
 	ranges.query$rank <- rank(-coverage(ranges.query))
-
 	top.query <- ranges.query[order(ranges.query$rank, decreasing=FALSE)[1:listSize], ]
 	top.subject <- ranges.subject[order(ranges.subject$rank, decreasing=FALSE)[1:listSize], ]
 	count <- rep(NA, nrow(top.query))
+	if(verbose) message("Calculating the proportion of ranges in common for list sizes 1 to ", listSize)
+	if(verbose) message("\tPrinting ", msg, " for every 100 ranges in query")
 	for(i in seq(length=nrow(top.query))){
 		if(i %% 100 == 0) cat(".")
 		count[i] <- catFun(rd.query=top.query[i, ], rd.subject=top.subject[seq(length=i), ])
 	}
 	I <- count > 0
-	sapply(1:nrow(top.query), function(x, I) mean(I[1:x]), I=I)
+	message("returning proportion in common (p) and coverage in query (cov)")
+	p <- sapply(1:nrow(top.query), function(x, I) mean(I[1:x]), I=I)
+	cov <- coverage(top.query)
+	return(list(p=p, cov=cov))
 }
 
 projectMetadata <- function(path="/thumper/ctsa/beaty/holger/txtfiles", ## path to BeadStudioFiles
@@ -4589,4 +4597,186 @@ thresholdY <- function(object){
 		return(args)
 	}
 	panel.args <- lapply(panel.args2, f, ylim)
+}
+
+xypanel <- function(x, y, panelLabels,
+		    xlimit,
+		    segments=TRUE,
+		    segments.md=TRUE,
+		    range, fmonames,
+		    cbs.segs,
+		    md.segs,
+		    ylim, ..., subscripts){
+	panel.grid(v=10,h=10, "grey")
+	if(panelLabels[panel.number()] == "min dist") y <- -1*y
+	panel.xyplot(x, y, ...)
+	index <- which(x >= start(range)/1e6 & x <= end(range)/1e6)
+	panelLabels <- rev(panelLabels)
+	CHR <- range$chrom
+	if(panel.number() > 1){
+		if(segments){
+			if(missing(cbs.segs)){
+				message("loading segmentation results for chromosome ", CHR)
+				cbs.segs <- loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, sep=""), name="cbs.segs")
+			}
+			what <- switch(paste("p", panel.number(), sep=""),
+				       p2="offspring",
+				       p3="mother",
+				       p4="father",
+				       NULL)
+			stopifnot(!is.null(what))
+			if(what=="father")
+				cbs.sub <- cbs.segs[cbs.segs$id==fmonames[1], ]
+			if(what=="mother")
+				cbs.sub <- cbs.segs[cbs.segs$id==fmonames[2], ]
+			if(what=="offspring")
+				cbs.sub <- cbs.segs[cbs.segs$id==fmonames[3], ]
+		}
+	}
+	if(segments.md & panel.number()==1){
+		if(!missing(md.segs)){
+			cbs.sub <- md.segs[md.segs$id %in% range$id, ]
+			cbs.sub <- cbs.sub[cbs.sub$chrom == range$chrom, ]
+			##cbs.sub <- dranges[substr(dranges$id, 1, 5) %in% id, ]
+			cbs.sub$seg.mean <- -1*cbs.sub$seg.mean
+		}
+	}
+	if(segments | segments.md){
+		if(missing(ylim)) ylimit <- range(y, na.rm=TRUE) else ylim <- ylimit
+		if(nrow(cbs.sub) > 0){
+			cbs.sub$seg.mean[cbs.sub$seg.mean < ylimit[1]] <- ylimit[1] + 0.2
+			cbs.sub$seg.mean[cbs.sub$seg.mean > ylimit[2]] <- ylimit[2] - 0.2
+			stopifnot(nrow(cbs.sub) > 0)
+			panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2, col="black")#gp=gpar("lwd"=2))
+		}
+	}
+	if(panelLabels[panel.number()] == "genes"){
+		require(locuszoom)
+		data(rf, package="locuszoom")
+		rf <- rf[!duplicated(rf$geneName), ]
+		rf.chr <- rf[rf$txStart/1e6 <= xlimit[2] & rf$txEnd/1e6 >= xlimit[1] & rf$chrom==paste("chr", CHR, sep=""), ]
+		flatBed <- flatten.bed(rf.chr)
+		flatBed$start <- flatBed$start/1e3
+		flatBed$stop <- flatBed$stop/1e3
+		panel.flatbed(flat=flatBed,
+			      showIso=FALSE,
+			      rows=5,
+			      cex=0.6)
+	}
+	if(panelLabels[panel.number()]=="CNV"){
+		require(locuszoom)
+		data(cnv, package="locuszoom")
+		cnv.chr <- cnv[cnv$txStart/1e6 <= xlimit[2] & cnv$txEnd/1e6 >= xlimit[1] & cnv$chrom==paste("chr", CHR, sep=""), ]
+		##cnv.chr$txStart=cnv.chr$txStart/1000
+		##cnv.chr$txEnd=cnv.chr$txEnd/1000
+		##current.viewport$xscale <- xlimit
+		flatBed <- flatten.bed(cnv.chr)
+		flatBed$start <- flatBed$start/1e3
+		flatBed$stop <- flatBed$stop/1e3
+		panel.flatbed(flat=flatBed,
+			      showIso=FALSE, rows=5,
+			      cex=0.6,
+			      col="red")
+	}
+}
+
+gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
+	if(!missing(figname))
+		trellis.device(device="pdf", file=figname, onefile=FALSE,
+			       width=8, height=5)
+	stopifnot(!missing(rd))
+	chr.name <- paste("chr", rd$chrom[[1]], sep="")
+	grid.newpage()
+	lvp <- viewport(x=0, width=unit(0.50, "npc"), just="left", name="lvp")
+	pushViewport(lvp)
+	pushViewport(dataViewport(xscale=lattice.object[[1]]$x.limits,
+				  yscale=c(0,1), clip="on"))
+	print(lattice.object[[1]], newpage=FALSE, prefix="plot1", more=TRUE)
+	## highlight points in range
+	L <- seq(length=length(lattice.object[[1]]$panel.args))
+	viewportNames <- paste("plot1.panel.1.", L, ".off.vp", sep="")
+	panelArgs <- lattice.object[[1]]$panel.args[[1]]
+	x <- panelArgs$x
+	index <- which(x >= start(rd)/1e6 & x <= end(rd)/1e6)
+	for(i in seq_along(viewportNames)){
+		seekViewport(rev(viewportNames)[i])
+		y <- lattice.object[[1]]$panel.args[[i]]$y
+		grid.points(x[index], y[index], pch=21,
+			    gp=gpar(cex=cex.pch, fill="lightblue", alpha=0.5))
+##			    gp=gpar(cex=0.6, fill="lightblue"))
+	}
+	seekViewport("plot1.panel.1.1.off.vp")
+	grid.move.to(unit(start(rd)/1e6, "native"),
+		     unit(0, "npc"))
+	seekViewport(paste("plot1.panel.1.", max(L),".off.vp", sep=""))
+	grid.line.to(unit(start(rd)/1e6, "native"),
+		     unit(1, "npc"), ##gp=gpar(col="purple", lty="dashed", lwd=1))
+		     gp=gpar(...))
+	seekViewport("plot1.panel.1.1.off.vp")
+	grid.move.to(unit(end(rd)/1e6, "native"),
+		     unit(0, "npc"))
+	seekViewport(paste("plot1.panel.1.", max(L),".off.vp", sep=""))
+	grid.line.to(unit(end(rd)/1e6, "native"),
+		     unit(1, "npc"),
+		     gp=gpar(...))
+		     ##gp=gpar(col="red", lwd=1, lty="dashed", col="purple"))
+	upViewport(0)
+##	grid.text("Log R Ratio", x=unit(0.25, "npc"),
+##		  y=unit(0.97, "npc"),
+##		  gp=gpar("cex"=0.8))
+##	grid.text("B allele frequency", x=unit(0.75, "npc"),
+##		  y=unit(0.97, "npc"), gp=gpar("cex"=0.8))
+	grid.text(paste(chr.name, ", Family", ss(rd$id)), x=unit(0.5, "npc"), y=unit(0.98, "npc"),
+		  gp=gpar(cex=0.9))
+	grid.text("Position (Mb)", x=unit(0.5, "npc"), y=unit(0.05, "npc"),
+		  gp=gpar(cex=0.8))
+	upViewport(0)
+	print(lattice.object[[2]], position=c(0.5, 0, 0.98, 1), more=TRUE, prefix="plot2")
+	seekViewport("plot2.panel.1.1.off.vp")
+	grid.move.to(unit(start(rd)/1e6, "native"),
+		     unit(0, "npc"))
+	L <- length(lattice.object[[2]]$panel.args)
+	viewportName <- paste("plot2.panel.1.", L, ".off.vp", sep="")
+	seekViewport(viewportName)
+	grid.line.to(unit(start(rd)/1e6, "native"),
+		     unit(1, "npc"),
+		     gp=gpar(...))
+		     ##gp=gpar(col="purple", lty="dashed", lwd=2))
+	seekViewport("plot2.panel.1.1.off.vp")
+	grid.move.to(unit(end(rd)/1e6, "native"),
+		     unit(0, "npc"))
+	seekViewport(viewportName)
+	grid.line.to(unit(end(rd)/1e6, "native"),
+		     unit(1, "npc"), ##gp=gpar(col="red", lwd=2, lty="dashed", col="purple"))
+		     gp=gpar(...))
+	L <- seq(length=length(lattice.object[[2]]$panel.args))
+	viewportNames <- paste("plot2.panel.1.", L, ".off.vp", sep="")
+	panelArgs <- lattice.object[[2]]$panel.args
+	x <- panelArgs[[1]]$x
+	index <- which(x >= start(rd)/1e6 & x <= end(rd)/1e6)
+	for(i in seq_along(viewportNames)){
+		seekViewport(rev(viewportNames)[i])
+		y <- panelArgs[[i]]$y
+		grid.points(x[index], y[index], pch=21,
+			    gp=gpar(cex=cex.pch, fill="lightblue", alpha=0.5))
+	}
+	if(!missing(figname)) dev.off()
+	TRUE
+}
+myfilter <- function(x, filter, ...){
+	res <- filter(x, filter,...)
+	##now fill out the NAs
+	M <- length(filter)
+	N <- (M- 1)/2
+	L <- length(x)
+	for(i in 1:N){
+		w <- filter[(N-i+2):M]
+		y <- x[1:(M-N+i-1)]
+		res[i] <- sum(w*y)/sum(w)
+		w <- rev(w)
+		ii <- (L-(i-1))
+		y <- x[(ii-N):L]
+		res[ii] <- sum(w*y)/sum(w)
+	}
+	return(res)
 }

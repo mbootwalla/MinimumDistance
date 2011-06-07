@@ -1,7 +1,7 @@
 Package: Beaty
 Type: Package
 Title: Analysis of Cleft trios on the Illumina platform
-Version: 0.0.60
+Version: 0.0.61
 Date: 11/13/2010
 Author: Robert B Scharpf
 Maintainer: Robert B Scharpf <rscharpf@jhsph.edu>
