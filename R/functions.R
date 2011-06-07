@@ -4571,3 +4571,22 @@ excludeWGA <- function(x, label="DNA", flag="WGA"){
 	index <- which(rowSums(ss==flag) > 0)
 	return(index)
 }
+
+thresholdY <- function(object){
+	ylim <- object$y.limits
+	panel.args2 <- object$panel.args
+	f <- function(args, ylim){
+		y <- args$y
+		if(any(y < ylim[1], na.rm=TRUE)){
+			n <- sum(y < ylim[1], na.rm=TRUE)
+			y[y < ylim[1]] <- ylim[1] + 0.2 + runif(n, -0.2, 0.2)
+		}
+		if(any(y > ylim[2], na.rm=TRUE)){
+			n <- sum(y > ylim[2], na.rm=TRUE)
+			y[y > ylim[2]] <- ylim[2] - 0.2 + runif(n, -0.2, 0.2)
+		}
+		args$y <- y
+		return(args)
+	}
+	panel.args <- lapply(panel.args2, f, ylim)
+}

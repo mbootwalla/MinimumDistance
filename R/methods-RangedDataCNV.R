@@ -33,13 +33,13 @@ setMethod("chromosome", signature(object="RangedDataCNV"), function(object) obje
 
 
 
-setMethod("todf", signature(object="RangedDataCNV"), function(object, col=1:3, ...){
+setMethod("todf", signature(object="RangedDataCNV"), function(object, col=1:3, verbose=TRUE, ...){
 	require(SNPchip)
 	data(chromosomeAnnotation)
 	if(!"col" %in% names(list(...))) col <- 1:3 else col <- list(...)[["col"]]
 	##object <- object[object$state != normalIndex(hmm.params), ]
 	is.denovo <- isDenovo(state(object))
-	message("Droping ranges that are not denovo")
+	if(verbose) message("Dropping ranges that are not denovo")
 	object <- object[is.denovo, ]
 	h <- 0.75
 	meanSegment <- apply(cbind(start(object), end(object)), 1, mean)

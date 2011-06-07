@@ -384,45 +384,45 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 
 setMethod("todf", signature(object="TrioSet", range="RangedData"),
 	  function(object, range, frame, ...){
-	stopifnot(nrow(range) == 1)
-	if(missing(frame)){
-		w <- width(range)
-		frame <- w/0.05  * 1/2
-	}
-	marker.index <- featuresInRange(object, range, FRAME=frame)
-	id <- range$id
-	sample.index <- match(id, offspringNames(object))
-	stopifnot(length(sample.index)==1)
-	open(baf(object))
-	open(logR(object))
-	open(mindist(object))
-	b <- baf(object)[marker.index, sample.index, ]
-	r <- logR(object)[marker.index, sample.index, ]
-	md <- mindist(object)[marker.index, sample.index]
-	close(baf(object))
-	close(logR(object))
-	close(mindist(object))
-	id <- matrix(c("father", "mother", "offspring"), nrow(b), ncol(b), byrow=TRUE)
-	empty <- rep(NA, length(md))
-	## A trick to add an extra panel for genes and cnv
-	##df <- rbind(df, list(as.integer(NA), as.numeric(NA), as.numeric(NA), as.factor("genes")))
-	## The NA's are to create extra panels (when needed for lattice plotting)
-##	b <- c(as.numeric(b), empty, 0, 0)
-##	r <- c(as.numeric(r), md, 0, 0)
-##	x <- c(rep(position(object)[marker.index], 4), 0, 0)
-	id <- c(as.character(id), rep("min dist",length(md)))##, c("genes", "CNV"))
-	b <- c(as.numeric(b), empty)
-	r <- c(as.numeric(r), md)
-	x <- rep(position(object)[marker.index], 4)/1e6
-	df <- data.frame(x=x, b=b, r=r, id=id)
+		  stopifnot(nrow(range) == 1)
+		  if(missing(frame)){
+			  w <- width(range)
+			  frame <- w/0.05  * 1/2
+		  }
+		  marker.index <- featuresInRange(object, range, FRAME=frame)
+		  id <- range$id
+		  sample.index <- match(id, offspringNames(object))
+		  stopifnot(length(sample.index)==1)
+		  open(baf(object))
+		  open(logR(object))
+		  open(mindist(object))
+		  b <- baf(object)[marker.index, sample.index, ]
+		  r <- logR(object)[marker.index, sample.index, ]
+		  md <- mindist(object)[marker.index, sample.index]
+		  close(baf(object))
+		  close(logR(object))
+		  close(mindist(object))
+		  id <- matrix(c("father", "mother", "offspring"), nrow(b), ncol(b), byrow=TRUE)
+		  empty <- rep(NA, length(md))
+		  ## A trick to add an extra panel for genes and cnv
+		  ##df <- rbind(df, list(as.integer(NA), as.numeric(NA), as.numeric(NA), as.factor("genes")))
+		  ## The NA's are to create extra panels (when needed for lattice plotting)
+		  ##	b <- c(as.numeric(b), empty, 0, 0)
+		  ##	r <- c(as.numeric(r), md, 0, 0)
+		  ##	x <- c(rep(position(object)[marker.index], 4), 0, 0)
+		  id <- c(as.character(id), rep("min dist",length(md)))##, c("genes", "CNV"))
+		  b <- c(as.numeric(b), empty)
+		  r <- c(as.numeric(r), md)
+		  x <- rep(position(object)[marker.index], 4)/1e6
+		  df <- data.frame(x=x, b=b, r=r, id=id)
 
-	df2 <- data.frame(id=c(as.character(df$id), "genes", "CNV"),
-			  b=c(df$b, NA, NA),
-			  r=c(df$r, NA, NA),
-			  x=c(df$x, NA, NA))
-	df2$id <- factor(df2$id, levels=c("father", "mother", "offspring", "min dist", "genes", "CNV"), ordered=TRUE)
-	return(df2)
-})
+		  df2 <- data.frame(id=c(as.character(df$id), "genes", "CNV"),
+				    b=c(df$b, NA, NA),
+				    r=c(df$r, NA, NA),
+				    x=c(df$x, NA, NA))
+		  df2$id <- factor(df2$id, levels=c("father", "mother", "offspring", "min dist", "genes", "CNV"), ordered=TRUE)
+		  return(df2)
+	  })
 
 setMethod("prune", signature(object="TrioSet", ranges="RangedDataCNV"),
 	  function(object, ranges, ...){
@@ -492,6 +492,7 @@ xypanel <- function(x, y, panelLabels,
 		    md.segs,
 		    ylim, ..., subscripts){
 	panel.grid(v=10,h=10, "grey")
+	if(panelLabels[panel.number()] == "min dist") y <- -1*y
 	panel.xyplot(x, y, ...)
 	index <- which(x >= start(range)/1e6 & x <= end(range)/1e6)
 	panelLabels <- rev(panelLabels)
@@ -516,9 +517,9 @@ xypanel <- function(x, y, panelLabels,
 				cbs.sub <- cbs.segs[cbs.segs$id==fmonames[3], ]
 		}
 	}
-	if(segments.md){
+	if(segments.md & panel.number()==1){
 		if(!missing(md.segs)){
-			cbs.sub <- md.segs[md.segs$id %in% ss(range$id), ]
+			cbs.sub <- md.segs[md.segs$id %in% range$id, ]
 			cbs.sub <- cbs.sub[cbs.sub$chrom == range$chrom, ]
 			##cbs.sub <- dranges[substr(dranges$id, 1, 5) %in% id, ]
 			cbs.sub$seg.mean <- -1*cbs.sub$seg.mean
@@ -651,13 +652,21 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 setMethod("xyplot", signature(x="formula", data="TrioSet"),
 	  function(x, data, ...){
 		  if(!"panel" %in% names(list(...))){
-			  panel.specified <- TRUE
+			  panel.specified <- FALSE
 			  panel <- xypanel
-		  } else panel.specified <- FALSE
+		  } else {
+			  panel.specified <- TRUE
+		  }
+		  if("panelLabels" %in% names(list(...))){
+			  pL <- list(...)[["panelLabels"]]
+			  stopifnot(all(pL %in% c("father", "mother", "offspring", "min dist", "genes", "CNV")))
+		  }
 		  stopifnot("range" %in% names(list(...)))
 		  range <- list(...)[["range"]]
 		  fmonames <- fmoNames(data)[match(range$id, offspringNames(data)), ]
 		  data <- Beaty:::todf(data, ...)
+		  if(sum(data$id == "min dist") > 0)
+			  data$r[data$id == "min dist"] <- -1*data$r[data$id == "min dist"]
 		  if("panelLabels" %in% names(list(...))){
 			  panelLabels <- list(...)[["panelLabels"]]
 			  data <- data[data$id %in% panelLabels, ]
@@ -667,8 +676,7 @@ setMethod("xyplot", signature(x="formula", data="TrioSet"),
 			  xyplot(x=x, data=data,
 				 panel=panel, fmonames=fmonames, xlimit=xlimit, ...)
 		  } else{
-			  xyplot(x=x, data=data,
-				 fmonames=fmonames, xlimit=xlimit, ...)
+			  xyplot(x=x, data=data, fmonames=fmonames, xlimit=xlimit, ...)
 		  }
 	  })
 
