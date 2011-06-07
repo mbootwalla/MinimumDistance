@@ -1,5 +1,5 @@
 
-catFun <- function(rd.query, rd.subject, size){
+catFun <- function(rd.query, rd.subject, same.id=TRUE){
 	stopifnot(nrow(rd.query) == 1)
 	##rd.s <- rd.subject[seq(length=size), ]
 	if(!any(chromosome(rd.query) %in% chromosome(rd.subject))) {
@@ -7,6 +7,10 @@ catFun <- function(rd.query, rd.subject, size){
 	} else{
 		CHR <- chromosome(rd.query)
 		rd.s <- rd.subject[chromosome(rd.subject) == CHR, ]
+		if(same.id){
+			rd.s <- rd.subject[rd.subject$id == rd.query$id, ]
+			if(nrow(rd.s) == 0) return(0)
+		}
 		ir.q <- IRanges(start(rd.query),end(rd.query))
 		ir.s <- IRanges(start(rd.s),end(rd.s))
 		count <- countOverlaps(ir.q, ir.s)
@@ -14,29 +18,80 @@ catFun <- function(rd.query, rd.subject, size){
 	return(count)
 }
 concAtTop <- function(ranges.query, ranges.subject, listSize, state,
+		      same.id=TRUE,
 		      verbose=TRUE, msg="."){
-	if(verbose) message("Subsetting query and subject ranges by state ", state)
-	ranges.subject <- ranges.subject[state(ranges.subject) == state, ]
-	ranges.query <- ranges.query[state(ranges.query) == state, ]
+	if(!missing(state)){
+		if(verbose) message("Subsetting query and subject ranges by state ", state)
+		ranges.subject <- ranges.subject[state(ranges.subject) == state, ]
+		ranges.query <- ranges.query[state(ranges.query) == state, ]
+	} else{
+		if(verbose) message("State not specified. Checking concordance for denovo call")
+	}
 	stopifnot(listSize <= nrow(ranges.subject) & listSize <= nrow(ranges.query))
 	if(verbose) message("Ranking query and subject ranges by coverage")
-	ranges.subject$rank <- rank(-coverage(ranges.subject))
-	ranges.query$rank <- rank(-coverage(ranges.query))
+	ranges.subject$rank <- rank(-coverage(ranges.subject), ties.method="min")
+	ranges.query$rank <- rank(-coverage(ranges.query), ties.method="min")
 	top.query <- ranges.query[order(ranges.query$rank, decreasing=FALSE)[1:listSize], ]
 	top.subject <- ranges.subject[order(ranges.subject$rank, decreasing=FALSE)[1:listSize], ]
 	count <- rep(NA, nrow(top.query))
+	##rankInSubject <- rep(NA, nrow(top.query))
 	if(verbose) message("Calculating the proportion of ranges in common for list sizes 1 to ", listSize)
 	if(verbose) message("\tPrinting ", msg, " for every 100 ranges in query")
 	for(i in seq(length=nrow(top.query))){
 		if(i %% 100 == 0) cat(".")
-		count[i] <- catFun(rd.query=top.query[i, ], rd.subject=top.subject[seq(length=i), ])
+		count[i] <- catFun(rd.query=top.query[i, ], rd.subject=top.subject[seq(length=i), ], same.id=same.id)
 	}
+
+
 	I <- count > 0
 	message("returning proportion in common (p) and coverage in query (cov)")
 	p <- sapply(1:nrow(top.query), function(x, I) mean(I[1:x]), I=I)
 	cov <- coverage(top.query)
 	return(list(p=p, cov=cov))
 }
+
+notCalled <- function(ranges.query, ranges.subject, listSize){
+	ranges.subject$rank <- rank(-coverage(ranges.subject), ties.method="min")
+	ranges.query$rank <- rank(-coverage(ranges.query), ties.method="min")
+	message("Assessing top ", listSize, " query ranges for hit in subject")
+	top.query <- ranges.query[order(ranges.query$rank, decreasing=FALSE)[1:listSize], ]
+	message("Looking at all subject ranges regardless of coverage")
+	##top.subject <- ranges.subject[order(ranges.subject$rank, decreasing=FALSE)[1:listSize], ]
+	overlap <- findOverlaps(top.query, ranges.subject)
+	subj.index <- subjectHits(overlap)
+	quer.index <- queryHits(overlap)
+	## what are the chromosomes for the subject hits
+	chrom.subj <- ranges.subject$chrom[subj.index]
+	chrom.quer <- top.query$chrom[quer.index]
+	id.subj <- ranges.subject$id[subj.index]
+	id.quer <- top.query$id[quer.index]
+##	## eliminate those for which the chromosome is not the same
+	ii <- which(chrom.subj == chrom.quer & id.subj==id.quer)
+	subj.index <- subj.index[ii]
+	## index of ranges in query that have a match
+	quer.index <- quer.index[ii]
+	absent.index <- seq(length=nrow(top.query))[!seq(length=nrow(top.query)) %in% quer.index]
+	return(top.query[absent.index, ])
+}
+
+correspondingCall <- function(ranges.query, ranges.subject, listSize){
+	overlap <- findOverlaps(ranges.query, ranges.subject)
+	subj.index <- subjectHits(overlap)
+	quer.index <- queryHits(overlap)
+	## what are the chromosomes for the subject hits
+	chrom.subj <- ranges.subject$chrom[subj.index]
+	chrom.quer <- ranges.query$chrom[quer.index]
+	id.subj <- ranges.subject$id[subj.index]
+	id.quer <- ranges.query$id[quer.index]
+	##	## eliminate those for which the chromosome is not the same
+	ii <- which(chrom.subj == chrom.quer & id.subj==id.quer)
+	subj.index <- subj.index[ii]
+	## index of ranges in query that have a match
+	res <- ranges.subject[subj.index, ]
+	return(res)
+}
+
+
 
 projectMetadata <- function(path="/thumper/ctsa/beaty/holger/txtfiles", ## path to BeadStudioFiles
 			    samplesheet,
@@ -4540,6 +4595,10 @@ readParsedFiles <- function(path, member, container, chromosomes, file.ext, verb
 		      F=as.character(paste(fullId(container[[1]])[, "F"], file.ext, sep="")),
 		      M=as.character(paste(fullId(container[[1]])[, "M"], file.ext, sep="")),
 		      O=as.character(paste(fullId(container[[1]])[, "O"], file.ext, sep="")))
+	memberName <- switch(member,
+			     F="father",
+			     M="mother",
+			     O="offspring")
 	stopifnot(!is.null(ids))
 	col.index <- switch(member, F=1, M=2, O=3)
 	##stopifnot(all(ids %in% basename(filenames)))
@@ -4552,6 +4611,7 @@ readParsedFiles <- function(path, member, container, chromosomes, file.ext, verb
 	dat <- dat[-1]
 	nr <- nrow(dat)
 	mads <- rep(NA, length(filenames))
+	message("Parsing files for family member ", memberName)
 	for(j in seq_along(filenames)){
 		if(verbose){
 			if(j %% 10 == 0) message("\tFile ", j, " of ", length(filenames))
@@ -4586,12 +4646,14 @@ thresholdY <- function(object){
 	f <- function(args, ylim){
 		y <- args$y
 		if(any(y < ylim[1], na.rm=TRUE)){
+			index <- which(y < ylim[1])
 			n <- sum(y < ylim[1], na.rm=TRUE)
-			y[y < ylim[1]] <- ylim[1] + 0.2 + runif(n, -0.2, 0.2)
+			y[index] <- ylim[1] + 0.2 + runif(n, -0.2, 0.2)
 		}
 		if(any(y > ylim[2], na.rm=TRUE)){
+			index <- which(y > ylim[2])
 			n <- sum(y > ylim[2], na.rm=TRUE)
-			y[y > ylim[2]] <- ylim[2] - 0.2 + runif(n, -0.2, 0.2)
+			y[index] <- ylim[2] - 0.2 + runif(n, -0.2, 0.2)
 		}
 		args$y <- y
 		return(args)
