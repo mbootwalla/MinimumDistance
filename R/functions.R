@@ -4791,6 +4791,7 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 ##			    gp=gpar(cex=cex.pch, fill="lightblue", alpha=0.5))
 ####			    gp=gpar(cex=0.6, fill="lightblue"))
 ##	}
+	seekViewport("plot1.panel.1.1.off.vp")
 	grid.move.to(unit(start(rd)/1e6, "native"),
 		     unit(0, "npc"))
 	seekViewport(paste("plot1.panel.1.", max(L),".off.vp", sep=""))
@@ -4812,16 +4813,15 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 		  gp=gpar(cex=0.8))
 	upViewport(0)
 	print(lattice.object[[2]], position=c(0.5, 0, 0.98, 1), more=TRUE, prefix="plot2")
+	seekViewport("plot2.panel.1.1.off.vp")
 	grid.move.to(unit(start(rd)/1e6, "native"),
 		     unit(0, "npc"))
-	seekViewport("plot2.panel.1.1.off.vp")
+	viewportName <- paste("plot2.panel.1.", L, ".off.vp", sep="")
+	seekViewport(viewportName)
 	grid.line.to(unit(start(rd)/1e6, "native"),
 		     unit(1, "npc"),
 		     gp=gpar(...))
-
 	L <- length(lattice.object[[2]]$panel.args)
-	viewportName <- paste("plot2.panel.1.", L, ".off.vp", sep="")
-	seekViewport(viewportName)
 
 		     ##gp=gpar(col="purple", lty="dashed", lwd=2))
 	seekViewport("plot2.panel.1.1.off.vp")
