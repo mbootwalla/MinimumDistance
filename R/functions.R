@@ -1609,6 +1609,8 @@ harmonizeStates <- function(penn.joint, filter.multistate=FALSE){
 	penn.joint$state <- gsub("5", "4", penn.joint$state)
 	penn.joint$state <- gsub("6", "4", penn.joint$state)
 	index.multiple.states <- grep("-", penn.joint$state)
+	penn.joint$multiple.state <- FALSE
+	penn.joint$multiple.state[index.multiple.states] <- TRUE
 	if(!filter.multistate){
 		multi.state <- penn.joint$state[index.multiple.states]
 		if(length(multi.state) > 0){
@@ -1631,6 +1633,8 @@ harmonizeStates <- function(penn.joint, filter.multistate=FALSE){
 	##penn.joint <- penn.joint[penn.joint$triostate %in% alt.states, ] ##68,472
 	##return(penn.joint)
 	penn.joint$state
+	res <- list(multistate=penn.joint$multiple.state,
+		    state=penn.joint$state)
 }
 
 
@@ -4458,7 +4462,8 @@ minimumDistance <- function(path, samplesheet, pedigree,
 minimumDistanceCalls <- function(id, container, chromosomes=1:22,
 				 segment.md=TRUE,
 				 calculate.lr=TRUE,
-				 cbs.filename, ..., verbose=TRUE){
+				 cbs.filename,
+				 prGtCorrect, ..., verbose=TRUE){
 	##---------------------------------------------------------------------------
 	##
 	## Segment the minimum distance
@@ -4510,7 +4515,8 @@ minimumDistanceCalls <- function(id, container, chromosomes=1:22,
 		log.pi <- log(initialStateProbs(states=0:4, epsilon=0.5))
 		prunedRanges <- computeBayesFactor(object=container[chromosomes],
 						   ranges=prunedRanges,
-						   tau=tau, log.pi=log.pi)
+						   tau=tau, log.pi=log.pi,
+						   prGtCorrect=prGtCorrect)
 		## do a second round of pruning for adjacent segments
 		## that have the same state
 		rd <- pruneByFactor(prunedRanges, f=prunedRanges$argmax)
@@ -4663,30 +4669,38 @@ thresholdY <- function(object){
 
 xypanel <- function(x, y, panelLabels,
 		    xlimit,
+		    ylimit,
 		    segments=TRUE,
 		    segments.md=TRUE,
 		    range, fmonames,
 		    cbs.segs,
 		    md.segs,
-		    ylim, ..., subscripts){
+		    what,
+		    ##ylim,  ylim is not passed
+		    ..., subscripts){
 	panel.grid(v=10,h=10, "grey")
-	if(panelLabels[panel.number()] == "min dist") y <- -1*y
+	what <- unique(as.character(what[subscripts]))
+	stopifnot(length(what) == 1)
+	##if(panelLabels[panel.number()] == "min dist") y <- -1*y
 	panel.xyplot(x, y, ...)
 	index <- which(x >= start(range)/1e6 & x <= end(range)/1e6)
-	panelLabels <- rev(panelLabels)
+	##panelLabels <- rev(panelLabels)
 	CHR <- range$chrom
-	if(panel.number() > 1){
+	##pL <- as.character(panelLabels[panel.number()])
+	if(what %in% c("father", "mother", "offspring")){
 		if(segments){
 			if(missing(cbs.segs)){
 				message("loading segmentation results for chromosome ", CHR)
-				cbs.segs <- loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, sep=""), name="cbs.segs")
+				tmp=list.files(beadstudiodir(), pattern=paste("cbs_chr", CHR, ".rda", sep=""))
+				cbs.segs <- loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, ".rda", sep=""), name="cbs.segs")
 			}
-			what <- switch(paste("p", panel.number(), sep=""),
-				       p2="offspring",
-				       p3="mother",
-				       p4="father",
-				       NULL)
-			stopifnot(!is.null(what))
+##			what <- pL
+##			what <- switch(paste("p", panel.number(), sep=""),
+##				       p2="offspring",
+##				       p3="mother",
+##				       p4="father",
+##				       NULL)
+##			stopifnot(!is.null(what))
 			if(what=="father")
 				cbs.sub <- cbs.segs[cbs.segs$id==fmonames[1], ]
 			if(what=="mother")
@@ -4695,7 +4709,7 @@ xypanel <- function(x, y, panelLabels,
 				cbs.sub <- cbs.segs[cbs.segs$id==fmonames[3], ]
 		}
 	}
-	if(segments.md & panel.number()==1){
+	if(segments.md & what == "min dist"){
 		if(!missing(md.segs)){
 			cbs.sub <- md.segs[md.segs$id %in% range$id, ]
 			cbs.sub <- cbs.sub[cbs.sub$chrom == range$chrom, ]
@@ -4704,15 +4718,19 @@ xypanel <- function(x, y, panelLabels,
 		}
 	}
 	if(segments | segments.md){
-		if(missing(ylim)) ylimit <- range(y, na.rm=TRUE) else ylim <- ylimit
+		if(missing(ylimit)) ylimit <- range(y, na.rm=TRUE) ##else ylim <- ylimit
 		if(nrow(cbs.sub) > 0){
-			cbs.sub$seg.mean[cbs.sub$seg.mean < ylimit[1]] <- ylimit[1] + 0.2
-			cbs.sub$seg.mean[cbs.sub$seg.mean > ylimit[2]] <- ylimit[2] - 0.2
+			index <- which(cbs.sub$seg.mean < ylimit[1])
+			if(length(index) > 0)
+				cbs.sub$seg.mean[index] <- ylimit[1] + 0.2
+			index <- which(cbs.sub$seg.mean > ylimit[2])
+			if(length(index) > 0)
+				cbs.sub$seg.mean[index] <- ylimit[2] - 0.2
 			stopifnot(nrow(cbs.sub) > 0)
 			panel.segments(x0=start(cbs.sub)/1e6, x1=end(cbs.sub)/1e6, y0=cbs.sub$seg.mean, y1=cbs.sub$seg.mean, lwd=2, col="black")#gp=gpar("lwd"=2))
 		}
 	}
-	if(panelLabels[panel.number()] == "genes"){
+	if(what == "genes"){
 		require(locuszoom)
 		data(rf, package="locuszoom")
 		rf <- rf[!duplicated(rf$geneName), ]
@@ -4725,7 +4743,7 @@ xypanel <- function(x, y, panelLabels,
 			      rows=5,
 			      cex=0.6)
 	}
-	if(panelLabels[panel.number()]=="CNV"){
+	if(what=="CNV"){
 		require(locuszoom)
 		data(cnv, package="locuszoom")
 		cnv.chr <- cnv[cnv$txStart/1e6 <= xlimit[2] & cnv$txEnd/1e6 >= xlimit[1] & cnv$chrom==paste("chr", CHR, sep=""), ]
@@ -4760,14 +4778,13 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 	panelArgs <- lattice.object[[1]]$panel.args[[1]]
 	x <- panelArgs$x
 	index <- which(x >= start(rd)/1e6 & x <= end(rd)/1e6)
-	for(i in seq_along(viewportNames)){
-		seekViewport(rev(viewportNames)[i])
-		y <- lattice.object[[1]]$panel.args[[i]]$y
-		grid.points(x[index], y[index], pch=21,
-			    gp=gpar(cex=cex.pch, fill="lightblue", alpha=0.5))
-##			    gp=gpar(cex=0.6, fill="lightblue"))
-	}
-	seekViewport("plot1.panel.1.1.off.vp")
+##n	for(i in seq_along(viewportNames)){
+##		seekViewport(rev(viewportNames)[i])
+##		y <- lattice.object[[1]]$panel.args[[i]]$y
+##		grid.points(x[index], y[index], pch=21,
+##			    gp=gpar(cex=cex.pch, fill="lightblue", alpha=0.5))
+####			    gp=gpar(cex=0.6, fill="lightblue"))
+##	}
 	grid.move.to(unit(start(rd)/1e6, "native"),
 		     unit(0, "npc"))
 	seekViewport(paste("plot1.panel.1.", max(L),".off.vp", sep=""))
@@ -4783,26 +4800,23 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 		     gp=gpar(...))
 		     ##gp=gpar(col="red", lwd=1, lty="dashed", col="purple"))
 	upViewport(0)
-##	grid.text("Log R Ratio", x=unit(0.25, "npc"),
-##		  y=unit(0.97, "npc"),
-##		  gp=gpar("cex"=0.8))
-##	grid.text("B allele frequency", x=unit(0.75, "npc"),
-##		  y=unit(0.97, "npc"), gp=gpar("cex"=0.8))
 	grid.text(paste(chr.name, ", Family", ss(rd$id)), x=unit(0.5, "npc"), y=unit(0.98, "npc"),
 		  gp=gpar(cex=0.9))
 	grid.text("Position (Mb)", x=unit(0.5, "npc"), y=unit(0.05, "npc"),
 		  gp=gpar(cex=0.8))
 	upViewport(0)
 	print(lattice.object[[2]], position=c(0.5, 0, 0.98, 1), more=TRUE, prefix="plot2")
-	seekViewport("plot2.panel.1.1.off.vp")
 	grid.move.to(unit(start(rd)/1e6, "native"),
 		     unit(0, "npc"))
-	L <- length(lattice.object[[2]]$panel.args)
-	viewportName <- paste("plot2.panel.1.", L, ".off.vp", sep="")
-	seekViewport(viewportName)
+	seekViewport("plot2.panel.1.1.off.vp")
 	grid.line.to(unit(start(rd)/1e6, "native"),
 		     unit(1, "npc"),
 		     gp=gpar(...))
+
+	L <- length(lattice.object[[2]]$panel.args)
+	viewportName <- paste("plot2.panel.1.", L, ".off.vp", sep="")
+	seekViewport(viewportName)
+
 		     ##gp=gpar(col="purple", lty="dashed", lwd=2))
 	seekViewport("plot2.panel.1.1.off.vp")
 	grid.move.to(unit(end(rd)/1e6, "native"),
@@ -4816,12 +4830,12 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 	panelArgs <- lattice.object[[2]]$panel.args
 	x <- panelArgs[[1]]$x
 	index <- which(x >= start(rd)/1e6 & x <= end(rd)/1e6)
-	for(i in seq_along(viewportNames)){
-		seekViewport(rev(viewportNames)[i])
-		y <- panelArgs[[i]]$y
-		grid.points(x[index], y[index], pch=21,
-			    gp=gpar(cex=cex.pch, fill="lightblue", alpha=0.5))
-	}
+##	for(i in seq_along(viewportNames)){
+##		seekViewport(rev(viewportNames)[i])
+##		y <- panelArgs[[i]]$y
+##		grid.points(x[index], y[index], pch=21,
+##			    gp=gpar(cex=cex.pch, fill="lightblue", alpha=0.5))
+##	}
 	if(!missing(figname)) dev.off()
 	TRUE
 }

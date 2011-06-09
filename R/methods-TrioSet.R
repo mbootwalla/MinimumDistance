@@ -501,21 +501,32 @@ setMethod("xyplot", signature(x="formula", data="TrioSet"),
 			  stopifnot(all(pL %in% c("father", "mother", "offspring", "min dist", "genes", "CNV")))
 		  }
 		  stopifnot("range" %in% names(list(...)))
-		  range <- list(...)[["range"]]
-		  fmonames <- fmoNames(data)[match(range$id, offspringNames(data)), ]
-		  data <- Beaty:::todf(data, ...)
+		  rng <- list(...)[["range"]]
+		  fmonames <- fmoNames(data)[match(rng$id, offspringNames(data)), ]
+		  data <- todf(data, ...)
 		  if(sum(data$id == "min dist") > 0)
 			  data$r[data$id == "min dist"] <- -1*data$r[data$id == "min dist"]
 		  if("panelLabels" %in% names(list(...))){
 			  panelLabels <- list(...)[["panelLabels"]]
 			  data <- data[data$id %in% panelLabels, ]
+			  data$id <- factor(data$id)
 		  }
 		  if("xlim" %in% names(list(...))) xlimit <- list(...)[["xlim"]] else xlimit <- range(data$x, na.rm=TRUE)
+		  if("ylim" %in% names(list(...))) {
+			  ylimit <- list(...)[["ylim"]]
+		  } else {
+			  string <- as.character(x)[[2]]
+			  ylimit <- switch(string,
+					   b=c(0,1),
+					   r=range(data$r, na.rm=TRUE))
+		  }
 		  if(!panel.specified){
 			  xyplot(x=x, data=data,
-				 panel=panel, fmonames=fmonames, xlimit=xlimit, ...)
+				 panel=panel, fmonames=fmonames, xlimit=xlimit, ylimit=ylimit,
+				 what=data$id, ...)
 		  } else{
-			  xyplot(x=x, data=data, fmonames=fmonames, xlimit=xlimit, ...)
+			  xyplot(x=x, data=data, fmonames=fmonames, xlimit=xlimit, ylimit=ylimit,
+				 what=data$id, ...)
 		  }
 	  })
 
