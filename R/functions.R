@@ -50,7 +50,7 @@ concAtTop <- function(ranges.query, ranges.subject, listSize, state,
 	return(list(p=p, cov=cov))
 }
 
-notCalled <- function(ranges.query, ranges.subject, listSize){
+notCalled <- function(ranges.query, ranges.subject, listSize, sample.match=TRUE){
 	ranges.subject$rank <- rank(-coverage(ranges.subject), ties.method="min")
 	ranges.query$rank <- rank(-coverage(ranges.query), ties.method="min")
 	message("Assessing top ", listSize, " query ranges for hit in subject")
@@ -65,8 +65,14 @@ notCalled <- function(ranges.query, ranges.subject, listSize){
 	chrom.quer <- top.query$chrom[quer.index]
 	id.subj <- ranges.subject$id[subj.index]
 	id.quer <- top.query$id[quer.index]
-##	## eliminate those for which the chromosome is not the same
-	ii <- which(chrom.subj == chrom.quer & id.subj==id.quer)
+	if(sample.match){
+		##	## eliminate those for which the chromosome is not the same
+		message("Requiring sample id to match")
+		ii <- which(chrom.subj == chrom.quer & id.subj==id.quer)
+	} else {
+		message("Requiring only overlap of the region on the same chromosome")
+		ii <- which(chrom.subj == chrom.quer)
+	}
 	subj.index <- subj.index[ii]
 	## index of ranges in query that have a match
 	quer.index <- quer.index[ii]
