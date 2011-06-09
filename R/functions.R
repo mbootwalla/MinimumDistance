@@ -28,9 +28,42 @@ concAtTop <- function(ranges.query, ranges.subject, listSize, state,
 		if(verbose) message("State not specified. Checking concordance for denovo call")
 	}
 	stopifnot(listSize <= nrow(ranges.subject) & listSize <= nrow(ranges.query))
+	if(!same.id){
+		## identify the biggest hits in a region.  Carry only
+		## the biggest hit forward.
+		## -- can do this by matching to itself
+		nn <- coverage(ranges.query)
+		ranges.by.size <- ranges.query[order(nn, decreasing=TRUE), ]
+		NR <- nrow(ranges.by.size)
+		i <- 1
+		while(i < NR){
+			overlaps <- findOverlaps(ranges.by.size[i, ], ranges.by.size)
+			subj.index <- subjectHits(overlaps)[-1]
+			if(length(subj.index) > 0)
+				ranges.by.size <- ranges.by.size[-subj.index, ]
+			NR <- nrow(ranges.by.size)
+			i <- i+1
+		}
+		ranges.query <- ranges.by.size
+
+		nn <- coverage(ranges.subject)
+		ranges.by.size <- ranges.subject[order(nn, decreasing=TRUE), ]
+		NR <- nrow(ranges.by.size)
+		i <- 1
+		while(i < NR){
+			overlaps <- findOverlaps(ranges.by.size[i, ], ranges.by.size)
+			subj.index <- subjectHits(overlaps)[-1]
+			if(length(subj.index) > 0)
+				ranges.by.size <- ranges.by.size[-subj.index, ]
+			NR <- nrow(ranges.by.size)
+			i <- i+1
+		}
+		ranges.subject <- ranges.by.size
+	}
 	if(verbose) message("Ranking query and subject ranges by coverage")
 	ranges.subject$rank <- rank(-coverage(ranges.subject), ties.method="min")
 	ranges.query$rank <- rank(-coverage(ranges.query), ties.method="min")
+	listSize <- min(listSize, min(nrow(ranges.query), nrow(ranges.subject)))
 	top.query <- ranges.query[order(ranges.query$rank, decreasing=FALSE)[1:listSize], ]
 	top.subject <- ranges.subject[order(ranges.subject$rank, decreasing=FALSE)[1:listSize], ]
 	count <- rep(NA, nrow(top.query))
@@ -41,8 +74,6 @@ concAtTop <- function(ranges.query, ranges.subject, listSize, state,
 		if(i %% 100 == 0) cat(".")
 		count[i] <- catFun(rd.query=top.query[i, ], rd.subject=top.subject[seq(length=i), ], same.id=same.id)
 	}
-
-
 	I <- count > 0
 	message("returning proportion in common (p) and coverage in query (cov)")
 	p <- sapply(1:nrow(top.query), function(x, I) mean(I[1:x]), I=I)
@@ -4813,17 +4844,16 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 		  gp=gpar(cex=0.8))
 	upViewport(0)
 	print(lattice.object[[2]], position=c(0.5, 0, 0.98, 1), more=TRUE, prefix="plot2")
+	L <- seq_along(lattice.object[[2]]$panel.args)
 	seekViewport("plot2.panel.1.1.off.vp")
 	grid.move.to(unit(start(rd)/1e6, "native"),
 		     unit(0, "npc"))
-	viewportName <- paste("plot2.panel.1.", L, ".off.vp", sep="")
+	viewportName <- paste("plot2.panel.1.", max(L), ".off.vp", sep="")
 	seekViewport(viewportName)
 	grid.line.to(unit(start(rd)/1e6, "native"),
 		     unit(1, "npc"),
 		     gp=gpar(...))
-	L <- length(lattice.object[[2]]$panel.args)
-
-		     ##gp=gpar(col="purple", lty="dashed", lwd=2))
+	##gp=gpar(col="purple", lty="dashed", lwd=2))
 	seekViewport("plot2.panel.1.1.off.vp")
 	grid.move.to(unit(end(rd)/1e6, "native"),
 		     unit(0, "npc"))
