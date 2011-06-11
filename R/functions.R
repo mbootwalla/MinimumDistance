@@ -32,20 +32,25 @@ concAtTop <- function(ranges.query, ranges.subject, listSize, state,
 		## identify the biggest hits in a region.  Carry only
 		## the biggest hit forward.
 		## -- can do this by matching to itself
+		message("Matching by locus...")
+		message("\tIdentifying unique query regions ")
 		nn <- coverage(ranges.query)
 		ranges.by.size <- ranges.query[order(nn, decreasing=TRUE), ]
+		##r1 <- ranges.by.size
 		NR <- nrow(ranges.by.size)
 		i <- 1
 		while(i < NR){
 			overlaps <- findOverlaps(ranges.by.size[i, ], ranges.by.size)
 			subj.index <- subjectHits(overlaps)[-1]
+			##make sure the chromosome is the same
+			subj.index <- subj.index[chromosome(ranges.by.size[i, ]) == chromosome(ranges.by.size)[subj.index]]
 			if(length(subj.index) > 0)
 				ranges.by.size <- ranges.by.size[-subj.index, ]
 			NR <- nrow(ranges.by.size)
 			i <- i+1
 		}
 		ranges.query <- ranges.by.size
-
+		message("\tIdentifying unique subject regions ")
 		nn <- coverage(ranges.subject)
 		ranges.by.size <- ranges.subject[order(nn, decreasing=TRUE), ]
 		NR <- nrow(ranges.by.size)
@@ -2146,7 +2151,7 @@ ssnames <- function(x) ss(names(x))
 snames <- function(x) s(names(x))
 ss <- function(x) substr(x, 1, 5)
 s <- function(x) substr(x, 1, 8)
-calculateChangeSd <- function(coverage=1:500, lambda, a=0.2, b=0.025)
+calculateChangeSd <- function(coverage=1:500, lambda=0.05, a=0.2, b=0.025)
 	a + lambda*exp(-lambda*coverage)/b
 
 
@@ -2189,32 +2194,14 @@ pruneMD <- function(genomdat,
 			requiredNumberSd <- calculateChangeSd(coverage=coverage, lambda=lambda, a=MIN.CHANGE, b=SCALE.EXP)
 			##
 			## number of standard deviations
-			##
-			##thrSD <- y*trimmed.SD
-			##thrSD[thrSD < MIN.CHANGE] <- MIN.CHANGE
 			segments0 <- cbind(c(1,1+cpt.loc[-k]),cpt.loc)
-			## now:
-			## 1   143
-			## 144 152
-			## 153 165
 			## median copy number for each segment
 			segmed <- apply(segments0, 1, function(i,x) {median(x[i[1]:i[2]], na.rm=T)}, genomdat)
-			## coverage <- apply(segments0, 1, function(i) length(i[1]:i[2]))
-			## coverage is the same as cpt.loc...unnecessary
-			##
 			## absolute copy number difference of adjacent segments
  			##adsegmed <- abs(diff(segmed))
-			adsegmed <- abs(diff(segmed))  ## put abs in inner parentheses to keep things far from zero
-			##
-			##
+			adsegmed <- abs(diff(segmed))
 			## number of standard deviations of observed shift
 			empiricalNumberSd <- adsegmed/trimmed.SD
-			##
-			## add to this the difference of the last segment and zero.
-			##stopifnot(identical(length(adsegmed), length(thrSD)))
-			## drop order: coverage then distance
-			## i <- order(coverage, adsegmed)[1]
-##			if(any(adsegmed < thrSD | coverage < MIN.COVERAGE)){
 			if(any(empiricalNumberSd < requiredNumberSd | coverage < MIN.COVERAGE)){
 				## drop order: coverage then distance
 				##i <- which(adsegmed < thrSD | coverage < MIN.COVERAGE)
@@ -2518,17 +2505,29 @@ computeLoglik <- function(id,
 	sds.sample <- matrix(sds.sample, nrow(trioSet), 3, byrow=TRUE)
 	open(logR(trioSet))
 ##	sds.marker <- rowMAD(logR(trioSet)[, , "O"], na.rm=TRUE)
-	sds.marker <- fData(trioSet)$marker.mad
-	sds.marker <- matrix(sds.marker, nrow(object), 3, byrow=FALSE)
+	sds.marker <- fData(trioSet)$marker.mad  ## these can be really big in CNV
+	##1. shrink the marker to the marker sds
+	##   - at CNV the marker estimates will be much too high
+	##   - could be too small for markers that don't really work
 	df1 <- nrow(phenoData(trioSet))/3
+	df2 <- length(sds.marker)-1
+	sds.marker <- (df1*sds.marker + df2*median(sds.marker,na.rm=TRUE))/(df1+df2)
+	sds.marker <- matrix(sds.marker, nrow(object), 3, byrow=FALSE)
+	##2. shrink to the sample-level variance
 	sds <- (sds.marker * df1 + df0*sds.sample)/(df0 + df1)
 	lR <- logR(object)
 	## the uniform needs to cover the support
 	CN.MAX=10
 	CN.MIN=-20
+	##tmp <- array(NA, dim=dim(loglik(object))[2:4])
 	for(i in seq_along(states)) {
 		loglik(object)["logR", , , i] <- (p1)*dnorm(lR, mu.logr[i], sds) + (1-p1) * dunif(lR, CN.MIN, CN.MAX)
+		##tmp[, , i] <- dnorm(lR, mu.logr[i], sds)
 	}
+	##index <- which(position(object) >= start(rd)[2] & position(object) <= end(rd)[2])
+##	df <- cbind(round(tmp[index,3, ], 3),
+##			 lr=logR(object)[index, 3])
+##	loglik(object)["logR", index, 3, ]
 	sd0 <- baf.sds[1]
 	sd.5 <- baf.sds[2]
 	sd1 <- baf.sds[3]

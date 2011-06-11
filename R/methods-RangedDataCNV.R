@@ -30,10 +30,7 @@ setMethod("chromosome", signature(object="RangedDataCNV"), function(object) obje
 ##		  plot(x=df, ...)
 ##	  })
 
-
-
-
-setMethod("todf", signature(object="RangedDataCNV"), function(object, col=1:3, verbose=TRUE, ...){
+setMethod("todf", signature(object="RangedDataCNV"), function(object, col=1:3, verbose=TRUE, ordered.y, ...){
 	require(SNPchip)
 	data(chromosomeAnnotation)
 	if(!"col" %in% names(list(...))) col <- 1:3 else col <- list(...)[["col"]]
@@ -46,17 +43,21 @@ setMethod("todf", signature(object="RangedDataCNV"), function(object, col=1:3, v
 	chr.size <- chromosomeAnnotation[1:22, "chromosomeSize"]
 	chrom <- chromosome(object)
 	chr.size <- chr.size[chrom]
-	y <- split(sampleNames(object), chrom)
-	y <- lapply(y, function(x){
-		tmp <- as.numeric(as.factor(x))
-		names(tmp) <- as.character(x)
-		tmp
-	})
-	y <- unlist(y)
-	nms2 <- paste(chromosome(object), sampleNames(object), sep=".")
-	if(!identical(names(y), nms2)){
-		y <- y[match(nms2, names(y))]
-		stopifnot(identical(names(y), nms2))
+	if(missing(ordered.y)){
+		y <- split(sampleNames(object), chrom)
+		y <- lapply(y, function(x){
+			tmp <- as.numeric(as.factor(x))
+			names(tmp) <- as.character(x)
+			tmp
+		})
+		y <- unlist(y)
+		nms2 <- paste(chromosome(object), sampleNames(object), sep=".")
+		if(!identical(names(y), nms2)){
+			y <- y[match(nms2, names(y))]
+			stopifnot(identical(names(y), nms2))
+		}
+	} else {
+		y <- ordered.y
 	}
 	##
 	states <- state(object)

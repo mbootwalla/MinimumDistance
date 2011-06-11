@@ -415,7 +415,6 @@ setMethod("todf", signature(object="TrioSet", range="RangedData"),
 		  r <- c(as.numeric(r), md)
 		  x <- rep(position(object)[marker.index], 4)/1e6
 		  df <- data.frame(x=x, b=b, r=r, id=id)
-
 		  df2 <- data.frame(id=c(as.character(df$id), "genes", "CNV"),
 				    b=c(df$b, NA, NA),
 				    r=c(df$r, NA, NA),
