@@ -2502,6 +2502,7 @@ computeLoglik <- function(id,
 	object <- constructSet(trioSet, CHR, id, states=states)
 	j <- match(id[["O"]], offspringNames(trioSet))
 	sds.sample <- mad(trioSet)[j, ]
+	stopifnot(all(!is.na(sds.sample)))
 	sds.sample <- matrix(sds.sample, nrow(trioSet), 3, byrow=TRUE)
 	open(logR(trioSet))
 ##	sds.marker <- rowMAD(logR(trioSet)[, , "O"], na.rm=TRUE)
@@ -3779,35 +3780,52 @@ getAllBayesFactorRanges <- function(path=beadstudiodir()){
 calculateDenovoFrequency <- function(ranges.md, penn.offspring, bychrom=FALSE){
 	ranges.md$state <- gsub("5", "4", ranges.md$state)
 	not.normal <- isDenovo(ranges.md$state)
-	df <- as.data.frame(table(ranges.md$state[not.normal]))
-	df$method <- "mindist"
+	if(!any(not.normal)) {
+		df <- NULL
+	} else {
+		df <- as.data.frame(table(ranges.md$state[not.normal]))
+		df$method <- "mindist"
+		colnames(df) <- c("state", "freq", "method")
+	}
 	stopifnot(all(penn.offspring$pass.qc))
 	not.normal <- coverage(penn.offspring) >= 10 & isDenovo(penn.offspring$state)
 	df2 <- as.data.frame(table(penn.offspring$state[not.normal]))
 	df2$method <- "PennCNV"
 	if(!bychrom){
-		colnames(df2) <- colnames(df) <- c("state", "freq", "method")
+		colnames(df2) <- c("state", "freq", "method")
 	}
-	df <- rbind(df, df2)
+	if(!is.null(df)){
+		df <- rbind(df, df2)
+	} else df <- df2
 	##df$is.denovo <- df$call %in% c(deletionStates(), duplicationStates())
 	##df$is.denovo <- isDenovo(df$state)
 	##df <- df[isDenovo(df$call), ]
 	df$col <- rep("white", nrow(df))
 	##df$col[df$is.denovo] <- "blue"
 	i1 <- df$method=="mindist" ##& df$is.denovo
-	f1 <- df$freq[i1]
-	names(f1) <- as.character(df$state[i1])
+	if(any(i1)){
+		f1 <- df$freq[i1]
+		names(f1) <- as.character(df$state[i1])
+		f1 <- f1[order(names(f1))]
+	} else f1 <- NULL
 	i2 <- df$method=="PennCNV"## & df$is.denovo
 	f2 <- df$freq[i2]
 	names(f2) <- as.character(df$state[i2])
-	f1 <- f1[order(names(f1))]
 	f2 <- f2[order(names(f2))]
-	f1 <- f1[names(f1) %in% names(f2)]
-	f2 <- f2[names(f2) %in% names(f1)]
-	stopifnot(all.equal(names(f1), names(f2)))
-	f1 <- f1[match(names(f1), names(f2))]
-	df <- data.frame(mindist=f1, penn=f2)
-	rownames(df) <- names(f1)
+	if(!is.null(f1)){
+		f1 <- f1[names(f1) %in% names(f2)]
+		f2 <- f2[names(f2) %in% names(f1)]
+		stopifnot(all.equal(names(f1), names(f2)))
+		f1 <- f1[match(names(f1), names(f2))]
+		df <- data.frame(mindist=f1, penn=f2)
+		rownames(df) <- names(f1)
+	} else {
+		rownames(df) <- names(f2)
+		df2 <- df
+		df2$freq <- 0
+		df2$method="mindist"
+		df <- rbind(df2, df)
+	}
 	return(df)
 }
 
@@ -4467,6 +4485,9 @@ minimumDistance <- function(path, samplesheet, pedigree,
 		##offspringIds <- as.character(paste(fullId(container[[1]])[, "O"], file.ext, sep=""))
 		mads[, "O"] <- readParsedFiles(path, "O", container, chromosomes, file.ext, verbose)
 		mad(container[[1]]) <- mads
+		for(CHR in 2:22){
+			container[[CHR]]@mad <- mad(container[[1]])
+		}
 		save(container, file=container.filename)
 	} else {
 		if(verbose) message("readFiles is FALSE.")
@@ -4499,7 +4520,7 @@ minimumDistanceCalls <- function(id, container, chromosomes=1:22,
 				 segment.md=TRUE,
 				 calculate.lr=TRUE,
 				 cbs.filename,
-				 prGtCorrect, ..., verbose=TRUE){
+				 prGtCorrect=0.999, ..., verbose=TRUE){
 	##---------------------------------------------------------------------------
 	##
 	## Segment the minimum distance
@@ -4510,6 +4531,8 @@ minimumDistanceCalls <- function(id, container, chromosomes=1:22,
 	} else stopifnot(all(id %in% sampleNames(container)))
 	stopifnot(all(chromosomes %in% 1:22))
 	if(segment.md){
+		stopifnot(!missing(cbs.filename))
+		stopifnot(file.exists(dirname(cbs.filename)))
 		df <- xsegment(container[chromosomes], id=id, ..., verbose=verbose)
 		df$ID <- gsub("^[X]", "", df$ID)
 		mdRanges <- RangedDataCBS(ranges=IRanges(df$loc.start, df$loc.end),
@@ -4522,7 +4545,8 @@ minimumDistanceCalls <- function(id, container, chromosomes=1:22,
 		mads <- container[[1]]$mindist.mad
 		ix <- match(sampleNames(mdRanges), id)
 		mdRanges$mindist.mad <- mads[ix]
-		if(!missing(cbs.filename)) save(mdRanges, file=cbs.filename)
+		message("Saving the segmentation results from CBS (prior to pruning) to ", cbs.filename)
+		save(mdRanges, file=cbs.filename)
 	} else {
 		if(missing(cbs.filename)) stop("cbs.filename is missing, but segment.md=FALSE")
 		if(verbose) message("Loading saved cbs segmentation results")
@@ -4536,6 +4560,7 @@ minimumDistanceCalls <- function(id, container, chromosomes=1:22,
 	##---------------------------------------------------------------------------
 	## compute likelihood ratio to infer most likely state
 	if(calculate.lr){
+		message("Pruning ranges")
 		pruned.segs <- prune(container[chromosomes],
 				     ranges=mdRanges,
 				     id=id,
@@ -4544,17 +4569,19 @@ minimumDistanceCalls <- function(id, container, chromosomes=1:22,
 				     min.coverage=10, scale.exp=0.02,
 				     verbose=verbose)
 		rd <- stack(RangedDataList(pruned.segs))
-		rd <- rd[, -ncol(rd)]
+		rd <- rd[, -grep("sample", colnames(rd))]
 		prunedRanges <- RangedDataCBS(ranges=ranges(rd), values=values(rd))
 		rm(rd, pruned.segs); gc()
 		tau <- transitionProbability(states=0:4, epsilon=0.5)
 		log.pi <- log(initialStateProbs(states=0:4, epsilon=0.5))
+		message("Computing bayes factors")
 		prunedRanges <- computeBayesFactor(object=container[chromosomes],
 						   ranges=prunedRanges,
 						   tau=tau, log.pi=log.pi,
 						   prGtCorrect=prGtCorrect)
 		## do a second round of pruning for adjacent segments
 		## that have the same state
+		message("Pruning ranges")
 		rd <- pruneByFactor(prunedRanges, f=prunedRanges$argmax)
 		rd <- stack(RangedDataList(rd))
 		prunedRanges <- rd[, -ncol(rd)]

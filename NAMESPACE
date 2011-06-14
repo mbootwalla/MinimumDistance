@@ -68,6 +68,7 @@ export(beadstudiodir,
        RangedDataCBS,
        RangedDataHMM,
        ssampleNames, sssampleNames, ss, s,
+       todf,
        xypanel)
 
 

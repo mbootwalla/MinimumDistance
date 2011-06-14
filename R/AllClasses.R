@@ -4,6 +4,7 @@ setOldClass("ff_array")
 setClass("RangedDataCopyNumber", contains="RangedData",
 	 representation("VIRTUAL"))
 setClass("RangedDataCNV", contains="RangedDataCopyNumber")
+setClass("RangedDataCNVTrios", contains="RangedDataCNV")
 ## It would be much cleaner to add slots to the RangedData class for
 ## chrom, id, and num.mark?  This way we can force these slots to be a
 ## specific class like numeric, integer, etc.
