@@ -1532,9 +1532,12 @@ pruneByFactor <- function(range.object, f){
 	id.chr <- paste(range.object$id, chromosome(range.object), sep="_")
 	ff <- unique(id.chr)
 	##for(i in seq_along(unique(range.object$id))){
+	if(verbose){
+		message("Pruning ", length(ff), " files.")
+		pb <- txtProgressBar(min=0, max=length(ff), style=3)
+	}
 	for(i in seq_along(ff)){
-		##if(i %% 100==0) message(i, "/", length(unique(range.object$id)))
-		if(i %% 100==0) message("\tPruning ", i, " of ", length(ff))
+		if(verbose) setTxtProgressBar(pb, i)
 		##id <- unique(range.object$id)[i]
 		##(index <- which(range.object$id == id))
 		index <- which(id.chr==ff[i])

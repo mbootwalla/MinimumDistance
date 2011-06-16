@@ -354,9 +354,12 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 	ranges$bayes.factor <- NA
 	ranges$argmax <- NA
 	ranges$DN <- NA
+	if(verbose){
+		message("Computing Bayes factors for ", length(id), " files.")
+		pb <- txtProgressBar(min=0, max=length(id), style=3)
+	}
 	for(i in seq_along(id)){
-		if(verbose)
-			message("\t bayes factors for sample ", i, " of ", length(id))
+		if (verbose) setTxtProgressBar(pb, i)
 		this.id <- id[i]
 		if(verbose){
 			if(i %% 100 == 0)
@@ -432,8 +435,12 @@ setMethod("prune", signature(object="TrioSet", ranges="RangedDataCNV"),
 		  ranges <- ranges[index, ]
 		  rdList <- vector("list", length(unique(id)))
 		  open(mindist(object))
+		  if(verbose){
+			  message("Pruning ", length(unique(id)), " files.")
+			  pb <- txtProgressBar(min=0, max=length(unique(id)), style=3)
+		  }
 		  for(j in seq_along(id)){
-			  if(verbose) message("\t Pruning sample ", j, " of ", length(id))
+			  if (verbose) setTxtProgressBar(pb, j)
 			  sampleId <- id[j]
 			  rd <- ranges[sampleNames(ranges) == sampleId, ]
 			  stopifnot(nrow(rd) > 0)
