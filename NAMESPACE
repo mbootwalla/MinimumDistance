@@ -1,7 +1,10 @@
 useDynLib("Beaty", .registration=TRUE)
+
+import(methods)
+importFrom(utils, setTxtProgressBar, txtProgressBar, stack)
 importFrom(graphics, abline, axis, layout, legend, mtext, par, plot,
 	   polygon, rect, segments, text)
-importFrom(utils, setTxtProgressBar, txtProgressBar)
+
 
 importClassesFrom(Biobase, eSet)
 importMethodsFrom(Biobase, annotatedDataFrameFrom, updateObject)
@@ -9,10 +12,19 @@ importFrom(Biobase, assayDataElementReplace, sampleNames, varLabels, rowMedians,
 
 importFrom(stats, mad)
 
-
-importClassesFrom(IRanges, RangedData, IRanges, DataTable, Vector, Annotated, List, DataTableORNULL)
-importMethodsFrom(IRanges, start, end, "[", "[[","[<-", "[[<-", "$")##, stack, rbind)
-importFrom(IRanges, IRanges, RangedData, RangedDataList)
+importClassesFrom(IRanges, RangedData, IRanges,
+		  DataTable, Vector, Annotated,
+		  List, SimpleList, CompressedList,
+		  IntervalTree, RangesList, SimpleRangesList,
+		  RangedDataList,
+		  DataFrame,
+		  DataTableORNULL)
+importMethodsFrom(IRanges, start, end, width,"[", "[[","[<-", "[[<-", "$",
+		  nrow, "start<-", "end<-")##, stack, rbind)
+importFrom(IRanges, IRanges, RangedData, RangedDataList,
+	   findOverlaps, countOverlaps,
+	   ranges, values, rbind,
+	   matchMatrix, queryHits, subjectHits)
 
 importMethodsFrom(oligoClasses, open, close)
 importFrom(oligoClasses, isFF, getBar)
