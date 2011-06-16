@@ -5,13 +5,10 @@ importFrom(utils, setTxtProgressBar, txtProgressBar, stack)
 importFrom(graphics, abline, axis, layout, legend, mtext, par, plot,
 	   polygon, rect, segments, text)
 
-
 importClassesFrom(Biobase, eSet)
 importMethodsFrom(Biobase, annotatedDataFrameFrom, updateObject)
 importFrom(Biobase, assayDataElementReplace, sampleNames, varLabels, rowMedians, "sampleNames<-")
-
 importFrom(stats, mad)
-
 importClassesFrom(IRanges, RangedData, IRanges,
 		  DataTable, Vector, Annotated,
 		  List, SimpleList, CompressedList,
@@ -20,22 +17,15 @@ importClassesFrom(IRanges, RangedData, IRanges,
 		  DataFrame,
 		  DataTableORNULL)
 importMethodsFrom(IRanges, start, end, width,"[", "[[","[<-", "[[<-", "$",
-		  nrow, "start<-", "end<-")##, stack, rbind)
+		  nrow, "start<-", "end<-", rbind)
 importFrom(IRanges, IRanges, RangedData, RangedDataList,
 	   findOverlaps, countOverlaps,
-	   ranges, values, rbind,
+	   ranges, values,
 	   matchMatrix, queryHits, subjectHits)
-
-importMethodsFrom(oligoClasses, open, close)
-importFrom(oligoClasses, isFF, getBar)
-
+##importMethodsFrom(oligoClasses, open, close)
+##importFrom(oligoClasses, isFF, getBar)
 importFrom(ff, filename)
-
 importFrom(DNAcopy, CNA, segment, smooth.CNA, getbdry)
-
-importFrom(lattice, xyplot)
-
-##exportPattern("^[^\\.]")
 exportClasses(DataFrameCNV, RangedDataCNV, RangedDataCBS, RangedDataHMM,
 	      TrioSet, LogRatioSet, TrioSetList)
 exportMethods(baf, "baf<-",
@@ -53,6 +43,7 @@ exportMethods(baf, "baf<-",
 	      offspringNames,
 	      phenoData2, "phenoData2<-",
 	      prune,
+	      rbind,
 	      state,
 	      updateObject,
 	      xsegment,
