@@ -1,3 +1,4 @@
+setGeneric("[")
 setGeneric("mindist", function(object) standardGeneric("mindist"))
 setGeneric("family", function(object) standardGeneric("family"))
 setGeneric("plot", useAsDefault=function(x,y, ...) graphics::plot(x,y,...))

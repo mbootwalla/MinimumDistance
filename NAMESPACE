@@ -5,7 +5,7 @@ importFrom(graphics, abline, axis, layout, legend, mtext, par, plot,
 	   polygon, rect, segments, text)
 
 importClassesFrom(Biobase, eSet)
-importMethodsFrom(Biobase, annotatedDataFrameFrom, updateObject)
+importMethodsFrom(Biobase, annotatedDataFrameFrom, updateObject, "[", "$")
 importFrom(Biobase, assayDataElementReplace, sampleNames, varLabels, rowMedians, "sampleNames<-")
 importFrom(stats, mad)
 importClassesFrom(IRanges, RangedData, IRanges,
@@ -27,7 +27,7 @@ importFrom(ff, filename)
 importFrom(DNAcopy, CNA, segment, smooth.CNA, getbdry)
 exportClasses(DataFrameCNV, RangedDataCNV, RangedDataCBS, RangedDataHMM,
 	      TrioSet, LogRatioSet, TrioSetList)
-exportMethods(baf, "baf<-",
+exportMethods("[", baf, "baf<-",
 	      calculateMindist,
 	      computeBayesFactor,
 	      ##copyNumber,
@@ -48,7 +48,7 @@ exportMethods(baf, "baf<-",
 	      width,
 	      xsegment,
 	      xyplot)
-export(completeTrios,
+export("[", completeTrios,
        concAtTop,
        fmoNames,
        fullId,

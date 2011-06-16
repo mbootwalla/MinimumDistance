@@ -429,7 +429,7 @@ combineRanges <- function(deletion.ranges, amp.ranges){
 }
 
 
-pruneByFactor <- function(range.object, f){
+pruneByFactor <- function(range.object, f, verbose){
 	rd <- list()
 	id.chr <- paste(range.object$id, chromosome(range.object), sep="_")
 	ff <- unique(id.chr)
@@ -446,8 +446,9 @@ pruneByFactor <- function(range.object, f){
 		##trace(combineRangesByFactor, browser)
 		rd[[i]] <- combineRangesByFactor(range.object[index, ], f=f[index])
 	}
+	close(pb)
 	ok <- tryCatch(tmp <- do.call("rbind", rd), error=function(e) FALSE)
-	if(!ok) tmp <- rd
+	if(is(ok, "logical")) tmp <- rd
 	return(tmp)
 }
 
@@ -1679,7 +1680,7 @@ minimumDistance <- function(path, samplesheet, pedigree,
 }
 
 minimumDistanceCalls <- function(id, container, chromosomes=1:22,
-				 segment.md=TRUE,
+				 segment.md,
 				 calculate.lr=TRUE,
 				 cbs.filename,
 				 prGtCorrect=0.999, ..., verbose=TRUE){
@@ -1692,6 +1693,14 @@ minimumDistanceCalls <- function(id, container, chromosomes=1:22,
 		id <- sampleNames(container)
 	} else stopifnot(all(id %in% sampleNames(container)))
 	stopifnot(all(chromosomes %in% 1:22))
+	if(missing(segment.md)){
+		if(file.exists(cbs.filename)) {
+			message("segment.md is missing and ", cbs.filename, " exists. Loading saved segmentation")
+			segment.md <- FALSE
+		} else{
+			segment.md <- TRUE
+		}
+	}
 	if(segment.md){
 		stopifnot(!missing(cbs.filename))
 		stopifnot(file.exists(dirname(cbs.filename)))
@@ -1744,7 +1753,7 @@ minimumDistanceCalls <- function(id, container, chromosomes=1:22,
 		## do a second round of pruning for adjacent segments
 		## that have the same state
 		message("Pruning ranges")
-		rd <- pruneByFactor(prunedRanges, f=prunedRanges$argmax)
+		rd <- pruneByFactor(prunedRanges, f=prunedRanges$argmax, verbose=verbose)
 		rd <- stack(RangedDataList(rd))
 		prunedRanges <- rd[, -ncol(rd)]
 	}
