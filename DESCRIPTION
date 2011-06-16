@@ -1,11 +1,11 @@
-Package: Beaty
+Package: MinimumDistance
 Type: Package
-Title: Analysis of Cleft trios on the Illumina platform
-Version: 0.0.70
+Title: Methods for denovo CNV detection
+Version: 0.0.71
 Date: 11/13/2010
 Author: Robert B Scharpf
 Maintainer: Robert B Scharpf <rscharpf@jhsph.edu>
-Description: Analysis of Cleft trios on the Illumina platform
+Description: Analysis of denovo copy number variants in trios using the Illumina platform
 License: Artistic-2.0
 Depends: oligoClasses (>= 1.15.7), lattice, grid
 Imports: ff (>= 2.2-1), Biobase, crlmm, utils, IRanges, DNAcopy
