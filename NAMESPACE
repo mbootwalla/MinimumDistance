@@ -46,6 +46,7 @@ exportMethods(baf, "baf<-",
 	      rbind,
 	      state,
 	      updateObject,
+	      width,
 	      xsegment,
 	      xyplot)
 export(beadstudiodir,
