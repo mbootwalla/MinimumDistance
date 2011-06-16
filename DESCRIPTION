@@ -13,17 +13,13 @@ collate: AllClasses.R
          AllGenerics.R
 	 methods-AnnotatedDataFrame.R
 	 methods-AssayData.R
-	 methods-CNSet.R
-	 methods-CopyNumberSet.R
+	 methods-eSet.R
 	 methods-DataFrameCNV.R
 	 methods-LikSet.R
 	 methods-LogRatioSet.R
-	 methods-MultiSet.R
-	 methods-RangedData.R
 	 methods-RangedDataCNV.R
 	 methods-TrioSet.R
 	 methods-TrioSetList.R
 	 functions.R
-	 utils.R
 	 zzz.R
 LazyLoad: yes

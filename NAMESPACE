@@ -1,5 +1,4 @@
-useDynLib("Beaty", .registration=TRUE)
-
+useDynLib("MinimumDistance", .registration=TRUE)
 import(methods)
 importFrom(utils, setTxtProgressBar, txtProgressBar, stack)
 importFrom(graphics, abline, axis, layout, legend, mtext, par, plot,
