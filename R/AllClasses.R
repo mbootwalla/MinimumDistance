@@ -15,11 +15,8 @@ setClass("RangedDataCBS", contains="RangedDataCNV")
 setValidity("RangedDataCBS", function(object) all(c("seg.mean", "start.index", "end.index") %in% colnames(object)))
 setClass("RangedDataHMM", contains="RangedDataCNV")
 setValidity("RangedDataHMM", function(object) "state" %in% colnames(object))
-##setMethod("initialize", "RangedDataCNV",
-##	  function(.Object,
-##		   ranges, values, ...){
-##		  .Object <- callNextMethod(.Object, ranges=ranges, values=values, ...)
-##	  })
+##setClassUnion("dataFrame", "data.frame")
+setClass("DataFrameCNV", contains="data.frame")
 setClass("RangedDataCNVList", contains="list")
 setMethod("stack", signature(x="RangedDataCNVList"),
 	  function(x){
@@ -31,83 +28,16 @@ setMethod("stack", signature(x="RangedDataCNVList"),
 		  rd <- stack(rdl)
 		  return(rd)
 	  })
-#RangedDataCNVList <- function(...){
-#	listData <- list(...)
-#	listData <- lapply(listData, function(x) as(x, "RangedData"))
-#	if (length(listData) == 1 && is.list(listData[[1L]]))
-#		listData <- listData[[1L]]
-#	rdl <- RangedDataList(listData)
-#
-#	IRanges:::newSimpleList("RangedDataListCNV", listData)
-#}
-
-
-RangedDataCNV <- function(ranges=IRanges(),
-			  values,
-			  start,
-			  end,
-			  chromosome,
-			  coverage,
-			  sampleId,
-			  startIndexInChromosome,
-			  endIndexInChromosome,
-			  ...){
-	if(!missing(ranges) & !missing(values)){
-		object <- new("RangedDataCNV", ranges=ranges, values=values)
-		return(object)
-	}
-	if(!missing(end) && !missing(start))
-		ranges <- IRanges(start, end)
-	if(missing(chromosome))
-		chromosome <- vector("integer", length(ranges))
-	if(missing(coverage))
-		coverage <- vector("integer", length(ranges))
-	if(missing(sampleId))
-		sampleId <- vector("character", length(ranges))
-	if(missing(startIndexInChromosome))
-		startIndexInChromosome <- vector("integer", length(ranges))
-	if(missing(endIndexInChromosome))
-		endIndexInChromosome <- vector("integer", length(ranges))
-	rd <- RangedData(ranges,
-			 chrom=chromosome,
-			 num.mark=coverage,
-			 id=sampleId,
-			 start.index=startIndexInChromosome,
-			 end.index=endIndexInChromosome, ...)##, ...)
-	new("RangedDataCNV", ranges=ranges(rd), values=IRanges:::values(rd))
-}
-
-RangedDataCBS <- function(ranges=IRanges(),
-			  seg.mean=vector("numeric", length(ranges)), ...){
-	rd <- RangedDataCNV(ranges=ranges, seg.mean=seg.mean, ...)
-	new("RangedDataCBS", ranges=ranges(rd), values=values(rd))
-}
-
 setClass("RangedDataCBS2", contains="RangedDataCBS")
 setValidity("RangedDataCBS2", function(object){
 	"state" %in% colnames(object)
 })
-RangedDataCBS2 <- function(ranges=IRanges(),
-			   state=vector("character", length(ranges)), ...){
-	rd <- RangedDataCBS(ranges=ranges, state=state, ...)
-	new("RangedDataCBS2", ranges=ranges(rd), values=values(rd))
-}
-
-
-RangedDataHMM <- function(ranges=IRanges(),
-			  state=vector("integer", length(ranges)), ...){
-	rd <- RangedDataCNV(ranges=ranges, state=state, ...)
-	new("RangedDataHMM", ranges=ranges(rd), values=values(rd))
-}
 
 setClass("MinDistanceSet", contains="MultiSet")
-
 setClassUnion("matrixOrNULL", c("matrix", "NULL", "ff_matrix"))
 setClassUnion("arrayOrNULL", c("array", "NULL"))
-
 setClass("LogRatioSet", contains="eSet")
 setClass("BeadStudioSet", contains="eSet")
-
 setClass("LikSet",
 	 contains="LogRatioSet",
 	 representation(loglik="array",
@@ -115,11 +45,9 @@ setClass("LikSet",
 	 prototype = prototype(
 	 new("VersionedBiobase",
 	     versions=c(classVersion("LogRatioSet"), LikSet="1.0.0"))))
-
 ## could include file.ext, cdfname
 setClass("SampleSheet", contains="data.frame")
 setValidity("SampleSheet", function(object) "Sample.Name" %in% colnames(object))
-
 setClass("TrioSet", contains="LogRatioSet",
 	 representation(phenoData2="arrayOrNULL",
 			mindist="matrixOrNULL",
@@ -194,54 +122,4 @@ setMethod("updateObject", signature(object="TrioSet"),
 		  }
 		  return(object)
 	  })
-
-##setClassUnion("dataFrame", "data.frame")
-setClass("DataFrameCNV", contains="data.frame")
-##setMethod("initialize", signature(.Object="DataFrameCNV"),
-##	  function(.Object, ...){
-##		  .Object <- callNextMethod(.Object, ...)
-##	  })
-##DataFrameCNV <- function(...) data.frame()
-
-
-
-##setClass("DataFrameCNV", representation(row.names="character",
-##					names="character"),
-##	 contains="list")
-
-
-##  AssayDataElements are T x M arrays
-##          T= number features
-##          M= 3 (Father, Mother, Offspring)
-##
-## - the default phenoData can contain information about the trio.
-## - phenoData2 is a container for the sample-level metaData
-##     -> this must be an T x M x P array,
-##        T: number of trios
-##        M: father, mother, offspring (3)
-##        P: covariates on each sample
-
-## need annotatedDataFrameFromAssayData to call annotatedDataFrameFrom methods for arrays
-
-
-
-
-
-
-##options(error=stop)
-##new("TrioSet", logRRatio=logRRatio)
-
-
-
-
-
-
-##setGeneric("isBiparental", function(object) standardGeneric("isBiparental"))
-####setMethod("isBiparental", "TrioSet", function(object) object@isBiparental)
-##setMethod("initialize", "TrioSet", function(.Object,
-##					    isBiparental, ...){
-##	.Object <- callNextMethod(.Object, ...)
-##	.Object@isBiparental <- isBiparental
-##})
-
 
