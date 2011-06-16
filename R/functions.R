@@ -208,47 +208,6 @@ constructLogRatioSet <- function(fnames, filename, cdfName, samplesheet){
 	bsSet$MAD <- mads
 }
 
-
-##path <- "/thumper/ctsa/beaty/holger/txtfiles"
-readProcessedFiles2 <- function(path="", bsSet, stratum){
-	sns <- sampleNames(bsSet)
-	fnames <- list.files(path, full.names=TRUE)
-	##names(fnames) <- substr(basename(fnames), 1, 8)
-	names(fnames) <- basename(fnames)
-	##table(names(fnames) %in% sns)
-	##fnames <- fnames[names(fnames) %in% sns]
-	fnames <- fnames[match(sns, names(fnames))]
-	stopifnot(identical(names(fnames), sns))
-
-	dat <- read.delim(fnames[1], colClasses=c("character", "numeric", "numeric"))
-	match.index <- match(featureNames(bsSet), dat$Name)
-	j <- splitIndicesByLength(seq(along=fnames), ocSamples())[[stratum]]
-
-	tmpBaf <- matrix(NA, nrow(bsSet), length(j))
-	tmpLogr <- matrix(NA, nrow(bsSet), length(j))
-	for(k in seq(along=j)){
-		if(k %% 10 == 0) cat(".")
-		if(k > 1){
-			dat <- read.delim(fnames[j[k]], colClasses=c("character", "numeric", "numeric"))
-		}
-		dat <- dat[match.index, ]
-		if(k == 1) stopifnot(all.equal(dat$Name, featureNames(bsSet)))
-		##order baf and logr values by chromosome, physical position
-		tmpBaf[, k] <- dat[, 3]
-		tmpLogr[, k] <- dat[, 2]
-	}
-	autosome.index <- which(chromosome(bsSet) < 23)
-	mads <- apply(tmpLogr, 2, mad, na.rm=TRUE)
-	open(baf(bsSet))
-	open(logR(bsSet))
-	baf(bsSet)[, j] <- tmpBaf
-	logR(bsSet)[, j] <- tmpLogr
-	bsSet$MAD[j] <- as.numeric(mads)
-	close(baf(bsSet))
-	close(logR(bsSet))
-	TRUE
-}
-
 getChromosomeArm <- function(chrom, pos){
 	if(!is.integer(chrom)) {
 		chrom <- chromosome2integer(chrom)
@@ -1591,7 +1550,7 @@ initializeTrioContainer <- function(path, samplesheet, pedigree, trio.phenodata,
 	}
 	stopifnot(!any(duplicated(rownames(pedigree))))
 	##samplesheet <- samplesheet[-match(c("sampleNames", "filenames"), names(samplesheet))]
-	fD <- Beaty:::constructFeatureData(list.files(path, full.names=TRUE)[1],
+	fD <- constructFeatureData(list.files(path, full.names=TRUE)[1],
 					   cdfName=cdfName)
 	ss <- array(NA, dim=c(nrow(pedigree), ncol(samplesheet), 3),
 		    dimnames=list(rownames(pedigree),
@@ -1839,7 +1798,7 @@ calculateMads <- function(container, exclusionRule, chromosomes, verbose){
 			if(is.matrix(lR)){
 				if(ncol(lR) > 1){
 					invisible(close(logR(trioSet)))
-					fData(container[[i]])$marker.mad <- Beaty:::rowMAD(lR, na.rm=TRUE)
+					fData(container[[i]])$marker.mad <- rowMAD(lR, na.rm=TRUE)
 				}
 			}
 		}
