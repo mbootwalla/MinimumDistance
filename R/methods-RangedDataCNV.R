@@ -145,13 +145,6 @@ setMethod("todf", signature(object="RangedDataCNV"), function(object, col=1:3, v
 	##dat <- new("DataFrameCNV", dat)
 	return(dat)
 })
-
-setMethod("rbind", "RangedDataCNV",
-	  function(..., deparse.level=1){
-		  callNextMethod(..., deparse.level=deparse.level)
-	  })
-
-
 ##setMethod("[", signature(x="RangedDataCNV"),
 ##	  function(x, i, j, ..., drop=FALSE){
 ##		  ## The "[" method for RangedData does not have separate methods for the slot elements

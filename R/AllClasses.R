@@ -1,6 +1,7 @@
 setOldClass("ffdf")
 setOldClass("ff_matrix")
 setOldClass("ff_array")
+
 setClass("RangedDataCopyNumber", contains="RangedData",
 	 representation("VIRTUAL"))
 setClass("RangedDataCNV", contains="RangedDataCopyNumber")
