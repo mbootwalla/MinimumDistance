@@ -13,7 +13,6 @@ collate: AllClasses.R
          AllGenerics.R
 	 methods-AnnotatedDataFrame.R
 	 methods-AssayData.R
-	 methods-eSet.R
 	 methods-DataFrameCNV.R
 	 methods-LikSet.R
 	 methods-LogRatioSet.R
