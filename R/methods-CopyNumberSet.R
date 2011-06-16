@@ -2,14 +2,6 @@ setReplaceMethod("copyNumber", signature(object="CopyNumberSet",
 					 value="ff_matrix"), function(object, value){
 						 assayDataElementReplace(object, "copyNumber", value)
 					 })
-
-setReplaceMethod("copyNumber", signature(object="MinDistanceSet",
-					 value="ff_matrix"), function(object, value){
-						 assayDataElementReplace(object, "mindist", value)
-					 })
-
-setMethod("copyNumber", signature(object="MinDistanceSet"), function(object) assayDataElement(object, "mindist"))
-
 setMethod("open", "eSet", function(con, ...){
 	object <- con
 	if(!isFF(object)) return()
@@ -22,7 +14,6 @@ setMethod("open", "eSet", function(con, ...){
 	}
 	return(TRUE)
 })
-
 setMethod("close", "eSet", function(con, ...){
 	##con is just to keep the same generic arguments
 	object <- con

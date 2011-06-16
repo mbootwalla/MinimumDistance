@@ -1,7 +1,6 @@
 setOldClass("ffdf")
 setOldClass("ff_matrix")
 setOldClass("ff_array")
-
 setClass("RangedDataCopyNumber", contains="RangedData",
 	 representation("VIRTUAL"))
 setClass("RangedDataCNV", contains="RangedDataCopyNumber")
@@ -34,7 +33,7 @@ setValidity("RangedDataCBS2", function(object){
 	"state" %in% colnames(object)
 })
 
-setClass("MinDistanceSet", contains="MultiSet")
+##setClass("MinDistanceSet", contains="MultiSet")
 setClassUnion("matrixOrNULL", c("matrix", "NULL", "ff_matrix"))
 setClassUnion("arrayOrNULL", c("array", "NULL"))
 setClass("LogRatioSet", contains="eSet")
