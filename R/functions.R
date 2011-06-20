@@ -1777,8 +1777,8 @@ thresholdY <- function(object){
 xypanel <- function(x, y, panelLabels,
 		    xlimit,
 		    ylimit,
-		    segments=TRUE,
-		    segments.md=TRUE,
+		    ##segments=TRUE,
+		    ##segments.md=TRUE,
 		    range, fmonames,
 		    cbs.segs,
 		    md.segs,
@@ -1795,13 +1795,14 @@ xypanel <- function(x, y, panelLabels,
 	CHR <- range$chrom
 	##pL <- as.character(panelLabels[panel.number()])
 	if(what %in% c("father", "mother", "offspring")){
-		if(segments){
-			if(missing(cbs.segs)){
-				stop("segments is TRUE, but cbs.segs is missing")
-				##message("loading segmentation results for chromosome ", CHR)
-				##tmp=list.files(beadstudiodir(), pattern=paste("cbs_chr", CHR, ".rda", sep=""))
-				##cbs.segs <- loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, ".rda", sep=""), name="cbs.segs")
-			}
+		if(!missing(cbs.segs)){
+			segments <- TRUE
+##			if(missing(cbs.segs)){
+##				stop("segments is TRUE, but cbs.segs is missing")
+##				##message("loading segmentation results for chromosome ", CHR)
+##				##tmp=list.files(beadstudiodir(), pattern=paste("cbs_chr", CHR, ".rda", sep=""))
+##				##cbs.segs <- loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, ".rda", sep=""), name="cbs.segs")
+##			}
 ##			what <- pL
 ##			what <- switch(paste("p", panel.number(), sep=""),
 ##				       p2="offspring",
@@ -1817,13 +1818,11 @@ xypanel <- function(x, y, panelLabels,
 				cbs.sub <- cbs.segs[cbs.segs$id==fmonames[3], ]
 		}
 	}
-	if(segments.md & what == "min dist"){
-		if(!missing(md.segs)){
-			cbs.sub <- md.segs[md.segs$id %in% range$id, ]
-			cbs.sub <- cbs.sub[cbs.sub$chrom == range$chrom, ]
-			##cbs.sub <- dranges[substr(dranges$id, 1, 5) %in% id, ]
-			cbs.sub$seg.mean <- -1*cbs.sub$seg.mean
-		}
+	if(!missing(md.segs) & what == "min dist"){
+		cbs.sub <- md.segs[md.segs$id %in% range$id, ]
+		cbs.sub <- cbs.sub[cbs.sub$chrom == range$chrom, ]
+		cbs.sub$seg.mean <- -1*cbs.sub$seg.mean
+		segments.md <- TRUE
 	}
 	if(segments | segments.md){
 		if(missing(ylimit)) ylimit <- range(y, na.rm=TRUE) ##else ylim <- ylimit
