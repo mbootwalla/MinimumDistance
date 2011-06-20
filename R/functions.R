@@ -1797,9 +1797,10 @@ xypanel <- function(x, y, panelLabels,
 	if(what %in% c("father", "mother", "offspring")){
 		if(segments){
 			if(missing(cbs.segs)){
-				message("loading segmentation results for chromosome ", CHR)
-				tmp=list.files(beadstudiodir(), pattern=paste("cbs_chr", CHR, ".rda", sep=""))
-				cbs.segs <- loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, ".rda", sep=""), name="cbs.segs")
+				stop("segments is TRUE, but cbs.segs is missing")
+				##message("loading segmentation results for chromosome ", CHR)
+				##tmp=list.files(beadstudiodir(), pattern=paste("cbs_chr", CHR, ".rda", sep=""))
+				##cbs.segs <- loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, ".rda", sep=""), name="cbs.segs")
 			}
 ##			what <- pL
 ##			what <- switch(paste("p", panel.number(), sep=""),
