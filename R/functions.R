@@ -1816,14 +1816,14 @@ xypanel <- function(x, y, panelLabels,
 				cbs.sub <- cbs.segs[cbs.segs$id==fmonames[2], ]
 			if(what=="offspring")
 				cbs.sub <- cbs.segs[cbs.segs$id==fmonames[3], ]
-		}
-	}
+		} else segments <- FALSE
+	} else segments <- FALSE
 	if(!missing(md.segs) & what == "min dist"){
 		cbs.sub <- md.segs[md.segs$id %in% range$id, ]
 		cbs.sub <- cbs.sub[cbs.sub$chrom == range$chrom, ]
 		cbs.sub$seg.mean <- -1*cbs.sub$seg.mean
 		segments.md <- TRUE
-	}
+	} else segments.md <- FALSE
 	if(segments | segments.md){
 		if(missing(ylimit)) ylimit <- range(y, na.rm=TRUE) ##else ylim <- ylimit
 		if(nrow(cbs.sub) > 0){
