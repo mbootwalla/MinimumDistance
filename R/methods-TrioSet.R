@@ -8,6 +8,7 @@ setMethod("open", "TrioSet", function(con, ...){
 	if("MAD" %in% varLabels(object)){
 		if(is(object$MAD, "ff")) open(object$MAD)
 	}
+	open(mindist(object))
 	return(TRUE)
 })
 setMethod("close", "TrioSet", function(con, ...){
@@ -20,6 +21,7 @@ setMethod("close", "TrioSet", function(con, ...){
 	if("MAD" %in% varLabels(object)){
 		if(is(object$MAD, "ff")) close(object$MAD)
 	}
+	close(mindist(object))
 	return()
 })
 setMethod("initialize", signature(.Object="TrioSet"),
@@ -355,6 +357,74 @@ setMethod("xsegment", signature(object="TrioSet"),
 		  close(mindist(object))
 		  return(md.segs)
 })
+
+##setMethod("xsegment", signature(object="TrioSet"),
+xsegment2 <- function(object, id, ..., verbose=FALSE){
+		  ## needs to be ordered
+		  if(verbose) message("Segmenting chromosome ", unique(chromosome(object)))
+		  ix <- order(chromosome(object), position(object))
+		  stopifnot(all(diff(ix) > 0))
+		  stopifnot(length(unique(chromosome(object))) == 1)
+		  ##
+		  ##
+		  ##dfl <- vector("list", 22) ## data.frame list
+##		  if(missing(id)) id <- sampleNames(object)
+##		  sample.index <- match(id, sampleNames(object))
+##		  stopifnot(length(sample.index) > 0)
+##		  open(mindist(object))
+		  fns <- featureNames(object)
+		  ##
+		  ##
+		  ##marker.index.list <- split(seq(length=nrow(minDistanceSet)), chromosome(minDistanceSet))
+		  ##for(CHR in 1:22){
+		  marker.index <- seq(length=nrow(object))[!duplicated(position(object))]
+		  pos <- position(object)[marker.index]
+		  chrom <- chromosome(object)[marker.index]
+		  ##CN <- mindist(object)[marker.index, sample.index, drop=FALSE]
+		  CN <- cbind(logR(object)[marker.index, , 1],
+			      logR(object)[marker.index, , 2],
+			      logR(object)[marker.index, , 3])
+		  colnames(CN) <- c(fatherNames(object),
+				    motherNames(object),
+				    offspringNames(object))
+		  CN <- CN[, !duplicated(colnames(CN))]
+		  ##CN <- matrix(as.numeric(CN), nrow(CN), ncol(CN))
+		  ##dimnames(CN) <- list(featureNames(object)[marker.index], sampleNames(object)[sample.index])
+		  arm <- getChromosomeArm(chrom, pos)
+		  index.list <- split(seq_along(marker.index), arm)
+		  iMax <- sapply(split(marker.index, arm), max)
+		  pMax <- pos[iMax]
+		  cbs.segs <- list()
+		  ##NR <- nrow(object)
+		  ##if(verbose) message("Running CBS by chromosome arm")
+		  for(i in seq_along(index.list)){
+			  j <- index.list[[i]]
+			  CNA.object <- CNA(genomdat=CN[j, , drop=FALSE],
+					    chrom=chrom[j],
+					    maploc=pos[j],
+					    data.type="logratio",
+					    sampleid=colnames(CN))
+			  smu.object <- smooth.CNA(CNA.object)
+			  tmp <- segment(smu.object, verbose=as.integer(verbose), ...)
+			  df <- tmp$output
+			  sr <- tmp$segRows
+			  ##df <- cbind(tmp$output, tmp$segRows)
+			  ##md.segs[[i]] <-
+			  firstMarker <- rownames(CNA.object)[sr$startRow]
+			  endMarker <- rownames(CNA.object)[sr$endRow]
+			  df$start.index <- match(firstMarker, fns)
+			  df$end.index <- match(endMarker, fns)
+			  ## if the last marker was duplicated or
+			  ## missing, this might not be true
+			  stopifnot(max(df$end.index) <= iMax[i])
+			  cbs.segs[[i]] <- df
+		  }
+		  if(length(cbs.segs) > 1){
+			  cbs.segs <- do.call("rbind", cbs.segs)
+		  } else cbs.segs=cbs.segs[[1]]
+		  ##close(mindist(object))
+		  return(cbs.segs)
+}
 
 setMethod("computeBayesFactor", signature(object="TrioSet"),
 	  function(object, ranges, id,
