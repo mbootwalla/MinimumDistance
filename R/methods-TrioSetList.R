@@ -20,13 +20,6 @@ setMethod("prune", signature(object="TrioSetList", ranges="RangedDataCNV"),
 				   min.coverage=min.coverage,
 				   scale.exp=scale.exp,
 				   verbose=verbose, ...)
-##		  if(length(rdList) > 1){
-##			  rdl <- RangedDataList(rdList)
-##			  rd <- stack(rdl)
-##			  rd <- rd[, -ncol(rd)]
-##		  } else rd <- rdList[[1]]
-##		  cls <- class(ranges)
-##		  rd <- as(rd, cls)
 		  return(rdList)
 	  })
 

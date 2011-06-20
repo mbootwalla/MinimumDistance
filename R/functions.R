@@ -478,26 +478,6 @@ combineRangesByFactor <- function(range.object, f){
 	return(range.object)
 }
 
-combine.data.frames <- function(dist.df, penn.df){
-	if(is.null(dist.df) & is.null(penn.df)) return(NULL)
-	if(is.null(dist.df)) dist.df <- penn.df[integer(0), ]
-	if(is.null(penn.df)) penn.df <- dist.df[integer(0), ]
-	combined.df <- rbind(dist.df, penn.df)
-	combined.df <- combined.df[order(combined.df$chr), ]
-	return(combined.df)
-}
-
-deletionStates <- function(){
-	st1 <- offspring.hemizygous()
-	st2 <- offspring.homozygous()
-	as.integer(c(st1,st2))
-}
-offspring.hemizygous <- function() c("332", "432", "342", "442")
-offspring.homozygous <- function() c("331", "321", "231", "431", "341", "441", "221", "421")
-duplicationStates <- function() as.integer(c("335", "334", "224", "225", "115", "114", "124", "125", "214", "215", "324", "325", "234", "235", "124", "125", "214", "215", "314", "315", "134", "135"))
-duplicationStatesPenn <- function() as.integer(c("335", "225", "115", "125", "215", "325", "235", "125", "215", "315", "135"))
-isDenovo <- function(states) states %in% c(duplicationStates(), deletionStates())
-
 madVsCoverage <- function(lambda=0.1, MIN=1, MAX=4, coverage=3:100){
 	p <- lambda*exp(-lambda*coverage) ## 0 - 0.04 (Pr (X=x)
 	b <- 1/(MAX - MIN)
@@ -544,6 +524,26 @@ thresholdSegMeans <- function(ranges.object, ylim){
 	ranges.object$seg.mean[ranges.object$seg.mean > ylim[2]] <- ylim[2]
 	ranges.object
 }
+
+combine.data.frames <- function(dist.df, penn.df){
+	if(is.null(dist.df) & is.null(penn.df)) return(NULL)
+	if(is.null(dist.df)) dist.df <- penn.df[integer(0), ]
+	if(is.null(penn.df)) penn.df <- dist.df[integer(0), ]
+	combined.df <- rbind(dist.df, penn.df)
+	combined.df <- combined.df[order(combined.df$chr), ]
+	return(combined.df)
+}
+
+deletionStates <- function(){
+	st1 <- offspring.hemizygous()
+	st2 <- offspring.homozygous()
+	as.integer(c(st1,st2))
+}
+offspring.hemizygous <- function() c("332", "432", "342", "442")
+offspring.homozygous <- function() c("331", "321", "231", "431", "341", "441", "221", "421")
+duplicationStates <- function() as.integer(c("335", "334", "224", "225", "115", "114", "124", "125", "214", "215", "324", "325", "234", "235", "124", "125", "214", "215", "314", "315", "134", "135"))
+duplicationStatesPenn <- function() as.integer(c("335", "225", "115", "125", "215", "325", "235", "125", "215", "315", "135"))
+isDenovo <- function(states) states %in% c(duplicationStates(), deletionStates())
 
 cbsSegsForRange <- function(ranges.object, ylim, envir){
 	stopifnot(nrow(ranges.object) == 1)
@@ -758,68 +758,6 @@ Phi <- function(x, mu, sigma) pnorm(x, mu, sigma)
 ## pdf of truncated normal on support [0, 1]
 tnorm <- function(x, mu, sigma) phi(x, mu, sigma)/(Phi(1, mu, sigma)-Phi(0, mu, sigma))
 
-likelihood <- function(CHR, bsSet, index.list, family.list, chr.index, states=0:4){
-	lname <- file.path(ldPath(), paste("L_", CHR, ".rda", sep=""))
-	if(!file.exists(lname)){
-		message("Initializing new ff objects in ", ldPath())
-		LF <- createFF(paste("likF_chr", CHR, "_", sep=""),
-			       dim=c(length(unlist(index.list)),
-			       length(unlist(family.list)),
-			       length(states)), vmode="double", initdata=NA)
-		LM <- createFF(paste("likM_chr", CHR, "_", sep=""),
-			       dim=c(length(unlist(index.list)),
-			       length(unlist(family.list)),
-			       length(states)), vmode="double", initdata=NA)
-		LO <- createFF(paste("likO_chr", CHR, "_", sep=""),
-			       dim=c(length(unlist(index.list)),
-			       length(unlist(family.list)),
-			       length(states)), vmode="double", initdata=NA)
-		colnames(LF) <- colnames(LM) <- colnames(LO) <- unlist(family.list)
-		L <- list(F=LF, M=LM, O=LO)
-		save("L", file=lname)
-	} else{
-		message("Loading ", lname)
-		load(lname)
-		LF <- L[["F"]]
-		LM <- L[["M"]]
-		LO <- L[["O"]]
-	}
-	for(j in seq_along(family.list)){
-		##J <- which(sssampleNames(bsSet) %in% family.list[[j]])
-		fams <- family.list[[j]]
-		##i.fam <- match(paste(fams, c("03", "02", "01"), sep="_"), ssampleNames(bsSet))
-		i.f <- match(paste(fams, "03", sep="_"), ssampleNames(bsSet))
-		ocLapply(seq_along(index.list),
-			 calculateLikelihood,
-			 bsSet=bsSet,
-			 L=LF,
-			 index.list=index.list,
-			 j=i.f,
-			 chr.index=chr.index,
-			 states=states)
-		i.m <- match(paste(fams, "_02", sep=""), ssampleNames(bsSet))
-		ocLapply(seq_along(index.list),
-			 calculateLikelihood,
-			 bsSet=bsSet,
-			 L=LM,
-			 index.list=index.list,
-			 j=i.m,
-			 chr.index=chr.index,
-			 states=states)
-		i.o <- match(paste(fams, "_01", sep=""), ssampleNames(bsSet))
-		ocLapply(seq_along(index.list),
-			 calculateLikelihood,
-			 bsSet=bsSet,
-			 L=LO,
-			 index.list=index.list,
-			 j=i.o,
-			 chr.index=chr.index,
-			 states=states)
-	}
-	list(F=LF,
-	     M=LM,
-	     O=LO)
-}
 
 constructSet <- function(trioSet, CHR, id, states){
 	open(baf(trioSet))
@@ -1695,7 +1633,7 @@ minimumDistanceCalls <- function(id, container, chromosomes=1:22,
 	stopifnot(all(chromosomes %in% 1:22))
 	if(missing(segment.md)){
 		if(file.exists(cbs.filename)) {
-			message("segment.md is missing and ", cbs.filename, " exists. Loading saved segmentation")
+			message("segment.md is missing but ", basename(cbs.filename), " already exists. Loading saved segmentation")
 			segment.md <- FALSE
 		} else{
 			segment.md <- TRUE
