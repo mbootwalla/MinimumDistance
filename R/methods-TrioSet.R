@@ -338,6 +338,14 @@ setMethod("xsegment", signature(object="TrioSet"),
 					    sampleid=id)
 			  smu.object <- smooth.CNA(CNA.object)
 			  tmp <- segment(smu.object, verbose=as.integer(verbose), ...)
+			  j=1:10000
+			  CNA.object <- CNA(genomdat=-1*CN[j, , drop=FALSE],
+					    chrom=chrom[j],
+					    maploc=pos[j]/1e6,
+					    data.type="logratio",
+					    sampleid=id)
+			  smu.object <- smooth.CNA(CNA.object)
+			  tmp2 <- segment(smu.object)
 			  df <- tmp$output
 			  sr <- tmp$segRows
 			  ##df <- cbind(tmp$output, tmp$segRows)
@@ -438,47 +446,46 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 		   prGtCorrect,
 		   df0,
 		   verbose, ...){
-	stopifnot(!missing(tau))
-	stopifnot(!missing(log.pi))
-	stopifnot(!missing(object))
-	CHR <- unique(chromosome(object))
-	ranges <- ranges[chromosome(ranges) == CHR, ]
-	if(missing(id)) id <- unique(ranges$id) else stopifnot(id %in% unique(ranges$id))
-	ranges <- ranges[ranges$id %in% id, ]
-	ranges$bayes.factor <- NA
-	ranges$argmax <- NA
-	ranges$DN <- NA
-	if(verbose){
-		message("Computing Bayes factors for ", length(id), " files.")
-		pb <- txtProgressBar(min=0, max=length(id), style=3)
-	}
-	for(i in seq_along(id)){
-		if (verbose) setTxtProgressBar(pb, i)
-		this.id <- id[i]
-		if(verbose){
-			if(i %% 100 == 0)
-				message("   sample ", this.id, " (", i, "/", length(id), ")")
-		}
-		j <- which(ranges$id == this.id)
-		rd <- joint4(trioSet=object,
-			     ranges=ranges[j, ],
-			     states=states,
-			     baf.sds=baf.sds,
-			     mu.logr=mu.logr,
-			     log.pi=log.pi,
-			     tau=tau,
-			     normal.index=normal.index,
-			     a=a,
-			     prGtCorrect=prGtCorrect,
-			     df0=df0,
-			     verbose=verbose)##, F=F, M=M, O=O)
-		ranges$bayes.factor[j] <- rd$bayes.factor
-		ranges$argmax[j] <- rd$argmax
-		ranges$DN[j] <- rd$DN
-	}
-	if(verbose) close(pb)
-	ranges
-})
+		  if(missing(tau)) tau <- transitionProbability(states=0:4, epsilon=0.5)
+		  if(missing(log.pi)) log.pi <- log(initialStateProbs(states=0:4, epsilon=0.5))
+		  CHR <- unique(chromosome(object))
+		  ranges <- ranges[chromosome(ranges) == CHR, ]
+		  if(missing(id)) id <- unique(ranges$id) else stopifnot(id %in% unique(ranges$id))
+		  ranges <- ranges[ranges$id %in% id, ]
+		  ranges$bayes.factor <- NA
+		  ranges$argmax <- NA
+		  ranges$DN <- NA
+		  if(verbose){
+			  message("Computing Bayes factors for ", length(id), " files.")
+			  pb <- txtProgressBar(min=0, max=length(id), style=3)
+		  }
+		  for(i in seq_along(id)){
+			  if (verbose) setTxtProgressBar(pb, i)
+			  this.id <- id[i]
+			  if(verbose){
+				  if(i %% 100 == 0)
+					  message("   sample ", this.id, " (", i, "/", length(id), ")")
+			  }
+			  j <- which(ranges$id == this.id)
+			  rd <- joint4(trioSet=object,
+				       ranges=ranges[j, ],
+				       states=states,
+				       baf.sds=baf.sds,
+				       mu.logr=mu.logr,
+				       log.pi=log.pi,
+				       tau=tau,
+				       normal.index=normal.index,
+				       a=a,
+				       prGtCorrect=prGtCorrect,
+				       df0=df0,
+				       verbose=verbose)##, F=F, M=M, O=O)
+			  ranges$bayes.factor[j] <- rd$bayes.factor
+			  ranges$argmax[j] <- rd$argmax
+			  ranges$DN[j] <- rd$DN
+		  }
+		  if(verbose) close(pb)
+		  ranges
+	  })
 
 setMethod("todf", signature(object="TrioSet", range="RangedData"),
 	  function(object, range, frame, ...){

@@ -95,7 +95,10 @@ concAtTop <- function(ranges.query, ranges.subject, listSize, state,
 assessConcordance <- function(md332, penn332, listSize=500){
 	ct332 <-  concAtTop(md332, penn332, listSize=listSize, state="332", same.id=FALSE)
 	ct332r <- concAtTop(penn332, md332, listSize=listSize, state="332", same.id=FALSE)
+	## minimum distance | pennCNV
+	trace(concAtTop, browser)
 	ct332.2 <-  concAtTop(md332, penn332, listSize=listSize, state="332")
+	## pennCNV | minimum distance
 	ct332r.2 <- concAtTop(penn332, md332, listSize=listSize, state="332")
 	ct <- list(ct332, ct332r, ct332.2, ct332r.2)
 	return(ct)
@@ -106,7 +109,8 @@ notCalled <- function(ranges.query, ranges.subject, listSize, sample.match=TRUE)
 	ranges.query$rank <- rank(-coverage(ranges.query), ties.method="min")
 	message("Assessing top ", listSize, " query ranges for hit in subject")
 	top.query <- ranges.query[order(ranges.query$rank, decreasing=FALSE)[1:listSize], ]
-	message("Looking at all subject ranges regardless of coverage")
+	##message("Looking at all subject ranges regardless of coverage")
+	##top.subject <- ranges.subject[order(ranges.subject$rank, decreasing=FALSE)[1:listSize], ]
 	##top.subject <- ranges.subject[order(ranges.subject$rank, decreasing=FALSE)[1:listSize], ]
 	overlap <- findOverlaps(top.query, ranges.subject)
 	subj.index <- subjectHits(overlap)
