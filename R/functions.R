@@ -92,6 +92,15 @@ concAtTop <- function(ranges.query, ranges.subject, listSize, state,
 	return(list(p=p, cov=cov))
 }
 
+assessConcordance <- function(md332, penn332, listSize=500){
+	ct332 <-  concAtTop(md332, penn332, listSize=listSize, state="332", same.id=FALSE)
+	ct332r <- concAtTop(penn332, md332, listSize=listSize, state="332", same.id=FALSE)
+	ct332.2 <-  concAtTop(md332, penn332, listSize=listSize, state="332")
+	ct332r.2 <- concAtTop(penn332, md332, listSize=listSize, state="332")
+	ct <- list(ct332, ct332r, ct332.2, ct332r.2)
+	return(ct)
+}
+
 notCalled <- function(ranges.query, ranges.subject, listSize, sample.match=TRUE){
 	ranges.subject$rank <- rank(-coverage(ranges.subject), ties.method="min")
 	ranges.query$rank <- rank(-coverage(ranges.query), ties.method="min")
