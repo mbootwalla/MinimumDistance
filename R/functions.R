@@ -1,4 +1,5 @@
 catFun <- function(rd.query, rd.subject, same.id=TRUE){
+	##browser()
 	stopifnot(nrow(rd.query) == 1)
 	##rd.s <- rd.subject[seq(length=size), ]
 	if(!any(chromosome(rd.query) %in% chromosome(rd.subject))) {
@@ -7,8 +8,10 @@ catFun <- function(rd.query, rd.subject, same.id=TRUE){
 		CHR <- chromosome(rd.query)
 		rd.s <- rd.subject[chromosome(rd.subject) == CHR, ]
 		if(same.id){
-			rd.s <- rd.subject[rd.subject$id == rd.query$id, ]
-			if(nrow(rd.s) == 0) return(0)
+			index <- which(rd.subject$id == rd.query$id)
+			if(length(index) > 0){
+				rd.s <- rd.subject[index, ]
+			} else return(0)
 		}
 		ir.q <- IRanges(start(rd.query),end(rd.query))
 		ir.s <- IRanges(start(rd.s),end(rd.s))
@@ -72,12 +75,16 @@ concAtTop <- function(ranges.query, ranges.subject, listSize, state,
 	top.subject <- ranges.subject[order(ranges.subject$rank, decreasing=FALSE)[1:listSize], ]
 	count <- rep(NA, nrow(top.query))
 	##rankInSubject <- rep(NA, nrow(top.query))
-	if(verbose) message("Calculating the proportion of ranges in common for list sizes 1 to ", listSize)
-	if(verbose) message("\tPrinting ", msg, " for every 100 ranges in query")
+	if(verbose) {
+		message("Calculating the proportion of ranges in common for list sizes 1 to ", listSize)
+		pb <- txtProgressBar(min=0, max=length(count), style=3)
+	}
 	for(i in seq(length=nrow(top.query))){
+		if(verbose) setTxtProgressBar(pb, i)
 		if(i %% 100 == 0) cat(".")
 		count[i] <- catFun(rd.query=top.query[i, ], rd.subject=top.subject[seq(length=i), ], same.id=same.id)
 	}
+	if(verbose) close(pb)
 	I <- count > 0
 	message("returning proportion in common (p) and coverage in query (cov)")
 	p <- sapply(1:nrow(top.query), function(x, I) mean(I[1:x]), I=I)
@@ -446,7 +453,7 @@ pruneByFactor <- function(range.object, f, verbose){
 		##trace(combineRangesByFactor, browser)
 		rd[[i]] <- combineRangesByFactor(range.object[index, ], f=f[index])
 	}
-	close(pb)
+	if(verbose) close(pb)
 	ok <- tryCatch(tmp <- do.call("rbind", rd), error=function(e) FALSE)
 	if(is(ok, "logical")) tmp <- rd
 	return(tmp)

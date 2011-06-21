@@ -476,7 +476,7 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 		ranges$argmax[j] <- rd$argmax
 		ranges$DN[j] <- rd$DN
 	}
-	close(pb)
+	if(verbose) close(pb)
 	ranges
 })
 
@@ -552,7 +552,7 @@ setMethod("prune", signature(object="TrioSet", ranges="RangedDataCNV"),
 						 SCALE.EXP=scale.exp,
 						 MIN.COVERAGE=min.coverage)
 		  }
-		  close(pb)
+		  if(verbose) close(pb)
 		  close(mindist(object))
 		  if(length(rdList) == 1) {
 			  rd <- rdList[[1]]
