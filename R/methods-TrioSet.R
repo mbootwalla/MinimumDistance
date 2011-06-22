@@ -337,15 +337,7 @@ setMethod("xsegment", signature(object="TrioSet"),
 					    data.type="logratio",
 					    sampleid=id)
 			  smu.object <- smooth.CNA(CNA.object)
-			  tmp <- segment(smu.object, verbose=as.integer(verbose), ...)
-			  j=1:10000
-			  CNA.object <- CNA(genomdat=-1*CN[j, , drop=FALSE],
-					    chrom=chrom[j],
-					    maploc=pos[j]/1e6,
-					    data.type="logratio",
-					    sampleid=id)
-			  smu.object <- smooth.CNA(CNA.object)
-			  tmp2 <- segment(smu.object)
+			  tmp <- segment(smu.object)
 			  df <- tmp$output
 			  sr <- tmp$segRows
 			  ##df <- cbind(tmp$output, tmp$segRows)
