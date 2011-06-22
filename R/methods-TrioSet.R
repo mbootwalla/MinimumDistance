@@ -443,7 +443,7 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 		   tau,
 		   normal.index,
 		   a,
-		   prGtCorrect,
+		   prOutlier=c(0.01, 1e-5),
 		   df0,
 		   verbose, ...){
 		  if(missing(tau)) tau <- transitionProbability(states=0:4, epsilon=0.5)
@@ -476,7 +476,7 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 				       tau=tau,
 				       normal.index=normal.index,
 				       a=a,
-				       prGtCorrect=prGtCorrect,
+				       prOutlier=prOutlier,
 				       df0=df0,
 				       verbose=verbose)##, F=F, M=M, O=O)
 			  ranges$bayes.factor[j] <- rd$bayes.factor

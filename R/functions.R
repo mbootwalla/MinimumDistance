@@ -1,27 +1,28 @@
 catFun <- function(rd.query, rd.subject, same.id=TRUE){
 	##browser()
-	stopifnot(nrow(rd.query) == 1)
+	##stopifnot(nrow(rd.query) == 1)
 	##rd.s <- rd.subject[seq(length=size), ]
-	if(!any(chromosome(rd.query) %in% chromosome(rd.subject))) {
-		return(0)
-	} else{
-		CHR <- chromosome(rd.query)
-		rd.s <- rd.subject[chromosome(rd.subject) == CHR, ]
-		if(same.id){
-			index <- which(rd.subject$id == rd.query$id)
-			if(length(index) > 0){
-				rd.s <- rd.subject[index, ]
-			} else return(0)
-		}
-		ir.q <- IRanges(start(rd.query),end(rd.query))
-		ir.s <- IRanges(start(rd.s),end(rd.s))
-		count <- countOverlaps(ir.q, ir.s)
+##	if(!any(chromosome(rd.query) %in% chromosome(rd.subject))) {
+##		return(0)
+##	} else{
+	CHR <- chromosome(rd.query)
+	rd.s <- rd.subject[chromosome(rd.subject) == CHR, ]
+	if(same.id){
+		index <- which(rd.subject$id == rd.query$id)
+		if(length(index) > 0){
+			rd.s <- rd.subject[index, ]
+		} else return(0)
 	}
+	ir.q <- IRanges(start(rd.query),end(rd.query))
+	ir.s <- IRanges(start(rd.s),end(rd.s))
+	count <- countOverlaps(ir.q, ir.s)
 	return(count)
 }
 concAtTop <- function(ranges.query, ranges.subject, listSize, state,
 		      same.id=TRUE,
-		      verbose=TRUE, msg="."){
+		      verbose=TRUE, msg=".", method){
+	stopifnot(!missing(method))
+	stopifnot(length(method)==2)
 	if(!missing(state)){
 		if(verbose) message("Subsetting query and subject ranges by state ", state)
 		ranges.subject <- ranges.subject[state(ranges.subject) == state, ]
@@ -30,50 +31,67 @@ concAtTop <- function(ranges.query, ranges.subject, listSize, state,
 		if(verbose) message("State not specified. Checking concordance for denovo call")
 	}
 	stopifnot(listSize <= nrow(ranges.subject) & listSize <= nrow(ranges.query))
-	if(!same.id){
-		## identify the biggest hits in a region.  Carry only
-		## the biggest hit forward.
-		## -- can do this by matching to itself
-		message("Matching by locus...")
-		message("\tIdentifying unique query regions ")
-		nn <- coverage(ranges.query)
-		ranges.by.size <- ranges.query[order(nn, decreasing=TRUE), ]
-		##r1 <- ranges.by.size
-		NR <- nrow(ranges.by.size)
-		i <- 1
-		while(i < NR){
-			overlaps <- findOverlaps(ranges.by.size[i, ], ranges.by.size)
-			subj.index <- subjectHits(overlaps)[-1]
-			##make sure the chromosome is the same
-			subj.index <- subj.index[chromosome(ranges.by.size[i, ]) == chromosome(ranges.by.size)[subj.index]]
-			if(length(subj.index) > 0)
-				ranges.by.size <- ranges.by.size[-subj.index, ]
-			NR <- nrow(ranges.by.size)
-			i <- i+1
-		}
-		ranges.query <- ranges.by.size
-		message("\tIdentifying unique subject regions ")
-		nn <- coverage(ranges.subject)
-		ranges.by.size <- ranges.subject[order(nn, decreasing=TRUE), ]
-		NR <- nrow(ranges.by.size)
-		i <- 1
-		while(i < NR){
-			overlaps <- findOverlaps(ranges.by.size[i, ], ranges.by.size)
-			subj.index <- subjectHits(overlaps)[-1]
-			if(length(subj.index) > 0)
-				ranges.by.size <- ranges.by.size[-subj.index, ]
-			NR <- nrow(ranges.by.size)
-			i <- i+1
-		}
-		ranges.subject <- ranges.by.size
-	}
+##	if(!same.id){
+##		## identify the biggest hits in a region.  Carry only
+##		## the biggest hit forward.
+##		## -- can do this by matching to itself
+##		message("Matching by locus...")
+##		message("\tIdentifying unique query regions ")
+##		nn <- coverage(ranges.query)
+##		ranges.by.size <- ranges.query[order(nn, decreasing=TRUE), ]
+##		##r1 <- ranges.by.size
+##		NR <- nrow(ranges.by.size)
+##		i <- 1
+##		while(i < NR){
+##			overlaps <- findOverlaps(ranges.by.size[i, ], ranges.by.size)
+##			subj.index <- subjectHits(overlaps)[-1]
+##			##make sure the chromosome is the same
+##			subj.index <- subj.index[chromosome(ranges.by.size[i, ]) == chromosome(ranges.by.size)[subj.index]]
+##			if(length(subj.index) > 0)
+##				ranges.by.size <- ranges.by.size[-subj.index, ]
+##			NR <- nrow(ranges.by.size)
+##			i <- i+1
+##		}
+##		ranges.query <- ranges.by.size
+##		message("\tIdentifying unique subject regions ")
+##		nn <- coverage(ranges.subject)
+##		ranges.by.size <- ranges.subject[order(nn, decreasing=TRUE), ]
+##		NR <- nrow(ranges.by.size)
+##		i <- 1
+##		while(i < NR){
+##			overlaps <- findOverlaps(ranges.by.size[i, ], ranges.by.size)
+##			subj.index <- subjectHits(overlaps)[-1]
+##			if(length(subj.index) > 0)
+##				ranges.by.size <- ranges.by.size[-subj.index, ]
+##			NR <- nrow(ranges.by.size)
+##			i <- i+1
+##		}
+##		ranges.subject <- ranges.by.size
+##	}
 	if(verbose) message("Ranking query and subject ranges by coverage")
 	ranges.subject$rank <- rank(-coverage(ranges.subject), ties.method="min")
 	ranges.query$rank <- rank(-coverage(ranges.query), ties.method="min")
 	listSize <- min(listSize, min(nrow(ranges.query), nrow(ranges.subject)))
 	top.query <- ranges.query[order(ranges.query$rank, decreasing=FALSE)[1:listSize], ]
+
+	countAny <- rep(NA, listSize)
+	##rankInSubject <- rep(NA, nrow(top.query))
+	if(verbose) {
+		message("Calculating the proportion of ranges in common for list sizes 1 to ", listSize)
+		pb <- txtProgressBar(min=0, max=length(countAny), style=3)
+	}
+	for(i in seq(length=nrow(top.query))){
+		if(verbose) setTxtProgressBar(pb, i)
+		if(i %% 100 == 0) cat(".")
+		countAny[i] <- catFun(rd.query=top.query[i, ], rd.subject=ranges.subject, same.id=same.id)
+	}
+	Iany <- countAny > 0
+	message("returning proportion in common (p) and coverage in query (cov)")
+	pAny <- sapply(1:nrow(top.query), function(x, I) mean(I[1:x]), I=Iany)
+
 	top.subject <- ranges.subject[order(ranges.subject$rank, decreasing=FALSE)[1:listSize], ]
 	count <- rep(NA, nrow(top.query))
+	count2 <- rep(NA, nrow(top.query))
 	##rankInSubject <- rep(NA, nrow(top.query))
 	if(verbose) {
 		message("Calculating the proportion of ranges in common for list sizes 1 to ", listSize)
@@ -82,33 +100,64 @@ concAtTop <- function(ranges.query, ranges.subject, listSize, state,
 	for(i in seq(length=nrow(top.query))){
 		if(verbose) setTxtProgressBar(pb, i)
 		if(i %% 100 == 0) cat(".")
-		count[i] <- catFun(rd.query=top.query[i, ], rd.subject=top.subject[seq(length=i), ], same.id=same.id)
+		count[i] <- catFun(rd.query=top.query[seq(length=i), ], rd.subject=top.subject[seq(length=i), ], same.id=same.id)
+		count2[i] <- catFun(rd.query=top.subject[seq(length=i), ], rd.subject=top.query[seq(length=i), ], same.id=same.id)
+		if(count[i] != count2[i]) browser()
+	}
+	## which ranges in query were not found in subject
+	ir1 <- IRanges(start(top.query), end(top.query))
+	chr1 <- chromosome(top.query)
+	id1 <- sampleNames(top.query)
+	ir2 <- IRanges(start(top.subject), end(top.subject))
+	chr2 <- chromosome(top.subject)
+	id2 <- sampleNames(top.subject)
+	mm <- findOverlaps(ir1, ir2)
+	##index <- which(chr1==chr2 & id1 == id2)
+	query.hits <- queryHits(mm)
+	subject.hits <- subjectHits(mm)
+	index <- which(chr1[query.hits] == chr2[subject.hits] & id1[query.hits] == id2[subject.hits])
+	query.hits <- query.hits[index]
+	subject.hits=subject.hits[index]
+	## ranges in both
+	top.query$method <- method[1]
+	top.subject$method <- method[2]
+	if(length(query.hits) > 1){
+		concordant=list(query=top.query[query.hits,],
+		subject=top.subject[subject.hits,])
+	}
+	index2 <- seq(length=nrow(top.query))[-query.hits]
+	if(length(index2) > 1){
+		discordant=list(queryNotInSubject=top.query[index2, ],
+		subjectNotInQuery=top.subject[index2, ])
 	}
 	if(verbose) close(pb)
 	I <- count > 0
 	message("returning proportion in common (p) and coverage in query (cov)")
 	p <- sapply(1:nrow(top.query), function(x, I) mean(I[1:x]), I=I)
 	cov <- coverage(top.query)
-	return(list(p=p, cov=cov))
+	return(list(pAny=pAny,
+		    p=p, cov=cov,
+		    concordant=concordant,
+		    discordant=discordant))
 }
 
 assessConcordance <- function(md332, penn332, listSize=500){
 	ct332 <-  concAtTop(md332, penn332, listSize=listSize, state="332", same.id=FALSE)
-	ct332r <- concAtTop(penn332, md332, listSize=listSize, state="332", same.id=FALSE)
 	## minimum distance | pennCNV
-	trace(concAtTop, browser)
+	ct332r <- concAtTop(penn332, md332, listSize=listSize, state="332", same.id=FALSE)
 	ct332.2 <-  concAtTop(md332, penn332, listSize=listSize, state="332")
-	## pennCNV | minimum distance
 	ct332r.2 <- concAtTop(penn332, md332, listSize=listSize, state="332")
 	ct <- list(ct332, ct332r, ct332.2, ct332r.2)
 	return(ct)
 }
 
 notCalled <- function(ranges.query, ranges.subject, listSize, sample.match=TRUE){
+	message("Returning ranges in query that do not overlap with top ranges in subject")
 	ranges.subject$rank <- rank(-coverage(ranges.subject), ties.method="min")
 	ranges.query$rank <- rank(-coverage(ranges.query), ties.method="min")
 	message("Assessing top ", listSize, " query ranges for hit in subject")
 	top.query <- ranges.query[order(ranges.query$rank, decreasing=FALSE)[1:listSize], ]
+	ranges.subject <- ranges.subject[order(ranges.subject$rank,decreasing=FALSE)[1:listSize], ]
 	##message("Looking at all subject ranges regardless of coverage")
 	##top.subject <- ranges.subject[order(ranges.subject$rank, decreasing=FALSE)[1:listSize], ]
 	##top.subject <- ranges.subject[order(ranges.subject$rank, decreasing=FALSE)[1:listSize], ]
@@ -830,10 +879,13 @@ computeLoglik <- function(id,
 			  mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
 			  states=0:4,
 			  baf.sds=c(0.02, 0.03, 0.02),
-			  prGtCorrect=0.999, ##prob genotype is correct
+			  ##prGtCorrect=0.999, ##prob genotype is correct
+			  prOutlier.logR=0.01,
+			  prOutlier.baf=1e-5,
 			  df0=10){
 	CHR <- chromosome(trioSet)[1]
-	p1 <- prGtCorrect; rm(prGtCorrect)
+	##p1 <- prGtCorrect; rm(prGtCorrect)
+	p1 <- 1-prOutlier.logR
 	## one obvious thing that p1 could depend on is the
 	## minor allele frequency.  If rare, p1 is smaller
 	stopifnot(all(!is.na(match(id, s(fullId(trioSet))))))
@@ -867,6 +919,7 @@ computeLoglik <- function(id,
 ##	df <- cbind(round(tmp[index,3, ], 3),
 ##			 lr=logR(object)[index, 3])
 ##	loglik(object)["logR", index, 3, ]
+	p1 <- 1-prOutlier.baf
 	sd0 <- baf.sds[1]
 	sd.5 <- baf.sds[2]
 	sd1 <- baf.sds[3]
@@ -877,7 +930,8 @@ computeLoglik <- function(id,
 	##   pi ~ binomial(C(z), allele freq)
 	##   and integrates out the number of copies of the B allele.
 	##
-	##   Below, I,ve just used a mixture model.  I have not integrated out the	#      copy number of the B allele, nor do I make use of MAF estimates.
+	##   Below, I,ve just used a mixture model.  I have not integrated out the
+	##      copy number of the B allele, nor do I make use of MAF estimates.
 	loglik(object)["baf", , , 1] <-  1
 	loglik(object)["baf", , , 2] <- p1*((1/2*tnorm(bf, 0, sd0) + 1/2*tnorm(bf, 1, sd1))) + (1-p1)  ## * dunif(bf, 0, 1) = 1
 	loglik(object)["baf", , , 3] <- p1*((1/3*tnorm(bf, 0, sd0) + 1/3*tnorm(bf, 0.5, sd.5) + 1/3*tnorm(bf, 1, sd1)))+ (1-p1)
@@ -1081,7 +1135,7 @@ joint4 <- function(trioSet,
 		    normal.index,
 		    a=0.0009,
 		    verbose=TRUE,
-		    prGtCorrect=0.999,
+		    prOutlier=c(0.01, 1e-5),
 		   df0=10){
 	stopifnot(states == 0:4)
 	stopifnot(length(unique(ranges$chrom)) == 1)
@@ -1098,7 +1152,8 @@ joint4 <- function(trioSet,
 				mu.logr=mu.logr,
 				states=states,
 				baf.sds=baf.sds,
-				prGtCorrect=prGtCorrect,
+				prOutlier.logR=prOutlier[1],
+				prOutlier.baf=prOutlier[2],
 				df0=df0)
 	start.stop <- cbind(ranges$start.index, ranges$end.index)
 	l <- apply(start.stop, 1, function(x) length(x[1]:x[2]))
@@ -1118,7 +1173,10 @@ joint4 <- function(trioSet,
 	table1 <- readTable1(a=a)
 	table3 <- readTable3(a=a)
 	weightR <- 1/3
+	##feature.index=which(baf(obj)[, 3] > 0.1 & baf(obj)[, 3] < 0.9)
+	##LLB[feature.index, 3, ]
 	for(i in seq(length=nrow(ranges))){
+		##if(i==4) browser()
 		obj <- object[range.index(object) == i, ]
 		LLR <- loglik(obj)["logR", , ,  ]
 		LLB <- loglik(obj)["baf", , , ]
@@ -1165,7 +1223,7 @@ joint4 <- function(trioSet,
 			bf <- tmp[argmax1, 1]
 		}
 		ranges$bayes.factor[i] <- bf
-		ranges$DN[i] <- is.denovo
+		##ranges$DN[i] <- is.denovo
 		ranges$argmax[i] <- argmax
 		denovo.prev <- is.denovo
 		state.prev <- trio.states[argmax, ]
@@ -1641,7 +1699,7 @@ minimumDistanceCalls <- function(id, container, chromosomes=1:22,
 				 segment.md,
 				 calculate.lr=TRUE,
 				 cbs.filename,
-				 prGtCorrect=0.999, ..., verbose=TRUE){
+				 prOutlier=c(0.01, 1e-5), ..., verbose=TRUE){
 	##---------------------------------------------------------------------------
 	##
 	## Segment the minimum distance
@@ -1707,7 +1765,7 @@ minimumDistanceCalls <- function(id, container, chromosomes=1:22,
 		prunedRanges <- computeBayesFactor(object=container[chromosomes],
 						   ranges=prunedRanges,
 						   tau=tau, log.pi=log.pi,
-						   prGtCorrect=prGtCorrect)
+						   prOutlier=prOutlier)
 		## do a second round of pruning for adjacent segments
 		## that have the same state
 		message("Pruning ranges")
@@ -1966,6 +2024,62 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 	TRUE
 }
 
+gridlayout2 <- function(xyList, otherCall, ranges){
+	f1 <- xyList[[1]]
+	f2 <- xyList[[2]]
+	for(i in seq_along(f1)){
+		gridlayout(lattice.object=list(f1[[i]], f2[[i]]),
+			   rd=ranges[i, ],
+			   col="orange", cex=0.5,
+			   cex.pch=0.1, fill="transparent", lty="solid", lwd=1)
+		if(!missing(otherCall)){
+		pr <- otherCall[otherCall$id == ranges$id[i], ]
+		if(nrow(pr) == 0){
+			stopifnot(otherCall$method[1]=="PennCNV")
+			upViewport(0)
+			grid.text("PennCNV call: 333",
+				  x=unit(0.6, "npc"),
+				  y=unit(0.01, "npc"),
+				  gp=gpar(col="grey30", cex=0.5))
+			next()
+		}
+		pc <- paste(state(pr), collapse="-")
+		upViewport(0)
+		method <- unique(otherCall$method)
+		grid.text(paste(method, "call:", pc),
+			  x=unit(0.6, "npc"),
+			  y=unit(0.01, "npc"),
+			  gp=gpar(col="grey30", cex=0.5))
+		pr <- pr[state(pr) != "333", ]
+		if(nrow(pr)==0) next()
+		L <- length(f2[[i]]$panel.args)
+		upViewport(0)
+		seekViewport("plot2.panel.1.1.off.vp")
+		grid.segments(x0=unit(start(pr)/1e6, "native"),
+			      y0=unit(-0.1, "npc"),
+			      x1=unit(start(pr)/1e6, "native"),
+			      y1=unit(0.05, "npc"),
+			      gp=gpar(col="blue", lwd=2))
+		grid.segments(x0=unit(end(pr)/1e6, "native"),
+			      y0=unit(-0.1, "npc"),
+			      x1=unit(end(pr)/1e6, "native"),
+			      y1=unit(0.05, "npc"),
+			      gp=gpar(col="blue", lwd=2))
+		seekViewport("plot1.panel.1.1.off.vp")
+		grid.segments(x0=unit(start(pr)/1e6, "native"),
+			      y0=unit(-0.1, "npc"),
+			      x1=unit(start(pr)/1e6, "native"),
+			      y1=unit(0.05, "npc"),
+			      gp=gpar(col="blue", lwd=2))
+		grid.segments(x0=unit(end(pr)/1e6, "native"),
+			      y0=unit(-0.1, "npc"),
+			      x1=unit(end(pr)/1e6, "native"),
+			      y1=unit(0.05, "npc"),
+			      gp=gpar(col="blue", lwd=2))
+	}
+	}
+}
+
 myfilter <- function(x, filter, ...){
 	res <- filter(x, filter,...)
 	##now fill out the NAs
@@ -1982,4 +2096,48 @@ myfilter <- function(x, filter, ...){
 		res[ii] <- sum(w*y)/sum(w)
 	}
 	return(res)
+}
+
+minimumDistancePlot <- function(trioSets, ranges, md.segs, frame=2e6){
+	r1 <- ranges
+	f1 <- f2 <- list()
+	for(i in 1:nrow(r1)){
+		panelLabels <- c("father", "mother", "offspring", "min dist")
+		f1[[i]] <- xyplot(r ~ x | id, trioSets, ##range=penn.offspring[index, ],
+				  panel=xypanel,
+				  range=r1[i, ],
+				  panelLabels=panelLabels,
+				  layout=c(1,length(panelLabels)),
+				  index.cond=list(rev(seq_along(panelLabels))),
+				  frame=frame,
+				  md.segs=md.segs,
+				  ylim=c(-2.5, 1),
+				  par.settings=list(plot.symbol=list(pch=21, cex=0.2, col="grey50"),
+				  par.xlab.text=list(cex=0.8),
+				  par.ylab.text=list(cex=0.8)),
+				  xlab="",
+				  ylab="log R ratio",
+				  scales=list(x=list(tick.number=10, cex=0.5, tck=c(1,0), axs="i"),
+				  alternating=rep(1,3),
+				  y=list(cex=0.5)),
+				  par.strip.text=list(lines=0.8, cex=0.7))
+		f1[[i]]$panel.args <- MinimumDistance:::thresholdY(f1[[i]])
+		##print(f1a)
+		panelLabels <- c("father", "mother", "offspring")
+		f2[[i]] <- xyplot(b ~ x | id, trioSets, range=r1[i, ],
+				  panelLabels=panelLabels, frame=frame,
+				  scales=list(x=list(cex=0.5, tick.number=10,
+					      tck=c(1,0), alternating=1),
+				  y=list(cex=0.5, tck=c(0,1),
+				  alternating=c(2,2,2))),
+				  ##alternating=c(0,0,2,2,2))),
+				  layout=c(1,length(panelLabels)), index.cond=list(length(panelLabels):1), pch=21,
+				  par.settings=list(plot.symbol=list(pch=21, cex=0.2, col="grey50"),
+				  par.xlab.text=list(cex=0.8),
+				  par.ylab.text=list(cex=0.8)),
+				  par.strip.text=list(lines=0.8, cex=0.7),
+				  xlim=f1[[i]]$x.limit,
+				  xlab="", ylab="B Allele frequency")
+	}
+	return(list(f1, f2))
 }
