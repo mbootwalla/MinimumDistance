@@ -39,7 +39,8 @@ setGeneric("computeBayesFactor", function(object,
 					  tau,
 					  normal.index=61,
 					  a=0.0009,
-					  prGtCorrect=0.999,
+					  prOutlier=c(0.01, 1e-5),
+					  prMosaic=0.01,
 					  df0=10,
 					  verbose=TRUE, ...)
 	   standardGeneric("computeBayesFactor"))

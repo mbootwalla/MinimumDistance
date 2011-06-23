@@ -32,7 +32,7 @@ setMethod("motherNames", signature(object="TrioSetList"), function(object) mothe
 setMethod("computeBayesFactor", signature(object="TrioSetList"),
 	  function(object, ranges, id, states, baf.sds, mu.logr,
 		   log.pi, tau, normal.index, a,
-		   prOutlier, df0, verbose, ...){
+		   prOutlier=c(0.01, 1e-5), prMosaic=0.01, df0, verbose, ...){
 		  if(missing(id)) id <- unique(ranges$id) else stopifnot(id %in% unique(ranges$id))
 		  chromosomes <- sapply(object, function(x) unique(chromosome(x)))
 		  ranges <- ranges[chromosome(ranges) %in% chromosomes, ]
@@ -65,6 +65,7 @@ setMethod("computeBayesFactor", signature(object="TrioSetList"),
 						   normal.index=normal.index,
 						   a=a,
 						   prOutlier=prOutlier,
+						   prMosaic=prMosaic,
 						   df0=df0,
 						   verbose=verbose, ...)
 			  ranges$lik.state[j] <- rd$lik.state

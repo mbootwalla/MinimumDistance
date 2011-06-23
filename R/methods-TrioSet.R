@@ -322,7 +322,8 @@ setMethod("xsegment", signature(object="TrioSet"),
 		  CN <- mindist(object)[marker.index, sample.index, drop=FALSE]
 		  CN <- matrix(as.numeric(CN), nrow(CN), ncol(CN))
 		  dimnames(CN) <- list(featureNames(object)[marker.index], sampleNames(object)[sample.index])
-		  arm <- getChromosomeArm(chrom, pos)
+		  arm <- splitByDistance(pos, thr=75e3)
+		  ##arm <- getChromosomeArm(chrom, pos)
 		  index.list <- split(seq_along(marker.index), arm)
 		  iMax <- sapply(split(marker.index, arm), max)
 		  pMax <- pos[iMax]
@@ -436,6 +437,7 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 		   normal.index,
 		   a,
 		   prOutlier=c(0.01, 1e-5),
+		   prMosaic=0.01,
 		   df0,
 		   verbose, ...){
 		  if(missing(tau)) tau <- transitionProbability(states=0:4, epsilon=0.5)
@@ -469,6 +471,7 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 				       normal.index=normal.index,
 				       a=a,
 				       prOutlier=prOutlier,
+				       prMosaic=prMosaic,
 				       df0=df0,
 				       verbose=verbose)##, F=F, M=M, O=O)
 			  ranges$lik.state[j] <- rd$lik.state

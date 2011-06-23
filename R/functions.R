@@ -240,58 +240,30 @@ notCalled <- function(ranges.query, ranges.subject, listSize, sample.match=TRUE)
 	return(top.query[absent.index, ])
 }
 
-correspondingCall <- function(ranges.query, ranges.subject, query.method){
+correspondingCall <- function(ranges.query, ranges.subject, subject.method){
 	overlap <- findOverlaps(ranges.query, ranges.subject)
 	subj.index <- subjectHits(overlap)
 	quer.index <- queryHits(overlap)
 	## what are the chromosomes for the subject hits
-	chrom.subj <- ranges.subject$chrom[subj.index]
-	chrom.quer <- ranges.query$chrom[quer.index]
-	id.subj <- ranges.subject$id[subj.index]
-	id.quer <- ranges.query$id[quer.index]
-	##	## eliminate those for which the chromosome is not the same
-	ii <- which(chrom.subj == chrom.quer & id.subj==id.quer)
-	subj.index <- subj.index[ii]
-	## index of ranges in query that have a match
-	res <- ranges.subject[subj.index, ]
-	if(!missing(query.method)) res$method <- query.method
+	index <- which(chromosome(ranges.query)[quer.index] == chromosome(ranges.subject)[subj.index] &
+		       sampleNames(ranges.query)[quer.index] == sampleNames(ranges.subject)[subj.index])
+	matching.index <- subj.index[index]
+	res <- ranges.subject[matching.index, ]
+##	chrom.subj <- ranges.subject$chrom[subj.index]
+##	chrom.quer <- ranges.query$chrom[quer.index]
+##	id.subj <- ranges.subject$id[subj.index]
+##	id.quer <- ranges.query$id[quer.index]
+##	##	## eliminate those for which the chromosome is not the same
+##	ii <- which(chrom.subj == chrom.quer & id.subj==id.quer)
+##	subj.index <- subj.index[ii]
+##	## index of ranges in query that have a match
+##	res <- ranges.subject[subj.index, ]
+	if(!missing(subject.method)) res$method <- subject.method
 	return(res)
 }
 
 
-##pedfile="~/Projects/Beaty/inst/extdata/may_peds.csv"
-readPedfile <- function(fnames, pedfile){
-	stopifnot(file.exists(pedfile))
-	message("Reading ", pedfile)
-	mayped <- read.csv(pedfile, sep=";", as.is=TRUE)
-	is.father <- which(mayped$father != "0")
-	is.mother <- which(mayped$mother != "0")
-	## a complete trio would be the length of is.father and is.mother
-	stopifnot(all.equal(is.father, is.mother))
-	i <- is.father
-	trio.matrix <- cbind(mayped$father[i],
-			     mayped$mother[i],
-			     mayped$cidr_name[i])
-	colnames(trio.matrix) <- c("F", "M", "O")
-	rownames(trio.matrix) <- ss(trio.matrix[,1])
-	index <- which(trio.matrix[, "F"] %in% fnames & trio.matrix[, "M"] %in% fnames & trio.matrix[, "O"] %in% fnames)
-	trios <- trio.matrix[index, ]
-	message("Duplicate rownames exist")
-	rns <- rownames(trios)
-	##
-	##
-	dup.index <- which(duplicated(rownames(trios)))
-	message("\tAppending _sib2 postfix to duplicate rownames")
-	rownames(trios)[dup.index] <- paste(rns[dup.index], "_sib2", sep="")
-	dup.index <- which(duplicated(rownames(trios)))
-	message("\tAppending _sib3 postfix to duplicate rownames")
-	rownames(trios)[dup.index] <- paste(rns[dup.index], "_sib3", sep="")
-	dup.index <- which(duplicated(rownames(trios)))
-	message("\tAppending _sib4 postfix to duplicate rownames")
-	rownames(trios)[dup.index] <- paste(rns[dup.index], "_sib4", sep="")
-	stopifnot(!any(duplicated(rownames(trios))))
-	return(trios)
-}
+
 
 
 
@@ -940,7 +912,7 @@ computeLoglik <- function(id,
 			  prOutlier.logR=0.01,
 			  prOutlier.baf=1e-5,
 			  prMosaic=0.01,
-			  df0=10){
+			  df0=50){
 	CHR <- chromosome(trioSet)[1]
 	##p1 <- prGtCorrect; rm(prGtCorrect)
 	p1 <- 1-prOutlier.logR
@@ -959,11 +931,12 @@ computeLoglik <- function(id,
 	##   - at CNV the marker estimates will be much too high
 	##   - could be too small for markers that don't really work
 	df1 <- nrow(phenoData(trioSet))/3
-	df2 <- length(sds.marker)-1
+	df2 <- min(length(sds.marker)-1, 10e3)
 	sds.marker <- (df1*sds.marker + df2*median(sds.marker,na.rm=TRUE))/(df1+df2)
 	sds.marker <- matrix(sds.marker, nrow(object), 3, byrow=FALSE)
 	##2. shrink to the sample-level variance
-	sds <- (sds.marker * df1 + df0*sds.sample)/(df0 + df1)
+	## -- how much do we want to shrink towards a sample-level estimate of noise?
+	sds <- (sds.marker * df1 + (df1*4)*sds.sample)/(df1 + df1*4)
 	lR <- logR(object)
 	## the uniform needs to cover the support
 	CN.MAX=10
@@ -1191,17 +1164,18 @@ joint1 <- function(LLT, ##object,
 
 joint4 <- function(trioSet,
 		   ranges, ## all the ranges from one subject , one chromosome
-		    states,
-		    baf.sds,
-		    THR=-50,
-		    mu.logr=c(-2,-0.5, 0, 0.3, 0.75),
-		    log.pi,
-		    tau,
-		    normal.index,
-		    a=0.0009,
-		    verbose=TRUE,
-		    prOutlier=c(0.01, 1e-5),
-		   df0=10){
+		   states,
+		   baf.sds,
+		   THR=-50,
+		   mu.logr=c(-2,-0.5, 0, 0.3, 0.75),
+		   log.pi,
+		   tau,
+		   normal.index,
+		   a=0.0009,
+		   verbose=TRUE,
+		   prOutlier=c(0.01, 1e-5),
+		   prMosaic=0.01,
+		   df0=50){ ## ignored
 	stopifnot(states == 0:4)
 	stopifnot(length(unique(ranges$chrom)) == 1)
 	##family.id <- unique(ss(ranges$id))
@@ -1219,6 +1193,7 @@ joint4 <- function(trioSet,
 				baf.sds=baf.sds,
 				prOutlier.logR=prOutlier[1],
 				prOutlier.baf=prOutlier[2],
+				prMosaic=prMosaic,
 				df0=df0)
 	start.stop <- cbind(ranges$start.index, ranges$end.index)
 	l <- apply(start.stop, 1, function(x) length(x[1]:x[2]))
@@ -1250,6 +1225,8 @@ joint4 <- function(trioSet,
 		LL <- weightR * LLR + (1-weightR)*LLB
 		LLT <- matrix(NA, 3, 5)
 		for(j in 1:3) LLT[j, ] <- apply(LL[, j, ], 2, sum, na.rm=TRUE)
+		rownames(LLT) <- c("F", "M", "O")
+		colnames(LLT) <- paste("CN_", states, sep="")
 		for(j in 1:nrow(trio.states)){
 			for(DN in c(FALSE, TRUE)){
 				tmp[j, DN+1] <- joint1(##object=obj,
@@ -1696,7 +1673,7 @@ minimumDistance <- function(path, samplesheet, pedigree,
 			    verbose=TRUE){#samplesheet, ...){
 	stopifnot(nrow(pedigree) > 1) ## need to fix initialization of trioSet object otherwise
 	## the rownames of the samplesheet correspond to the name of the parsed beadstudio data
-	stopifnot(all(file.exists(file.path(path, paste(rownames(samplesheet), ".txt", sep="")))))
+	stopifnot(all(file.exists(file.path(path, paste(rownames(samplesheet), file.ext, sep="")))))
 	if(!file.exists(container.filename)){
 	##---------------------------------------------------------------------------
 	##
@@ -1767,11 +1744,15 @@ minimumDistance <- function(path, samplesheet, pedigree,
 	return(container)
 }
 
-minimumDistanceCalls <- function(id, container, chromosomes=1:22,
+minimumDistanceCalls <- function(id, container,
+				 chromosomes=1:22,
 				 segment.md,
 				 calculate.lr=TRUE,
 				 cbs.filename,
-				 prOutlier=c(0.01, 1e-5), ..., verbose=TRUE){
+				 prOutlier=c(0.01, 1e-6),
+				 prMosaic=0.01,
+				 mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
+				 ..., verbose=TRUE){
 	##---------------------------------------------------------------------------
 	##
 	## Segment the minimum distance
@@ -1836,8 +1817,11 @@ minimumDistanceCalls <- function(id, container, chromosomes=1:22,
 		message("Computing bayes factors")
 		prunedRanges <- computeBayesFactor(object=container[chromosomes],
 						   ranges=prunedRanges,
-						   tau=tau, log.pi=log.pi,
-						   prOutlier=prOutlier)
+						   tau=tau,
+						   log.pi=log.pi,
+						   prOutlier=prOutlier,
+						   prMosaic=prMosaic,
+						   mu.logr=mu.logr)
 		## do a second round of pruning for adjacent segments
 		## that have the same state
 		message("Pruning ranges")
@@ -2099,6 +2083,12 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 gridlayout2 <- function(xyList, otherCall, ranges){
 	f1 <- xyList[[1]]
 	f2 <- xyList[[2]]
+	nms <- names(f1)
+	nms2 <- paste(sampleNames(ranges), start(ranges), sep="_")
+	ix <- match(nms, nms2)
+	stopifnot(length(ix) > 0)
+	stopifnot(all(nms2[ix] == nms))
+	ranges <- ranges[ix, ]
 	for(i in seq_along(f1)){
 		gridlayout(lattice.object=list(f1[[i]], f2[[i]]),
 			   rd=ranges[i, ],
@@ -2150,6 +2140,25 @@ gridlayout2 <- function(xyList, otherCall, ranges){
 			      gp=gpar(col="blue", lwd=2))
 	}
 	}
+}
+
+splitByDistance <- function(x, thr=90e3){
+	##factorList <- list()
+	##for(i in 1:22){
+        ##		x <- position(trioSets[[i]])
+	f <- c(0, cumsum(diff(x) > thr))
+	tab.f <- table(f)
+	while(any(tab.f < 1000)){
+		j <- which(tab.f < 1000)[[1]]
+		factor.val <- as.integer(names(tab.f)[j])
+		if(factor.val < max(f)){
+			f[f==factor.val] <- factor.val+1
+		} else {
+			f[f==factor.val] <- factor.val-1
+		}
+		tab.f <- table(f)
+	}
+	return(f)
 }
 
 myfilter <- function(x, filter, ...){
@@ -2211,5 +2220,6 @@ minimumDistancePlot <- function(trioSets, ranges, md.segs, frame=2e6){
 				  xlim=f1[[i]]$x.limit,
 				  xlab="", ylab="B Allele frequency")
 	}
+	names(f1) <- names(f2) <- paste(sampleNames(ranges), start(ranges), sep="_")
 	return(list(f1, f2))
 }
