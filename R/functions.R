@@ -1,155 +1,211 @@
-catFun <- function(rd.query, rd.subject, same.id=TRUE){
-	##browser()
-	##stopifnot(nrow(rd.query) == 1)
-	##rd.s <- rd.subject[seq(length=size), ]
-##	if(!any(chromosome(rd.query) %in% chromosome(rd.subject))) {
-##		return(0)
-##	} else{
-	CHR <- chromosome(rd.query)
-	rd.s <- rd.subject[chromosome(rd.subject) == CHR, ]
-	if(same.id){
-		index <- which(rd.subject$id == rd.query$id)
-		if(length(index) > 0){
-			rd.s <- rd.subject[index, ]
-		} else return(0)
+##catFun <- function(rd.query, rd.subject, same.id=TRUE){
+##	##browser()
+##	##stopifnot(nrow(rd.query) == 1)
+##	##rd.s <- rd.subject[seq(length=size), ]
+####	if(!any(chromosome(rd.query) %in% chromosome(rd.subject))) {
+####		return(0)
+####	} else{
+##	CHR <- chromosome(rd.query)
+##	index <- which(chromosome(rd.query) == chromosome(rd.subject) & sampleNames(rd.query)==sampleNames(rd.subject)
+##	rd.s <- rd.subject[chromosome(rd.subject) == CHR, ]
+##
+##
+####	if(same.id){
+##	index <- which(rd.subject$id == rd.query$id)
+##	if(length(index) > 0){
+##		rd.s <- rd.subject[index, ]
+##	} ##else return(0)
+####}
+##	ir.q <- IRanges(start(rd.query),end(rd.query))
+##	ir.s <- IRanges(start(rd.s),end(rd.s))
+##	count <- countOverlaps(ir.q, ir.s)
+##	return(count)
+##}
+catFun2 <- function(rd.query, rd.subject){
+	##stopifnot(nrow(rd.query) == nrow(rd.subject)) ## must compare same list size
+	ir.q <- IRanges(start(rd.query), end(rd.query))
+	ir.s <- IRanges(start(rd.subject), end(rd.subject))
+	mm <- findOverlaps(ir.q, ir.s)
+	query.index <- queryHits(mm)
+	subject.index <- subjectHits(mm)
+	index <- which(chromosome(rd.query)[query.index] == chromosome(rd.subject)[subject.index] &
+			sampleNames(rd.query)[query.index] == sampleNames(rd.subject)[subject.index])
+	if(length(index) > 0){
+		query.index <- unique(query.index[index])
+		p <- length(query.index)/nrow(rd.query)
+		if(p > 1) browser()
+	} else {
+		p <- 0
 	}
-	ir.q <- IRanges(start(rd.query),end(rd.query))
-	ir.s <- IRanges(start(rd.s),end(rd.s))
-	count <- countOverlaps(ir.q, ir.s)
-	return(count)
+	return(p)
 }
-concAtTop <- function(ranges.query, ranges.subject, listSize, state,
-		      same.id=TRUE,
-		      verbose=TRUE, msg=".", method){
-	stopifnot(!missing(method))
-	stopifnot(length(method)==2)
-	if(!missing(state)){
-		if(verbose) message("Subsetting query and subject ranges by state ", state)
-		ranges.subject <- ranges.subject[state(ranges.subject) == state, ]
-		ranges.query <- ranges.query[state(ranges.query) == state, ]
-	} else{
-		if(verbose) message("State not specified. Checking concordance for denovo call")
-	}
-	stopifnot(listSize <= nrow(ranges.subject) & listSize <= nrow(ranges.query))
-##	if(!same.id){
-##		## identify the biggest hits in a region.  Carry only
-##		## the biggest hit forward.
-##		## -- can do this by matching to itself
-##		message("Matching by locus...")
-##		message("\tIdentifying unique query regions ")
-##		nn <- coverage(ranges.query)
-##		ranges.by.size <- ranges.query[order(nn, decreasing=TRUE), ]
-##		##r1 <- ranges.by.size
-##		NR <- nrow(ranges.by.size)
-##		i <- 1
-##		while(i < NR){
-##			overlaps <- findOverlaps(ranges.by.size[i, ], ranges.by.size)
-##			subj.index <- subjectHits(overlaps)[-1]
-##			##make sure the chromosome is the same
-##			subj.index <- subj.index[chromosome(ranges.by.size[i, ]) == chromosome(ranges.by.size)[subj.index]]
-##			if(length(subj.index) > 0)
-##				ranges.by.size <- ranges.by.size[-subj.index, ]
-##			NR <- nrow(ranges.by.size)
-##			i <- i+1
-##		}
-##		ranges.query <- ranges.by.size
-##		message("\tIdentifying unique subject regions ")
-##		nn <- coverage(ranges.subject)
-##		ranges.by.size <- ranges.subject[order(nn, decreasing=TRUE), ]
-##		NR <- nrow(ranges.by.size)
-##		i <- 1
-##		while(i < NR){
-##			overlaps <- findOverlaps(ranges.by.size[i, ], ranges.by.size)
-##			subj.index <- subjectHits(overlaps)[-1]
-##			if(length(subj.index) > 0)
-##				ranges.by.size <- ranges.by.size[-subj.index, ]
-##			NR <- nrow(ranges.by.size)
-##			i <- i+1
-##		}
-##		ranges.subject <- ranges.by.size
-##	}
-	if(verbose) message("Ranking query and subject ranges by coverage")
-	ranges.subject$rank <- rank(-coverage(ranges.subject), ties.method="min")
-	ranges.query$rank <- rank(-coverage(ranges.query), ties.method="min")
-	listSize <- min(listSize, min(nrow(ranges.query), nrow(ranges.subject)))
-	top.query <- ranges.query[order(ranges.query$rank, decreasing=FALSE)[1:listSize], ]
 
-	countAny <- rep(NA, listSize)
-	##rankInSubject <- rep(NA, nrow(top.query))
-	if(verbose) {
-		message("Calculating the proportion of ranges in common for list sizes 1 to ", listSize)
-		pb <- txtProgressBar(min=0, max=length(countAny), style=3)
-	}
-	for(i in seq(length=nrow(top.query))){
-		if(verbose) setTxtProgressBar(pb, i)
-		if(i %% 100 == 0) cat(".")
-		countAny[i] <- catFun(rd.query=top.query[i, ], rd.subject=ranges.subject, same.id=same.id)
-	}
-	Iany <- countAny > 0
-	message("returning proportion in common (p) and coverage in query (cov)")
-	pAny <- sapply(1:nrow(top.query), function(x, I) mean(I[1:x]), I=Iany)
+discAtTop <- function(rd.query, rd.subject, verbose=TRUE){
+	ir.q <- IRanges(start(rd.query), end(rd.query))
+	ir.s <- IRanges(start(rd.subject), end(rd.subject))
+	mm <- findOverlaps(ir.q, ir.s)
+	query.index <- queryHits(mm)
+	subject.index <- subjectHits(mm)
+	index <- which(chromosome(rd.query)[query.index] == chromosome(rd.subject)[subject.index] &
+		       sampleNames(rd.query)[query.index] == sampleNames(rd.subject)[subject.index])
+	query.index <- unique(query.index[index])
+	##subject.index <- unique(subject.index[index])
+	notOverlapping.index <- seq(length=nrow(rd.query))[!seq(length=nrow(rd.query)) %in% query.index]
+	rd.query[notOverlapping.index, ]
+}
 
-	top.subject <- ranges.subject[order(ranges.subject$rank, decreasing=FALSE)[1:listSize], ]
-	count <- rep(NA, nrow(top.query))
-	count2 <- rep(NA, nrow(top.query))
-	##rankInSubject <- rep(NA, nrow(top.query))
+concAtTop <- function(ranges.query, ranges.subject, list.size, verbose=TRUE){
+	p <- rep(NA, length(list.size))
+	pAny1 <- rep(NA, length(list.size))
+	pAny2 <- rep(NA, length(list.size))
 	if(verbose) {
-		message("Calculating the proportion of ranges in common for list sizes 1 to ", listSize)
-		pb <- txtProgressBar(min=0, max=length(count), style=3)
+		message("Calculating the proportion of ranges in common for list sizes 1 to ", max(list.size))
+		pb <- txtProgressBar(min=0, max=length(p), style=3)
 	}
-	for(i in seq(length=nrow(top.query))){
+	for(i in seq_along(list.size)){
 		if(verbose) setTxtProgressBar(pb, i)
-		if(i %% 100 == 0) cat(".")
-		count[i] <- catFun(rd.query=top.query[seq(length=i), ], rd.subject=top.subject[seq(length=i), ], same.id=same.id)
-		count2[i] <- catFun(rd.query=top.subject[seq(length=i), ], rd.subject=top.query[seq(length=i), ], same.id=same.id)
-		if(count[i] != count2[i]) browser()
-	}
-	## which ranges in query were not found in subject
-	ir1 <- IRanges(start(top.query), end(top.query))
-	chr1 <- chromosome(top.query)
-	id1 <- sampleNames(top.query)
-	ir2 <- IRanges(start(top.subject), end(top.subject))
-	chr2 <- chromosome(top.subject)
-	id2 <- sampleNames(top.subject)
-	mm <- findOverlaps(ir1, ir2)
-	##index <- which(chr1==chr2 & id1 == id2)
-	query.hits <- queryHits(mm)
-	subject.hits <- subjectHits(mm)
-	index <- which(chr1[query.hits] == chr2[subject.hits] & id1[query.hits] == id2[subject.hits])
-	query.hits <- query.hits[index]
-	subject.hits=subject.hits[index]
-	## ranges in both
-	top.query$method <- method[1]
-	top.subject$method <- method[2]
-	if(length(query.hits) > 1){
-		concordant=list(query=top.query[query.hits,],
-		subject=top.subject[subject.hits,])
-	}
-	index2 <- seq(length=nrow(top.query))[-query.hits]
-	if(length(index2) > 1){
-		discordant=list(queryNotInSubject=top.query[index2, ],
-		subjectNotInQuery=top.subject[index2, ])
+		L <- list.size[i]
+		p[i] <- catFun2(ranges.query[seq(length=L), ], ranges.subject[seq(length=L), ])
+		pAny1[i] <- catFun2(ranges.query[seq(length=L), ], ranges.subject)
+		pAny2[i] <- catFun2(ranges.subject[seq(length=L), ], ranges.query)
 	}
 	if(verbose) close(pb)
-	I <- count > 0
-	message("returning proportion in common (p) and coverage in query (cov)")
-	p <- sapply(1:nrow(top.query), function(x, I) mean(I[1:x]), I=I)
-	cov <- coverage(top.query)
-	return(list(pAny=pAny,
-		    p=p, cov=cov,
-		    concordant=concordant,
-		    discordant=discordant))
+	return(list(p=p, pAny.queryList=pAny1, pAny.subjectList=pAny2))
 }
 
-assessConcordance <- function(md332, penn332, listSize=500){
-	ct332 <-  concAtTop(md332, penn332, listSize=listSize, state="332", same.id=FALSE)
-	## minimum distance | pennCNV
-	ct332r <- concAtTop(penn332, md332, listSize=listSize, state="332", same.id=FALSE)
-	ct332.2 <-  concAtTop(md332, penn332, listSize=listSize, state="332")
-	ct332r.2 <- concAtTop(penn332, md332, listSize=listSize, state="332")
-	ct <- list(ct332, ct332r, ct332.2, ct332r.2)
-	return(ct)
-}
+
+##concAtTop <- function(ranges.query, ranges.subject, listSize, state,
+##		      same.id=TRUE,
+##		      verbose=TRUE, msg=".", method){
+##	stopifnot(!missing(method))
+##	stopifnot(length(method)==2)
+##	if(!missing(state)){
+##		if(verbose) message("Subsetting query and subject ranges by state ", state)
+##		ranges.subject <- ranges.subject[state(ranges.subject) == state, ]
+##		ranges.query <- ranges.query[state(ranges.query) == state, ]
+##	} else{
+##		if(verbose) message("State not specified. Checking concordance for denovo call")
+##	}
+##	stopifnot(listSize <= nrow(ranges.subject) & listSize <= nrow(ranges.query))
+####	if(!same.id){
+####		## identify the biggest hits in a region.  Carry only
+####		## the biggest hit forward.
+####		## -- can do this by matching to itself
+####		message("Matching by locus...")
+####		message("\tIdentifying unique query regions ")
+####		nn <- coverage(ranges.query)
+####		ranges.by.size <- ranges.query[order(nn, decreasing=TRUE), ]
+####		##r1 <- ranges.by.size
+####		NR <- nrow(ranges.by.size)
+####		i <- 1
+####		while(i < NR){
+####			overlaps <- findOverlaps(ranges.by.size[i, ], ranges.by.size)
+####			subj.index <- subjectHits(overlaps)[-1]
+####			##make sure the chromosome is the same
+####			subj.index <- subj.index[chromosome(ranges.by.size[i, ]) == chromosome(ranges.by.size)[subj.index]]
+####			if(length(subj.index) > 0)
+####				ranges.by.size <- ranges.by.size[-subj.index, ]
+####			NR <- nrow(ranges.by.size)
+####			i <- i+1
+####		}
+####		ranges.query <- ranges.by.size
+####		message("\tIdentifying unique subject regions ")
+####		nn <- coverage(ranges.subject)
+####		ranges.by.size <- ranges.subject[order(nn, decreasing=TRUE), ]
+####		NR <- nrow(ranges.by.size)
+####		i <- 1
+####		while(i < NR){
+####			overlaps <- findOverlaps(ranges.by.size[i, ], ranges.by.size)
+####			subj.index <- subjectHits(overlaps)[-1]
+####			if(length(subj.index) > 0)
+####				ranges.by.size <- ranges.by.size[-subj.index, ]
+####			NR <- nrow(ranges.by.size)
+####			i <- i+1
+####		}
+####		ranges.subject <- ranges.by.size
+####	}
+##	if(verbose) message("Ranking query and subject ranges by coverage")
+##	ranges.subject$rank <- rank(-coverage(ranges.subject), ties.method="min")
+##	ranges.query$rank <- rank(-coverage(ranges.query), ties.method="min")
+##	listSize <- min(listSize, min(nrow(ranges.query), nrow(ranges.subject)))
+##	top.query <- ranges.query[order(ranges.query$rank, decreasing=FALSE)[1:listSize], ]
+##
+##	countAny <- rep(NA, listSize)
+##	##rankInSubject <- rep(NA, nrow(top.query))
+##	if(verbose) {
+##		message("Calculating the proportion of ranges in common for list sizes 1 to ", listSize)
+##		pb <- txtProgressBar(min=0, max=length(countAny), style=3)
+##	}
+##	for(i in seq(length=nrow(top.query))){
+##		if(verbose) setTxtProgressBar(pb, i)
+##		if(i %% 100 == 0) cat(".")
+##		countAny[i] <- catFun(rd.query=top.query[i, ], rd.subject=ranges.subject, same.id=same.id)
+##	}
+##	Iany <- countAny > 0
+##	message("returning proportion in common (p) and coverage in query (cov)")
+##	pAny <- sapply(1:nrow(top.query), function(x, I) mean(I[1:x]), I=Iany)
+##
+##	top.subject <- ranges.subject[order(ranges.subject$rank, decreasing=FALSE)[1:listSize], ]
+##	count <- rep(NA, nrow(top.query))
+##	count2 <- rep(NA, nrow(top.query))
+##	##rankInSubject <- rep(NA, nrow(top.query))
+##	if(verbose) {
+##		message("Calculating the proportion of ranges in common for list sizes 1 to ", listSize)
+##		pb <- txtProgressBar(min=0, max=length(count), style=3)
+##	}
+##	for(i in seq(length=nrow(top.query))){
+##		if(verbose) setTxtProgressBar(pb, i)
+##		if(i %% 100 == 0) cat(".")
+##		count[i] <- catFun(rd.query=top.query[seq(length=i), ], rd.subject=top.subject[seq(length=i), ], same.id=same.id)
+##		count2[i] <- catFun(rd.query=top.subject[seq(length=i), ], rd.subject=top.query[seq(length=i), ], same.id=same.id)
+##		if(count[i] != count2[i]) browser()
+##	}
+##	## which ranges in query were not found in subject
+##	ir1 <- IRanges(start(top.query), end(top.query))
+##	chr1 <- chromosome(top.query)
+##	id1 <- sampleNames(top.query)
+##	ir2 <- IRanges(start(top.subject), end(top.subject))
+##	chr2 <- chromosome(top.subject)
+##	id2 <- sampleNames(top.subject)
+##	mm <- findOverlaps(ir1, ir2)
+##	##index <- which(chr1==chr2 & id1 == id2)
+##	query.hits <- queryHits(mm)
+##	subject.hits <- subjectHits(mm)
+##	index <- which(chr1[query.hits] == chr2[subject.hits] & id1[query.hits] == id2[subject.hits])
+##	query.hits <- query.hits[index]
+##	subject.hits=subject.hits[index]
+##	## ranges in both
+##	top.query$method <- method[1]
+##	top.subject$method <- method[2]
+##	if(length(query.hits) > 1){
+##		concordant=list(query=top.query[query.hits,],
+##		subject=top.subject[subject.hits,])
+##	}
+##	index2 <- seq(length=nrow(top.query))[-query.hits]
+##	if(length(index2) > 1){
+##		discordant=list(queryNotInSubject=top.query[index2, ],
+##		subjectNotInQuery=top.subject[index2, ])
+##	}
+##	if(verbose) close(pb)
+##	I <- count > 0
+##	message("returning proportion in common (p) and coverage in query (cov)")
+##	p <- sapply(1:nrow(top.query), function(x, I) mean(I[1:x]), I=I)
+##	cov <- coverage(top.query)
+##	return(list(pAny=pAny,
+##		    p=p, cov=cov,
+##		    concordant=concordant,
+##		    discordant=discordant))
+##}
+
+##assessConcordance <- function(md332, penn332, listSize=500){
+##	ct332 <-  concAtTop(md332, penn332, listSize=listSize, state="332", same.id=FALSE)
+##	## minimum distance | pennCNV
+##	ct332r <- concAtTop(penn332, md332, listSize=listSize, state="332", same.id=FALSE)
+##	ct332.2 <-  concAtTop(md332, penn332, listSize=listSize, state="332")
+##	ct332r.2 <- concAtTop(penn332, md332, listSize=listSize, state="332")
+##	ct <- list(ct332, ct332r, ct332.2, ct332r.2)
+##	return(ct)
+##}
 
 notCalled <- function(ranges.query, ranges.subject, listSize, sample.match=TRUE){
 	message("Returning ranges in query that do not overlap with top ranges in subject")
@@ -184,7 +240,7 @@ notCalled <- function(ranges.query, ranges.subject, listSize, sample.match=TRUE)
 	return(top.query[absent.index, ])
 }
 
-correspondingCall <- function(ranges.query, ranges.subject, listSize){
+correspondingCall <- function(ranges.query, ranges.subject, query.method){
 	overlap <- findOverlaps(ranges.query, ranges.subject)
 	subj.index <- subjectHits(overlap)
 	quer.index <- queryHits(overlap)
@@ -198,6 +254,7 @@ correspondingCall <- function(ranges.query, ranges.subject, listSize){
 	subj.index <- subj.index[ii]
 	## index of ranges in query that have a match
 	res <- ranges.subject[subj.index, ]
+	if(!missing(query.method)) res$method <- query.method
 	return(res)
 }
 
@@ -531,7 +588,7 @@ combineRangesByFactor <- function(range.object, f){
 		min.index <- min(index)
 		max.index <- max(index)
 		end(range.object)[index] <- max(end(range.object)[index])
-		range.object$bayes.factor[index] <- sum(range.object$bayes.factor[index])
+		range.object$lik.state[index] <- sum(range.object$lik.state[index])
 		range.object$end.index[index] <- max(range.object$end.index[index])
 		range.object$seg.mean[index] <- sum((range.object$num.mark[index] * range.object$seg.mean[index]))/sum(range.object$num.mark[index])
 		range.object$num.mark[index] <- sum(range.object$num.mark[index])
@@ -882,6 +939,7 @@ computeLoglik <- function(id,
 			  ##prGtCorrect=0.999, ##prob genotype is correct
 			  prOutlier.logR=0.01,
 			  prOutlier.baf=1e-5,
+			  prMosaic=0.01,
 			  df0=10){
 	CHR <- chromosome(trioSet)[1]
 	##p1 <- prGtCorrect; rm(prGtCorrect)
@@ -932,8 +990,15 @@ computeLoglik <- function(id,
 	##
 	##   Below, I,ve just used a mixture model.  I have not integrated out the
 	##      copy number of the B allele, nor do I make use of MAF estimates.
+	##   tnorm vs dnorm shouldn't make much diff.
+	p2 <- 1-prMosaic
 	loglik(object)["baf", , , 1] <-  1
-	loglik(object)["baf", , , 2] <- p1*((1/2*tnorm(bf, 0, sd0) + 1/2*tnorm(bf, 1, sd1))) + (1-p1)  ## * dunif(bf, 0, 1) = 1
+	##loglik(object)["baf", , , 2] <- p1*((1/2*tnorm(bf, 0, sd0) + 1/2*tnorm(bf, 1, sd1))) + (1-p1)  ## * dunif(bf, 0, 1) = 1
+	t0 <- tnorm(bf, 0, sd0); t1 <- tnorm(bf, 1, sd1)
+	t0.25 <- dnorm(bf, 0.25, sd.5); t0.75 <- dnorm(bf, 0.75, sd.5)
+	loglik(object)["baf", , , 2] <- p1*(
+					    p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/4*t0 + 1/4*t1 + 1/4*t0.25 + 1/4*t0.75)
+					    ) + (1-p1)  ## * dunif(bf, 0, 1) = 1
 	loglik(object)["baf", , , 3] <- p1*((1/3*tnorm(bf, 0, sd0) + 1/3*tnorm(bf, 0.5, sd.5) + 1/3*tnorm(bf, 1, sd1)))+ (1-p1)
 	loglik(object)["baf", , , 4] <- p1*((1/4*tnorm(bf, 0, sd0) + 1/4*tnorm(bf, 1/3, sd.5) + 1/4*tnorm(bf, 2/3, sd.5) + 1/4*tnorm(bf, 1, sd1))) + (1-p1)
 	loglik(object)["baf", , , 5] <- p1*((1/5*tnorm(bf, 0, sd0) + 1/5*tnorm(bf, 1/4, sd.5) + 1/5*tnorm(bf, 0.5, sd.5) + 1/5*tnorm(bf, 3/4, sd.5) + 1/5*tnorm(bf, 1, sd1))) + (1-p1)
@@ -1173,6 +1238,8 @@ joint4 <- function(trioSet,
 	table1 <- readTable1(a=a)
 	table3 <- readTable3(a=a)
 	weightR <- 1/3
+	state.names <- trioStateNames()
+	norm.index <- which(state.names=="333")
 	##feature.index=which(baf(obj)[, 3] > 0.1 & baf(obj)[, 3] < 0.9)
 	##LLB[feature.index, 3, ]
 	for(i in seq(length=nrow(ranges))){
@@ -1205,6 +1272,7 @@ joint4 <- function(trioSet,
 		##one.finite <- which(rowSums(is.finite(tmp))==1)
 		argmax1 <- which.max(tmp[,1])
 		argmax2 <- which.max(tmp[,2])
+		lik.norm <- tmp[norm.index, ]
 		if(argmax1 != argmax2){
 			lik1 <- tmp[argmax1, 1]
 			lik2 <- tmp[argmax2, 2]
@@ -1212,18 +1280,22 @@ joint4 <- function(trioSet,
 				argmax <- argmax1
 				is.denovo <- FALSE
 				bf <- tmp[argmax1, 1]
+				lik.norm <- lik.norm[1]
 			} else{
 				is.denovo <- TRUE
 				argmax <- argmax2
 				bf <- tmp[argmax2, 2]
+				lik.norm <- lik.norm[2]
 			}
 		} else{
 			argmax <- argmax1
 			is.denovo <- FALSE
 			bf <- tmp[argmax1, 1]
+			lik.norm <- lik.norm[1]
 		}
-		ranges$bayes.factor[i] <- bf
+		ranges$lik.state[i] <- bf
 		##ranges$DN[i] <- is.denovo
+		ranges$lik.norm[i] <- lik.norm
 		ranges$argmax[i] <- argmax
 		denovo.prev <- is.denovo
 		state.prev <- trio.states[argmax, ]

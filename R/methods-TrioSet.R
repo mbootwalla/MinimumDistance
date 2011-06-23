@@ -444,9 +444,9 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 		  ranges <- ranges[chromosome(ranges) == CHR, ]
 		  if(missing(id)) id <- unique(ranges$id) else stopifnot(id %in% unique(ranges$id))
 		  ranges <- ranges[ranges$id %in% id, ]
-		  ranges$bayes.factor <- NA
+		  ranges$lik.state <- NA
 		  ranges$argmax <- NA
-		  ranges$DN <- NA
+		  ranges$lik.norm <- NA
 		  if(verbose){
 			  message("Computing Bayes factors for ", length(id), " files.")
 			  pb <- txtProgressBar(min=0, max=length(id), style=3)
@@ -471,9 +471,9 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 				       prOutlier=prOutlier,
 				       df0=df0,
 				       verbose=verbose)##, F=F, M=M, O=O)
-			  ranges$bayes.factor[j] <- rd$bayes.factor
+			  ranges$lik.state[j] <- rd$lik.state
 			  ranges$argmax[j] <- rd$argmax
-			  ranges$DN[j] <- rd$DN
+			  ranges$lik.norm[j] <- rd$lik.norm
 		  }
 		  if(verbose) close(pb)
 		  ranges

@@ -37,11 +37,14 @@ setMethod("computeBayesFactor", signature(object="TrioSetList"),
 		  chromosomes <- sapply(object, function(x) unique(chromosome(x)))
 		  ranges <- ranges[chromosome(ranges) %in% chromosomes, ]
 		  ranges <- ranges[ranges$id %in% id, ]
-		  if(!"bayes.factor" %in% colnames(ranges)){
-			  ranges$bayes.factor <- NA
+##		  if(!"bayes.factor" %in% colnames(ranges)){
+##			  ranges$bayes.factor <- NA
+##		  }
+		  if(!"lik.state" %in% colnames(ranges)){
+			  ranges$lik.state <- NA
 		  }
-		  if(!"DN" %in% colnames(ranges)){
-			  ranges$DN <- NA
+		  if(!"lik.norm" %in% colnames(ranges)){
+		  	  ranges$lik.norm <- NA
 		  }
 		  if(!"argmax" %in% colnames(ranges)){
 			  ranges$argmax <- NA
@@ -64,9 +67,10 @@ setMethod("computeBayesFactor", signature(object="TrioSetList"),
 						   prOutlier=prOutlier,
 						   df0=df0,
 						   verbose=verbose, ...)
-			  ranges$bayes.factor[j] <- rd$bayes.factor
+			  ranges$lik.state[j] <- rd$lik.state
 			  ranges$argmax[j] <- rd$argmax
-			  ranges$DN[j] <- rd$DN
+			  ranges$lik.norm[j] <- rd$lik.norm
+			  ##ranges$DN[j] <- rd$DN
 		  }
 		  return(ranges)
 	  })

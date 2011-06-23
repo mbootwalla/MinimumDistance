@@ -1,9 +1,7 @@
 useDynLib("MinimumDistance", .registration=TRUE)
-import(methods)
 importFrom(utils, setTxtProgressBar, txtProgressBar, stack)
 importFrom(graphics, abline, axis, layout, legend, mtext, par, plot,
 	   polygon, rect, segments, text)
-
 importClassesFrom(Biobase, eSet)
 importMethodsFrom(Biobase, annotatedDataFrameFrom, updateObject, "[", "$")
 importFrom(Biobase, assayDataElementReplace, sampleNames, varLabels, rowMedians, "sampleNames<-")
@@ -50,6 +48,8 @@ exportMethods("[", baf, "baf<-",
 	      xyplot)
 export("[", completeTrios,
        concAtTop,
+       correspondingCall,
+       discAtTop,
        fmoNames,
        fullId,
        getKey,
