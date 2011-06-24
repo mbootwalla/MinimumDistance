@@ -1,6 +1,6 @@
 setMethod("xsegment", signature(object="TrioSetList"),
-	  function(object, id, ..., verbose=FALSE){
-		  dfl <- lapply(object, xsegment, id=id, ..., verbose=verbose)
+	  function(object, id, ..., verbose=FALSE, DNAcopy.verbose=0){
+		  dfl <- lapply(object, xsegment, id=id, ..., verbose=verbose,DNAcopy.verbose=DNAcopy.verbose)
 		  df <- do.call("rbind", dfl)
 		  return(df)
 	  })
@@ -54,6 +54,7 @@ setMethod("computeBayesFactor", signature(object="TrioSetList"),
 				  message("Processing chromosome ", i, " of ", length(object))
 			  CHR <- unique(chromosome(object[[i]]))
 			  j <- which(chromosome(ranges) == CHR)
+			  if(length(j) < 1) next()
 			  rd <- computeBayesFactor(object[[i]],
 						   ranges[j, ],
 						   id=id,

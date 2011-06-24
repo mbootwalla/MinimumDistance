@@ -298,7 +298,7 @@ setMethod("varLabels2", signature(object="TrioSet"), function(object) colnames(p
 
 
 setMethod("xsegment", signature(object="TrioSet"),
-	  function(object, id, ..., verbose=FALSE){
+	  function(object, id, ..., verbose=FALSE, DNAcopy.verbose=0){
 		  ## needs to be ordered
 		  if(verbose) message("Segmenting chromosome ", unique(chromosome(object)))
 		  ix <- order(chromosome(object), position(object))
@@ -338,7 +338,7 @@ setMethod("xsegment", signature(object="TrioSet"),
 					    data.type="logratio",
 					    sampleid=id)
 			  smu.object <- smooth.CNA(CNA.object)
-			  tmp <- segment(smu.object)
+			  tmp <- segment(smu.object, verbose=DNAcopy.verbose)
 			  df <- tmp$output
 			  sr <- tmp$segRows
 			  ##df <- cbind(tmp$output, tmp$segRows)
@@ -444,7 +444,12 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 		  if(missing(log.pi)) log.pi <- log(initialStateProbs(states=0:4, epsilon=0.5))
 		  CHR <- unique(chromosome(object))
 		  ranges <- ranges[chromosome(ranges) == CHR, ]
-		  if(missing(id)) id <- unique(ranges$id) else stopifnot(id %in% unique(ranges$id))
+		  if(missing(id)) {
+			  id <- unique(ranges$id)
+		  } else {
+			  id <- id[id %in% unique(ranges$id)]
+		  }
+		  stopifnot(length(id) >0)
 		  ranges <- ranges[ranges$id %in% id, ]
 		  ranges$lik.state <- NA
 		  ranges$argmax <- NA

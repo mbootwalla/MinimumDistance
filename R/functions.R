@@ -1195,12 +1195,30 @@ joint4 <- function(trioSet,
 				prOutlier.baf=prOutlier[2],
 				prMosaic=prMosaic,
 				df0=df0)
+	fData(object)$ranges.index <- NA
+	##for penn cnv ranges, this will not work
 	start.stop <- cbind(ranges$start.index, ranges$end.index)
-	l <- apply(start.stop, 1, function(x) length(x[1]:x[2]))
-	ri <- rep(seq(length=nrow(ranges)), l)
-	if(length(ri)==nrow(object)){
-		fData(object)$range.index <- ri
-	} else fData(object)$range.index[seq_along(ri)] <- ri
+	if(is.null(start.stop)){
+		ir2 <- IRanges(start=position(object)-30, end=position(object)+30)
+		ir1 <- IRanges(start(ranges), end(ranges))
+		mm <- findOverlaps(ir1, ir2)
+		subject.index <- subjectHits(mm)
+		start.stop <- lapply(split(subject.index, queryHits(mm)), range)
+		if(length(start.stop) > 1) {
+			start.stop <- do.call(rbind, start.stop)
+		} else {
+			start.stop <- start.stop[[1]]
+			start.stop <- matrix(start.stop, 1, 2)
+		}
+		start.stop <- as.matrix(start.stop)
+		fData(object)$range.index[subject.index] <- queryHits(mm)
+	} else {
+		l <- apply(start.stop, 1, function(x) length(x[1]:x[2]))
+		ri <- rep(seq(length=nrow(ranges)), l)
+		if(length(ri)==nrow(object)){
+			fData(object)$range.index <- ri
+		} else fData(object)$range.index[seq_along(ri)] <- ri
+	}
 	trio.states <- trioStates(states)
 	tmp <- matrix(NA, nrow(trio.states), 2)
 	colnames(tmp) <- c("DN=0", "DN=1")
@@ -1219,7 +1237,7 @@ joint4 <- function(trioSet,
 	##LLB[feature.index, 3, ]
 	for(i in seq(length=nrow(ranges))){
 		##if(i==4) browser()
-		obj <- object[range.index(object) == i, ]
+		obj <- object[which(range.index(object) == i), ]
 		LLR <- loglik(obj)["logR", , ,  ]
 		LLB <- loglik(obj)["baf", , , ]
 		LL <- weightR * LLR + (1-weightR)*LLB
@@ -1250,6 +1268,7 @@ joint4 <- function(trioSet,
 		argmax1 <- which.max(tmp[,1])
 		argmax2 <- which.max(tmp[,2])
 		lik.norm <- tmp[norm.index, ]
+		lik.norm <- lik.norm[which.max(lik.norm)]
 		if(argmax1 != argmax2){
 			lik1 <- tmp[argmax1, 1]
 			lik2 <- tmp[argmax2, 2]
@@ -1257,23 +1276,28 @@ joint4 <- function(trioSet,
 				argmax <- argmax1
 				is.denovo <- FALSE
 				bf <- tmp[argmax1, 1]
-				lik.norm <- lik.norm[1]
 			} else{
 				is.denovo <- TRUE
 				argmax <- argmax2
 				bf <- tmp[argmax2, 2]
-				lik.norm <- lik.norm[2]
 			}
 		} else{
 			argmax <- argmax1
 			is.denovo <- FALSE
 			bf <- tmp[argmax1, 1]
-			lik.norm <- lik.norm[1]
 		}
 		ranges$lik.state[i] <- bf
 		##ranges$DN[i] <- is.denovo
 		ranges$lik.norm[i] <- lik.norm
 		ranges$argmax[i] <- argmax
+		if("state" %in% colnames(ranges)){
+			if(!is.na(state(ranges)[i])){
+				## if state is not missing, return the log likelihood for the given state
+				st <- state(ranges)[i]
+				ii <- which(trioStateNames()==st)
+				ranges$lik.state[i] <- tmp[ii, is.denovo+1]
+			}
+		}
 		denovo.prev <- is.denovo
 		state.prev <- trio.states[argmax, ]
 	}
@@ -1752,7 +1776,7 @@ minimumDistanceCalls <- function(id, container,
 				 prOutlier=c(0.01, 1e-6),
 				 prMosaic=0.01,
 				 mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
-				 ..., verbose=TRUE){
+				 ..., verbose=TRUE, DNAcopy.verbose=0){
 	##---------------------------------------------------------------------------
 	##
 	## Segment the minimum distance
@@ -1773,7 +1797,8 @@ minimumDistanceCalls <- function(id, container,
 	if(segment.md){
 		stopifnot(!missing(cbs.filename))
 		stopifnot(file.exists(dirname(cbs.filename)))
-		df <- xsegment(container[chromosomes], id=id, ..., verbose=verbose)
+		df <- xsegment(container[chromosomes], id=id, ..., verbose=verbose,
+			       DNAcopy.verbose=DNAcopy.verbose)
 		df$ID <- gsub("^[X]", "", df$ID)
 		mdRanges <- RangedDataCBS(ranges=IRanges(df$loc.start, df$loc.end),
 					  chromosome=df$chrom,
@@ -1919,7 +1944,8 @@ xypanel <- function(x, y, panelLabels,
 		    what,
 		    ##ylim,  ylim is not passed
 		    ..., subscripts){
-	panel.grid(v=10,h=10, "grey")
+	##panel.grid(v=10,h=10, "grey")
+	panel.grid(v=0, h=4, "grey", lty=2)
 	what <- unique(as.character(what[subscripts]))
 	stopifnot(length(what) == 1)
 	##if(panelLabels[panel.number()] == "min dist") y <- -1*y
@@ -1931,25 +1957,11 @@ xypanel <- function(x, y, panelLabels,
 	if(what %in% c("father", "mother", "offspring")){
 		if(!missing(cbs.segs)){
 			segments <- TRUE
-##			if(missing(cbs.segs)){
-##				stop("segments is TRUE, but cbs.segs is missing")
-##				##message("loading segmentation results for chromosome ", CHR)
-##				##tmp=list.files(beadstudiodir(), pattern=paste("cbs_chr", CHR, ".rda", sep=""))
-##				##cbs.segs <- loadRangesCbs(beadstudiodir(), pattern=paste("cbs_chr", CHR, ".rda", sep=""), name="cbs.segs")
-##			}
-##			what <- pL
-##			what <- switch(paste("p", panel.number(), sep=""),
-##				       p2="offspring",
-##				       p3="mother",
-##				       p4="father",
-##				       NULL)
-##			stopifnot(!is.null(what))
-			if(what=="father")
-				cbs.sub <- cbs.segs[cbs.segs$id==fmonames[1], ]
-			if(what=="mother")
-				cbs.sub <- cbs.segs[cbs.segs$id==fmonames[2], ]
-			if(what=="offspring")
-				cbs.sub <- cbs.segs[cbs.segs$id==fmonames[3], ]
+			id <- switch(what,
+				     father=fmonames[1],
+				     mother=fmonames[2],
+				     offspring=fmonames[3])
+			cbs.sub <- cbs.segs[sampleNames(cbs.segs)==id & chromosome(cbs.segs)==CHR, ]
 		} else segments <- FALSE
 	} else segments <- FALSE
 	if(!missing(md.segs) & what == "min dist"){
@@ -2095,50 +2107,61 @@ gridlayout2 <- function(xyList, otherCall, ranges){
 			   col="orange", cex=0.5,
 			   cex.pch=0.1, fill="transparent", lty="solid", lwd=1)
 		if(!missing(otherCall)){
-		pr <- otherCall[otherCall$id == ranges$id[i], ]
-		if(nrow(pr) == 0){
-			stopifnot(otherCall$method[1]=="PennCNV")
+			pr <- otherCall[otherCall$id == ranges$id[i], ]
+			if(nrow(pr) == 0){
+				stopifnot(otherCall$method[1]=="PennCNV")
+				upViewport(0)
+				grid.text("PennCNV call: 333",
+					  x=unit(0.6, "npc"),
+					  y=unit(0.01, "npc"),
+					  gp=gpar(col="grey30", cex=0.5))
+				next()
+			}
+			pc <- paste(state(pr), collapse="-")
 			upViewport(0)
-			grid.text("PennCNV call: 333",
+			method <- unique(otherCall$method)
+			grid.text(paste(method, "call:", pc),
 				  x=unit(0.6, "npc"),
 				  y=unit(0.01, "npc"),
 				  gp=gpar(col="grey30", cex=0.5))
-			next()
+			lr1 <- ranges$lik.state[i]
+			lr2 <- ranges$lik.norm[i]
+			lrr <- lr1-lr2
+			l <- formatC(c(lr1, lr2, lrr), digits=1, format="f")
+			grid.text(paste("LL 332:", l[1], "\n",
+					"LL 333:", l[2], "\n",
+					"LLR:", l[3], "\n"),
+				  x=unit(1, "npc"),
+				  y=unit(0, "npc"),
+				  just=c("right", "bottom"),
+				  gp=gpar(col="grey10", cex=0.6))
+			pr <- pr[state(pr) != "333", ]
+			if(nrow(pr)==0) next()
+			L <- length(f2[[i]]$panel.args)
+			upViewport(0)
+			seekViewport("plot2.panel.1.1.off.vp")
+			grid.segments(x0=unit(start(pr)/1e6, "native"),
+				      y0=unit(-0.1, "npc"),
+				      x1=unit(start(pr)/1e6, "native"),
+				      y1=unit(0.05, "npc"),
+				      gp=gpar(col="blue", lwd=2))
+			grid.segments(x0=unit(end(pr)/1e6, "native"),
+				      y0=unit(-0.1, "npc"),
+				      x1=unit(end(pr)/1e6, "native"),
+				      y1=unit(0.05, "npc"),
+				      gp=gpar(col="blue", lwd=2))
+			seekViewport("plot1.panel.1.1.off.vp")
+			grid.segments(x0=unit(start(pr)/1e6, "native"),
+				      y0=unit(-0.1, "npc"),
+				      x1=unit(start(pr)/1e6, "native"),
+				      y1=unit(0.05, "npc"),
+				      gp=gpar(col="blue", lwd=2))
+			grid.segments(x0=unit(end(pr)/1e6, "native"),
+				      y0=unit(-0.1, "npc"),
+				      x1=unit(end(pr)/1e6, "native"),
+				      y1=unit(0.05, "npc"),
+				      gp=gpar(col="blue", lwd=2))
 		}
-		pc <- paste(state(pr), collapse="-")
-		upViewport(0)
-		method <- unique(otherCall$method)
-		grid.text(paste(method, "call:", pc),
-			  x=unit(0.6, "npc"),
-			  y=unit(0.01, "npc"),
-			  gp=gpar(col="grey30", cex=0.5))
-		pr <- pr[state(pr) != "333", ]
-		if(nrow(pr)==0) next()
-		L <- length(f2[[i]]$panel.args)
-		upViewport(0)
-		seekViewport("plot2.panel.1.1.off.vp")
-		grid.segments(x0=unit(start(pr)/1e6, "native"),
-			      y0=unit(-0.1, "npc"),
-			      x1=unit(start(pr)/1e6, "native"),
-			      y1=unit(0.05, "npc"),
-			      gp=gpar(col="blue", lwd=2))
-		grid.segments(x0=unit(end(pr)/1e6, "native"),
-			      y0=unit(-0.1, "npc"),
-			      x1=unit(end(pr)/1e6, "native"),
-			      y1=unit(0.05, "npc"),
-			      gp=gpar(col="blue", lwd=2))
-		seekViewport("plot1.panel.1.1.off.vp")
-		grid.segments(x0=unit(start(pr)/1e6, "native"),
-			      y0=unit(-0.1, "npc"),
-			      x1=unit(start(pr)/1e6, "native"),
-			      y1=unit(0.05, "npc"),
-			      gp=gpar(col="blue", lwd=2))
-		grid.segments(x0=unit(end(pr)/1e6, "native"),
-			      y0=unit(-0.1, "npc"),
-			      x1=unit(end(pr)/1e6, "native"),
-			      y1=unit(0.05, "npc"),
-			      gp=gpar(col="blue", lwd=2))
-	}
 	}
 }
 
@@ -2179,7 +2202,7 @@ myfilter <- function(x, filter, ...){
 	return(res)
 }
 
-minimumDistancePlot <- function(trioSets, ranges, md.segs, frame=2e6){
+minimumDistancePlot <- function(trioSets, ranges, md.segs, cbs.segs, frame=2e6){
 	r1 <- ranges
 	f1 <- f2 <- list()
 	for(i in 1:nrow(r1)){
@@ -2201,7 +2224,8 @@ minimumDistancePlot <- function(trioSets, ranges, md.segs, frame=2e6){
 				  scales=list(x=list(tick.number=10, cex=0.5, tck=c(1,0), axs="i"),
 				  alternating=rep(1,3),
 				  y=list(cex=0.5)),
-				  par.strip.text=list(lines=0.8, cex=0.7))
+				  par.strip.text=list(lines=0.8, cex=0.7),
+				  cbs.segs=cbs.segs)
 		f1[[i]]$panel.args <- MinimumDistance:::thresholdY(f1[[i]])
 		##print(f1a)
 		panelLabels <- c("father", "mother", "offspring")

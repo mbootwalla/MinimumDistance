@@ -18,7 +18,7 @@ setGeneric("baf", function(object) standardGeneric("baf"))
 setGeneric("mad")
 setGeneric("ncol")
 setGeneric("mad<-", function(object, value) standardGeneric("mad<-"))
-setGeneric("xsegment", function(object, id, ..., verbose=FALSE) standardGeneric("xsegment"))
+setGeneric("xsegment", function(object, id, ..., verbose=FALSE, DNAcopy.verbose=0) standardGeneric("xsegment"))
 setGeneric("phenoData2", function(object) standardGeneric("phenoData2"))
 setGeneric("phenoData2<-", function(object,value) standardGeneric("phenoData2<-"))
 setGeneric("varLabels2", function(object) standardGeneric("varLabels2"))
@@ -39,7 +39,7 @@ setGeneric("computeBayesFactor", function(object,
 					  tau,
 					  normal.index=61,
 					  a=0.0009,
-					  prOutlier=c(0.01, 1e-5),
+					  prOutlier=c(0.01, 1e-6),
 					  prMosaic=0.01,
 					  df0=10,
 					  verbose=TRUE, ...)
