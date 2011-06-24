@@ -862,30 +862,21 @@ constructSet <- function(trioSet, CHR, id, states){
 	open(logR(trioSet))
 	i <- match(id[["O"]], offspringNames(trioSet))
 	mads <- mad(trioSet)[i, ]
-	##open(trioSet$MAD)
-	##i <- which(chromosome(trioSet) == CHR)
-	##j <- match(id, ssampleNames(trioSet))
 	S <- length(states)
 	loglik <- array(NA, dim=c(2, nrow(trioSet), 3, S))
 	dimnames(loglik) <- list(c("logR", "baf"),
 				 featureNames(trioSet),
-				 ##fmoNames(trioSet)[i, ],
 				 id,
 				 states)
 	object <- new("LikSet",
 		      logR=as.matrix(logR(trioSet)[ ,i,]),
 		      BAF=as.matrix(baf(trioSet)[ ,i , ]),
-		      ##phenoData=phenoData2(trioSet)[i, , ],
 		      featureData=featureData(trioSet),
-		      ##experimentData=experimentData(trioSet),
-		      ##annotation=annotation(trioSet),
-		      ##protocolData=protocolData(trioSet)[i, ],
 		      loglik=loglik)
 	object$MAD <- mads
 	fData(object)$range.index <- NA
 	close(baf(trioSet))
 	close(logR(trioSet))
-	##close(trioSet$MAD)
 	return(object)
 }
 
@@ -1770,9 +1761,9 @@ minimumDistance <- function(path, samplesheet, pedigree,
 
 minimumDistanceCalls <- function(id, container,
 				 chromosomes=1:22,
-				 segment.md,
-				 calculate.lr=TRUE,
 				 cbs.filename,
+				 segment.md=missing(cbs.filename),
+				 calculate.lr=TRUE,
 				 prOutlier=c(0.01, 1e-6),
 				 prMosaic=0.01,
 				 mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
@@ -1786,14 +1777,14 @@ minimumDistanceCalls <- function(id, container,
 		id <- sampleNames(container)
 	} else stopifnot(all(id %in% sampleNames(container)))
 	stopifnot(all(chromosomes %in% 1:22))
-	if(missing(segment.md)){
-		if(file.exists(cbs.filename)) {
-			message("segment.md is missing but ", basename(cbs.filename), " already exists. Loading saved segmentation")
-			segment.md <- FALSE
-		} else{
-			segment.md <- TRUE
-		}
-	}
+##	if(missing(segment.md)){
+##		if(file.exists(cbs.filename)) {
+##			message("segment.md is missing but ", basename(cbs.filename), " already exists. Loading saved segmentation")
+##			segment.md <- FALSE
+##		} else{
+##			segment.md <- TRUE
+##		}
+##	}
 	if(segment.md){
 		stopifnot(!missing(cbs.filename))
 		stopifnot(file.exists(dirname(cbs.filename)))

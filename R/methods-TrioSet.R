@@ -455,7 +455,7 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 		  ranges$argmax <- NA
 		  ranges$lik.norm <- NA
 		  if(verbose){
-			  message("Computing Bayes factors for ", length(id), " files.")
+			  message("\t\tComputing Bayes factors for ", length(id), " files.")
 			  pb <- txtProgressBar(min=0, max=length(id), style=3)
 		  }
 		  for(i in seq_along(id)){
@@ -538,7 +538,7 @@ setMethod("prune", signature(object="TrioSet", ranges="RangedDataCNV"),
 		  rdList <- vector("list", length(unique(id)))
 		  open(mindist(object))
 		  if(verbose){
-			  message("Pruning ", length(unique(id)), " files.")
+			  message("\tPruning ", length(unique(id)), " files.")
 			  pb <- txtProgressBar(min=0, max=length(unique(id)), style=3)
 		  }
 		  for(j in seq_along(id)){

@@ -51,7 +51,7 @@ setMethod("computeBayesFactor", signature(object="TrioSetList"),
 		  }
 		  for(i in seq_along(object)){
 			  if(verbose)
-				  message("Processing chromosome ", i, " of ", length(object))
+				  message("\tProcessing chromosome ", i, " of ", length(object))
 			  CHR <- unique(chromosome(object[[i]]))
 			  j <- which(chromosome(ranges) == CHR)
 			  if(length(j) < 1) next()
