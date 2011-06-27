@@ -1777,6 +1777,9 @@ minimumDistanceCalls <- function(id, container,
 		id <- sampleNames(container)
 	} else stopifnot(all(id %in% sampleNames(container)))
 	stopifnot(all(chromosomes %in% 1:22))
+	if(!missing(cbs.filename)){
+		segment.md <- ifelse(file.exists(cbs.filename), FALSE, TRUE)
+	}
 ##	if(missing(segment.md)){
 ##		if(file.exists(cbs.filename)) {
 ##			message("segment.md is missing but ", basename(cbs.filename), " already exists. Loading saved segmentation")
