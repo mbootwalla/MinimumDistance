@@ -1,31 +1,45 @@
 ##setMethod("dimnames", "DataFrameCNV", function(x) list(x@row.names, names(x)))
 ##setMethod("dim", "DataFrameCNV", function(x) c(length(x@row.names), length(x)))
-
 setMethod("xyplot", signature(x="formula", data="DataFrameCNV"),
 	  function(x, data, ...){
 		  if(!"panel" %in% names(list(...))){
+			  panel.specified <- FALSE
 			  panel <- my.xypanel
+		  } else{
+			  panel.specified <- TRUE
 		  }
 		  data(chromosomeAnnotation)
 		  data <- as(data, "data.frame")
 		  ## could we do UseMethod here?
-		  fig <- xyplot(x, data=data,
-				panel=panel,
-				x0=data$x0,
-				x1=data$x1,
-				col=data$col,
-				border=data$border,
-				alpha=1,
-				chr=data$chr,
-				chr.size=data$chr.size,
-				coverage=data$coverage,
-				##xlab="Mb",
-				##ylab="offspring index",
-				##key=getKey(data),
-				##par.strip.text=list(lines=0.7, cex=0.6),
-				prepanel=prepanel.fxn,
-				max.y=max(data$y),
-				chromosomeAnnotation=chromosomeAnnotation,...)
+
+		  if(!panel.specified){
+			  fig <- xyplot(x, data=data,
+					panel=panel,
+					x0=data$x0,
+					x1=data$x1,
+					col=data$col,
+					border=data$border,
+					alpha=1,
+					chr=data$chr,
+					chr.size=data$chr.size,
+					coverage=data$coverage,
+					prepanel=prepanel.fxn,
+					max.y=max(data$y),
+					chromosomeAnnotation=chromosomeAnnotation,...)
+		  } else{
+			  fig <- xyplot(x, data=data,
+					x0=data$x0,
+					x1=data$x1,
+					col=data$col,
+					border=data$border,
+					alpha=1,
+					chr=data$chr,
+					chr.size=data$chr.size,
+					coverage=data$coverage,
+					prepanel=prepanel.fxn,
+					max.y=max(data$y),
+					chromosomeAnnotation=chromosomeAnnotation,...)
+		  }
 		  return(fig)
 	  })
 

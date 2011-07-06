@@ -240,6 +240,42 @@ notCalled <- function(ranges.query, ranges.subject, listSize, sample.match=TRUE)
 	return(top.query[absent.index, ])
 }
 
+## from Smyth,2004
+estimateDnot <- function(s2.g, d.g, epsilon=1e-8){
+	## d.g can be allowed to differ between genes
+	## doesn't d.g = n-1?
+	stopifnot(length(s2.g) > 1) ## vector
+	z.g <- log(s2.g)
+	e.g <- z.g - digamma(d.g/2) + log(d.g/2)
+	e.bar <- mean(e.g, na.rm=TRUE)
+	x <- mean((e.g-e.bar)^2*(d.g+1)/d.g - trigamma(d.g/2), na.rm=TRUE)
+	## solve newton raphson
+	y.previous <- 0.5 + 1/x
+	tetragamma <- function(x) psigamma(x, 2)
+	## digamma(x)=psigamma(x, 0)
+	## trigamma(x)=psigamma(x, 1)
+	## tetragamma(x)=psigamma(x, 2)
+	err <- 1
+	counter <- 1
+	while(err > epsilon){
+		delta <- trigamma(y.previous)*(1-trigamma(y.previous)/x)/tetragamma(y.previous)
+		y.next <- y.previous+delta
+		err <- -delta/y.next
+		##cat(err, "\n")
+		counter <- counter+1
+		if(counter > 100) {
+			warning("Newton-Raphson for d.0 did not converge in 100 iterations")
+			break()
+		}
+		y.previous <- y.next
+	}
+	d.0 <- y.previous*2
+	s2.0 <- exp(e.bar + digamma(d.0/2) - log(d.0/2))
+	res <- c(d.0, s2.0)
+	names(res) <- c("d.0", "s2.0")
+	return(res)
+}
+
 correspondingCall <- function(ranges.query, ranges.subject, subject.method){
 	overlap <- findOverlaps(ranges.query, ranges.subject)
 	subj.index <- subjectHits(overlap)
@@ -247,6 +283,7 @@ correspondingCall <- function(ranges.query, ranges.subject, subject.method){
 	## what are the chromosomes for the subject hits
 	index <- which(chromosome(ranges.query)[quer.index] == chromosome(ranges.subject)[subj.index] &
 		       sampleNames(ranges.query)[quer.index] == sampleNames(ranges.subject)[subj.index])
+	if(length(index) == 0) return("no overlap")
 	matching.index <- subj.index[index]
 	res <- ranges.subject[matching.index, ]
 ##	chrom.subj <- ranges.subject$chrom[subj.index]
@@ -899,6 +936,7 @@ computeLoglik <- function(id,
 			  mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
 			  states=0:4,
 			  baf.sds=c(0.02, 0.03, 0.02),
+			  ##baf.sds=c(0.015, 0.02, 0.015),
 			  ##prGtCorrect=0.999, ##prob genotype is correct
 			  prOutlier.logR=0.01,
 			  prOutlier.baf=1e-5,
@@ -1221,7 +1259,7 @@ joint4 <- function(trioSet,
 	denovo.prev <- NULL
 	table1 <- readTable1(a=a)
 	table3 <- readTable3(a=a)
-	weightR <- 1/3
+	weightR <- 1/2
 	state.names <- trioStateNames()
 	norm.index <- which(state.names=="333")
 	##feature.index=which(baf(obj)[, 3] > 0.1 & baf(obj)[, 3] < 0.9)
@@ -1767,6 +1805,8 @@ minimumDistanceCalls <- function(id, container,
 				 prOutlier=c(0.01, 1e-6),
 				 prMosaic=0.01,
 				 mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
+				 ##baf.sds=c(0.02, 0.3, 0.02),
+				 baf.sds=c(0.005, 0.2, 0.005),
 				 ..., verbose=TRUE, DNAcopy.verbose=0){
 	##---------------------------------------------------------------------------
 	##
@@ -1825,7 +1865,8 @@ minimumDistanceCalls <- function(id, container,
 				     id=id,
 				     lambda=0.05,
 				     min.change=0.1,
-				     min.coverage=10, scale.exp=0.02,
+				     min.coverage=10,
+				     scale.exp=0.02,
 				     verbose=verbose)
 		rd <- stack(RangedDataList(pruned.segs))
 		rd <- rd[, -grep("sample", colnames(rd))]
@@ -1840,7 +1881,8 @@ minimumDistanceCalls <- function(id, container,
 						   log.pi=log.pi,
 						   prOutlier=prOutlier,
 						   prMosaic=prMosaic,
-						   mu.logr=mu.logr)
+						   mu.logr=mu.logr,
+						   baf.sds=baf.sds)
 		## do a second round of pruning for adjacent segments
 		## that have the same state
 		message("Pruning ranges")
