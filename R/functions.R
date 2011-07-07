@@ -892,7 +892,7 @@ phi <- function(x, mu, sigma) dnorm(x, mu, sigma)
 Phi <- function(x, mu, sigma) pnorm(x, mu, sigma)
 ## pdf of truncated normal on support [0, 1]
 tnorm <- function(x, mu, sigma) phi(x, mu, sigma)/(Phi(1, mu, sigma)-Phi(0, mu, sigma))
-
+TN <- tnorm
 
 constructSet <- function(trioSet, CHR, id, states){
 	open(baf(trioSet))
@@ -980,10 +980,21 @@ computeLoglik <- function(id,
 ##			 lr=logR(object)[index, 3])
 ##	loglik(object)["logR", index, 3, ]
 	p1 <- 1-prOutlier.baf
-	sd0 <- baf.sds[1]
-	sd.5 <- baf.sds[2]
-	sd1 <- baf.sds[3]
+##	if(!is(baf.sds, "array")){
+##		stopifnot(length(baf.sds)==3)
+##		sd0 <- baf.sds[1]
+##		sd.5 <- baf.sds[2]
+##		sd1 <- baf.sds[3]
+##	} else{
+		sample.index <- match(id[3], rownames(baf.sds))
+		stopifnot(length(sample.index)==1)
+		baf.sds <- baf.sds[sample.index, , ]
+##	}
 	bf <- baf(object)
+	nr <- nrow(bf)
+	sd0 <- matrix(baf.sds[, "AA"], nr, 3, byrow=TRUE)
+	sd.5 <- matrix(baf.sds[, "AB"], nr, 3, byrow=TRUE)
+	sd1 <- matrix(baf.sds[, "BB"], nr, 3, byrow=TRUE)
 	## model emission as a mixture of normals (genotype is correct) and a uniform (error)
 	## Wang et al. use mixture probabilities from a binomial
 	##
@@ -992,18 +1003,18 @@ computeLoglik <- function(id,
 	##
 	##   Below, I,ve just used a mixture model.  I have not integrated out the
 	##      copy number of the B allele, nor do I make use of MAF estimates.
-	##   tnorm vs dnorm shouldn't make much diff.
+	##   TN vs dnorm shouldn't make much diff.
 	p2 <- 1-prMosaic
 	loglik(object)["baf", , , 1] <-  1
-	##loglik(object)["baf", , , 2] <- p1*((1/2*tnorm(bf, 0, sd0) + 1/2*tnorm(bf, 1, sd1))) + (1-p1)  ## * dunif(bf, 0, 1) = 1
-	t0 <- tnorm(bf, 0, sd0); t1 <- tnorm(bf, 1, sd1)
+	##loglik(object)["baf", , , 2] <- p1*((1/2*TN(bf, 0, sd0) + 1/2*TN(bf, 1, sd1))) + (1-p1)  ## * dunif(bf, 0, 1) = 1
+	t0 <- TN(bf, 0, sd0); t1 <- TN(bf, 1, sd1)
 	t0.25 <- dnorm(bf, 0.25, sd.5); t0.75 <- dnorm(bf, 0.75, sd.5)
 	loglik(object)["baf", , , 2] <- p1*(
 					    p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/4*t0 + 1/4*t1 + 1/4*t0.25 + 1/4*t0.75)
 					    ) + (1-p1)  ## * dunif(bf, 0, 1) = 1
-	loglik(object)["baf", , , 3] <- p1*((1/3*tnorm(bf, 0, sd0) + 1/3*tnorm(bf, 0.5, sd.5) + 1/3*tnorm(bf, 1, sd1)))+ (1-p1)
-	loglik(object)["baf", , , 4] <- p1*((1/4*tnorm(bf, 0, sd0) + 1/4*tnorm(bf, 1/3, sd.5) + 1/4*tnorm(bf, 2/3, sd.5) + 1/4*tnorm(bf, 1, sd1))) + (1-p1)
-	loglik(object)["baf", , , 5] <- p1*((1/5*tnorm(bf, 0, sd0) + 1/5*tnorm(bf, 1/4, sd.5) + 1/5*tnorm(bf, 0.5, sd.5) + 1/5*tnorm(bf, 3/4, sd.5) + 1/5*tnorm(bf, 1, sd1))) + (1-p1)
+	loglik(object)["baf", , , 3] <- p1*((1/3*TN(bf, 0, sd0) + 1/3*TN(bf, 0.5, sd.5) + 1/3*TN(bf, 1, sd1)))+ (1-p1)
+	loglik(object)["baf", , , 4] <- p1*((1/4*TN(bf, 0, sd0) + 1/4*TN(bf, 1/3, sd.5) + 1/4*TN(bf, 2/3, sd.5) + 1/4*TN(bf, 1, sd1))) + (1-p1)
+	loglik(object)["baf", , , 5] <- p1*((1/5*TN(bf, 0, sd0) + 1/5*TN(bf, 1/4, sd.5) + 1/5*TN(bf, 0.5, sd.5) + 1/5*TN(bf, 3/4, sd.5) + 1/5*TN(bf, 1, sd1))) + (1-p1)
 	loglik(object) <- log(loglik(object))
 	return(object)
 }
