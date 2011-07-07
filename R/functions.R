@@ -894,7 +894,7 @@ Phi <- function(x, mu, sigma) pnorm(x, mu, sigma)
 tnorm <- function(x, mu, sigma) phi(x, mu, sigma)/(Phi(1, mu, sigma)-Phi(0, mu, sigma))
 TN <- tnorm
 
-constructSet <- function(trioSet, CHR, id, states){
+constructSet <- function(trioSet, CHR, id, states, ranges){
 	open(baf(trioSet))
 	open(logR(trioSet))
 	i <- match(id[["O"]], offspringNames(trioSet))
@@ -912,6 +912,28 @@ constructSet <- function(trioSet, CHR, id, states){
 		      loglik=loglik)
 	object$MAD <- mads
 	fData(object)$range.index <- NA
+	start.stop <- cbind(ranges$start.index, ranges$end.index)
+	if(is.null(start.stop)){
+		ir2 <- IRanges(start=position(object)-30, end=position(object)+30)
+		ir1 <- IRanges(start(ranges), end(ranges))
+		mm <- findOverlaps(ir1, ir2)
+		subject.index <- subjectHits(mm)
+		start.stop <- lapply(split(subject.index, queryHits(mm)), range)
+		if(length(start.stop) > 1) {
+			start.stop <- do.call(rbind, start.stop)
+		} else {
+			start.stop <- start.stop[[1]]
+			start.stop <- matrix(start.stop, 1, 2)
+		}
+		start.stop <- as.matrix(start.stop)
+		fData(object)$range.index[subject.index] <- queryHits(mm)
+	} else {
+		l <- apply(start.stop, 1, function(x) length(x[1]:x[2]))
+		ri <- rep(seq(length=nrow(ranges)), l)
+		if(length(ri)==nrow(object)){
+			fData(object)$range.index <- ri
+		} else fData(object)$range.index[seq_along(ri)] <- ri
+	}
 	close(baf(trioSet))
 	close(logR(trioSet))
 	return(object)
@@ -933,6 +955,7 @@ plate <- function(object) phenoData2(object[[1]])[, "Sample.Plate", ]
 
 computeLoglik <- function(id,
 			  trioSet, #L,
+			  ranges,
 			  mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
 			  states=0:4,
 			  baf.sds=c(0.02, 0.03, 0.02),
@@ -948,7 +971,7 @@ computeLoglik <- function(id,
 	## one obvious thing that p1 could depend on is the
 	## minor allele frequency.  If rare, p1 is smaller
 	stopifnot(all(!is.na(match(id, s(fullId(trioSet))))))
-	object <- constructSet(trioSet, CHR, id, states=states)
+	object <- constructSet(trioSet, CHR, id, states=states, ranges=ranges)
 	j <- match(id[["O"]], offspringNames(trioSet))
 	sds.sample <- mad(trioSet)[j, ]
 	stopifnot(all(!is.na(sds.sample)))
@@ -969,12 +992,20 @@ computeLoglik <- function(id,
 	lR <- logR(object)
 	## the uniform needs to cover the support
 	CN.MAX=10
-	CN.MIN=-20
+	CN.MIN=-10
+	if(any(lR < CN.MIN, na.rm=TRUE)) lR[lR < CN.MIN] <- CN.MIN
+	if(any(lR > CN.MAX, na.rm=TRUE)) lR[lR > CN.MAX] <- CN.MAX
 	##tmp <- array(NA, dim=dim(loglik(object))[2:4])
-	for(i in seq_along(states)) {
-		loglik(object)["logR", , , i] <- (p1)*dnorm(lR, mu.logr[i], sds) + (1-p1) * dunif(lR, CN.MIN, CN.MAX)
-		##tmp[, , i] <- dnorm(lR, mu.logr[i], sds)
-	}
+##	for(i in seq_along(states)) {
+##		loglik(object)["logR", , , i] <- (p1)*dnorm(lR, mu.logr[i], sds) + (1-p1) * dunif(lR, CN.MIN, CN.MAX)
+##		##tmp[, , i] <- dnorm(lR, mu.logr[i], sds)
+##	}
+	UNIF <- dunif(lR, CN.MIN, CN.MAX)
+	loglik(object)["logR", , , 1] <- p1 * dunif(lR, CN.MIN, -1) + (1-p1)*UNIF
+	loglik(object)["logR", , , 2] <- p1 * (prMosaic * dunif(lR, -1, 0) + (1-prMosaic) * dunif(lR, mu.logr[2], sds)) + (1-p1)*UNIF
+	loglik(object)["logR", , , 3] <- p1 * dnorm(lR, mu.logr[3], sds) + (1-p1)*UNIF
+	loglik(object)["logR", , , 4] <- p1 * dnorm(lR, mu.logr[4], sds) * (1-p1)*UNIF
+	loglik(object)["logR", , , 5] <- p1 * dnorm(lR, mu.logr[5], sds) * (1-p1)*UNIF
 	##index <- which(position(object) >= start(rd)[2] & position(object) <= end(rd)[2])
 ##	df <- cbind(round(tmp[index,3, ], 3),
 ##			 lr=logR(object)[index, 3])
@@ -1016,6 +1047,16 @@ computeLoglik <- function(id,
 	loglik(object)["baf", , , 4] <- p1*((1/4*TN(bf, 0, sd0) + 1/4*TN(bf, 1/3, sd.5) + 1/4*TN(bf, 2/3, sd.5) + 1/4*TN(bf, 1, sd1))) + (1-p1)
 	loglik(object)["baf", , , 5] <- p1*((1/5*TN(bf, 0, sd0) + 1/5*TN(bf, 1/4, sd.5) + 1/5*TN(bf, 0.5, sd.5) + 1/5*TN(bf, 3/4, sd.5) + 1/5*TN(bf, 1, sd1))) + (1-p1)
 	loglik(object) <- log(loglik(object))
+	if(FALSE){
+		LLR <- loglik(object)["logR", range.index(object)==i, ,  ]
+		LLB <- loglik(object)["baf", range.index(object)==i , , ]
+		apply(LLB[, 3, ], 2, sum, na.rm=TRUE)
+		apply(LLR[, 3, ], 2, sum, na.rm=TRUE)
+		LLT <- matrix(NA, 3, 5)
+		LL <- LLR + LLB
+		LLT <- matrix(NA, 3, 5)
+		for(j in 1:3) LLT[j, ] <- apply(LL[, j, ], 2, sum, na.rm=TRUE)
+	}
 	return(object)
 }
 
@@ -1228,6 +1269,7 @@ joint4 <- function(trioSet,
 	fmonames <- pd2[i, j, ]
 	object <- computeLoglik(id=fmonames,
 				trioSet=trioSet,
+				ranges=ranges,
 				mu.logr=mu.logr,
 				states=states,
 				baf.sds=baf.sds,
@@ -1235,30 +1277,6 @@ joint4 <- function(trioSet,
 				prOutlier.baf=prOutlier[2],
 				prMosaic=prMosaic,
 				df0=df0)
-	fData(object)$ranges.index <- NA
-	##for penn cnv ranges, this will not work
-	start.stop <- cbind(ranges$start.index, ranges$end.index)
-	if(is.null(start.stop)){
-		ir2 <- IRanges(start=position(object)-30, end=position(object)+30)
-		ir1 <- IRanges(start(ranges), end(ranges))
-		mm <- findOverlaps(ir1, ir2)
-		subject.index <- subjectHits(mm)
-		start.stop <- lapply(split(subject.index, queryHits(mm)), range)
-		if(length(start.stop) > 1) {
-			start.stop <- do.call(rbind, start.stop)
-		} else {
-			start.stop <- start.stop[[1]]
-			start.stop <- matrix(start.stop, 1, 2)
-		}
-		start.stop <- as.matrix(start.stop)
-		fData(object)$range.index[subject.index] <- queryHits(mm)
-	} else {
-		l <- apply(start.stop, 1, function(x) length(x[1]:x[2]))
-		ri <- rep(seq(length=nrow(ranges)), l)
-		if(length(ri)==nrow(object)){
-			fData(object)$range.index <- ri
-		} else fData(object)$range.index[seq_along(ri)] <- ri
-	}
 	trio.states <- trioStates(states)
 	tmp <- matrix(NA, nrow(trio.states), 2)
 	colnames(tmp) <- c("DN=0", "DN=1")
@@ -1283,6 +1301,10 @@ joint4 <- function(trioSet,
 		LL <- weightR * LLR + (1-weightR)*LLB
 		LLT <- matrix(NA, 3, 5)
 		for(j in 1:3) LLT[j, ] <- apply(LL[, j, ], 2, sum, na.rm=TRUE)
+		if(FALSE){
+			apply(LLB[, 3, ], 2, sum, na.rm=TRUE)
+			apply(LLR[, 3, ], 2, sum, na.rm=TRUE)
+		}
 		rownames(LLT) <- c("F", "M", "O")
 		colnames(LLT) <- paste("CN_", states, sep="")
 		for(j in 1:nrow(trio.states)){
@@ -1871,6 +1893,7 @@ minimumDistanceCalls <- function(id, container,
 	## compute likelihood ratio to infer most likely state
 	if(calculate.lr){
 		message("Pruning ranges")
+		if(FALSE){
 		pruned.segs <- prune(container[chromosomes],
 				     ranges=mdRanges,
 				     id=id,
@@ -1883,6 +1906,7 @@ minimumDistanceCalls <- function(id, container,
 		rd <- rd[, -grep("sample", colnames(rd))]
 		prunedRanges <- RangedDataCBS(ranges=ranges(rd), values=values(rd))
 		rm(rd, pruned.segs); gc()
+	} else prunedRanges <- mdRanges
 		tau <- transitionProbability(states=0:4, epsilon=0.5)
 		log.pi <- log(initialStateProbs(states=0:4, epsilon=0.5))
 		message("Computing bayes factors")
@@ -2293,4 +2317,65 @@ minimumDistancePlot <- function(trioSets, ranges, md.segs, cbs.segs, frame=2e6){
 	}
 	names(f1) <- names(f2) <- paste(sampleNames(ranges), start(ranges), sep="_")
 	return(list(f1, f2))
+}
+
+narrow <- function(md.range, cbs.segs){
+	i <- which(sampleNames(cbs.segs) %in% sampleNames(md.range))
+	cbs.segs <- cbs.segs[i, ]
+	i <- which(chromosome(cbs.segs) %in% chromosome(md.range))
+	if(length(i) > 0 & length(i) < nrow(cbs.segs)){
+		cbs.segs <- cbs.segs[i, ]
+	}
+	chroms <- unique(chromosome(md.range))
+	rdN <- list()
+	for(i in seq_along(chroms)){
+		j <- chroms[i]
+		md <- md.range[chromosome(md.range) == j, ]
+		jj <- which(chromosome(cbs.segs)==j)
+		cbs <- cbs.segs[jj, ]
+		ir1 <- IRanges(start(md), end(md))
+		ir2 <- IRanges(start(cbs), end(cbs))
+		mm <- findOverlaps(ir1, ir2)
+		qhits <- queryHits(mm)
+		shits <- subjectHits(mm)
+		index <- which(sampleNames(md)[qhits] == sampleNames(cbs)[shits])
+		if(length(index) > 0){
+			qhits <- qhits[index]
+			shits <- shits[index]
+		} else stop("no overlap")
+		## there are several queries not present in the cbs segmentation
+		##I <- seq(length=nrow(md))
+		##missing.qhits <- I[!I %in% qhits][1]
+		##ir1 <- IRanges(start(md)[missing.qhits], end(md)[missing.qhits])
+		##all(sampleNames(md)[tmp] %in% sampleNames(cbs))
+		## number of subject ranges that overlap with a single query
+##		freq <- table(qhits)
+##		query.index <- as.integer(names(table(qhits)[table(qhits) > 1]))
+##		## we only need to do something if the freq is greater than 1
+##		index <- which(qhits %in% query.index)
+##		qhits <- qhits[index]
+##		shits <- shits[index]
+		##   -- even then, we might not need to do anything
+		I1 <- start(cbs)[shits] > start(md)[qhits] & start(cbs)[shits] < end(md)[qhits]
+		I2 <- end(cbs)[shits] < end(md)[qhits] & end(cbs)[shits] > start(md)[qhits]
+		st <- start(cbs)[shits] * I1 + start(md)[qhits] * (1-I1)
+		en <- end(cbs)[shits] * I2 + end(md)[qhits] * (1-I2)
+		st.index <- cbs$start.index[shits] * I1 + md$start.index[qhits]*(1-I1)
+		en.index <- cbs$end.index[shits] * I1 + md$end.index[qhits]*(1-I1)
+		nm <- apply(cbind(st.index, en.index), 1, function(x) length(x[1]:x[2]))
+		rdN[[i]] <- RangedData(IRanges(st, en),
+				    id=sampleNames(md)[qhits],
+				    chrom=chromosome(md)[qhits],
+				    num.mark=nm,
+				    seg.mean=md$seg.mean[qhits],
+				    start.index=st.index,
+				    end.index=en.index,
+				    mindist.mad=md$mindist.mad[qhits])
+	}
+	if(length(rdN) > 1){
+		rdL <- stack(RangedDataList(rdN))
+		rd <- rdL[, -grep("sample", colnames(rdL))]
+		rdCbs <- RangedDataCBS(ranges=ranges(rd), values=values(rd))
+	} else rdCbs <- RangedDataCBS(ranges=ranges(rdN[[1]]), values=values(rdN[[1]]))
+	return(rdCbs)
 }
