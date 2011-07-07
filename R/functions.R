@@ -980,21 +980,21 @@ computeLoglik <- function(id,
 ##			 lr=logR(object)[index, 3])
 ##	loglik(object)["logR", index, 3, ]
 	p1 <- 1-prOutlier.baf
-##	if(!is(baf.sds, "array")){
-##		stopifnot(length(baf.sds)==3)
-##		sd0 <- baf.sds[1]
-##		sd.5 <- baf.sds[2]
-##		sd1 <- baf.sds[3]
-##	} else{
+	bf <- baf(object)
+	if(!is(baf.sds, "array")){
+		stopifnot(length(baf.sds)==3)
+		sd0 <- baf.sds[1]
+		sd.5 <- baf.sds[2]
+		sd1 <- baf.sds[3]
+	} else{
 		sample.index <- match(id[3], rownames(baf.sds))
 		stopifnot(length(sample.index)==1)
 		baf.sds <- baf.sds[sample.index, , ]
-##	}
-	bf <- baf(object)
-	nr <- nrow(bf)
-	sd0 <- matrix(baf.sds[, "AA"], nr, 3, byrow=TRUE)
-	sd.5 <- matrix(baf.sds[, "AB"], nr, 3, byrow=TRUE)
-	sd1 <- matrix(baf.sds[, "BB"], nr, 3, byrow=TRUE)
+		nr <- nrow(bf)
+		sd0 <- matrix(baf.sds[, "AA"], nr, 3, byrow=TRUE)
+		sd.5 <- matrix(baf.sds[, "AB"], nr, 3, byrow=TRUE)
+		sd1 <- matrix(baf.sds[, "BB"], nr, 3, byrow=TRUE)
+	}
 	## model emission as a mixture of normals (genotype is correct) and a uniform (error)
 	## Wang et al. use mixture probabilities from a binomial
 	##
