@@ -588,6 +588,11 @@ pruneByFactor <- function(range.object, f, verbose){
 }
 
 combineRangesByFactor <- function(range.object, f){
+	i <- which(is.na(f))
+	if(length(i) > 0){
+		f[is.na(f)] <- f[i-1]
+	}
+	stopifnot(all(!is.na(f)))
 	ff <- cumsum(c(0, abs(diff(as.integer(as.factor(f))))))
 	if(!any(duplicated(ff))) return(range.object)
 	for(i in seq_along(unique(ff))){
@@ -992,8 +997,9 @@ computeLoglik <- function(id,
 	sds <- (sds.marker * df1 + (df1*4)*sds.sample)/(df1 + df1*4)
 	lR <- logR(object)
 	## the uniform needs to cover the support
-	CN.MAX=10
-	CN.MIN=-10
+	CN.MIN <- -5; CN.MAX <- 1.5
+	##CN.MAX=10
+	##CN.MIN=-10
 	if(any(lR < CN.MIN, na.rm=TRUE)) lR[lR < CN.MIN] <- CN.MIN
 	if(any(lR > CN.MAX, na.rm=TRUE)) lR[lR > CN.MAX] <- CN.MAX
 	##tmp <- array(NA, dim=dim(loglik(object))[2:4])
@@ -1057,6 +1063,126 @@ computeLoglik <- function(id,
 		LL <- LLR + LLB
 		LLT <- matrix(NA, 3, 5)
 		for(j in 1:3) LLT[j, ] <- apply(LL[, j, ], 2, sum, na.rm=TRUE)
+	}
+	if(FALSE){
+		pdf("../../figures/mixture.pdf", width=8, height=6)
+		par(las=1, mfrow=c(1,1))
+		plot(CN.MIN:CN.MAX,
+		     type="n", xlab="", ylab="", ylim=c(0,3),
+		     yaxs="i", xlim=c(-2, 1.5))
+		##
+		##
+		colors <- c("grey0",
+			    "grey20",
+			    "grey40",
+			    "grey80",
+			    "white", "lightblue")
+		colors <- makeTransparent(colors, alpha=0.3)
+		## homozygous deletion
+		rect(xleft=-4, xright=-1,
+		     ybottom=0, ytop=1/(-1-CN.MIN),
+		     col=colors[1])
+		##
+		## hemizygous deletion
+		p <- seq(0, 1, by=0.001)
+		x <- qnorm(p, mean=mu.logr[2], sds[1,1])
+		##plot(function(x) dnorm(x, log=TRUE), -60, 50,
+		##     main = "log { Normal density }")
+		y <- dnorm(x, mean=mu.logr[2], sd=sds[1,1])
+		##y <- y/max(y[is.finite(y)])
+		polygon(c(x, rev(x)), c(rep(0, length(x)), rev(y)), col=colors[2])
+		rect(xleft=-1, xright=0,
+		     ybottom=0, ytop=1,
+		     col=colors[2])
+		## normal
+		x <- qnorm(p, mean=mu.logr[3], sds[1,1])
+		y <- dnorm(x, mean=mu.logr[3], sd=sds[1,1])
+		polygon(c(x, rev(x)), c(rep(0, length(x)), rev(y)), col=colors[3])
+		## amplification
+		x <- qnorm(p, mean=mu.logr[4], sds[1,1])
+		y <- dnorm(x, mean=mu.logr[4], sd=sds[1,1])
+		polygon(c(x, rev(x)), c(rep(0, length(x)), rev(y)), col=colors[4])
+		## 2 copy dup
+		x <- qnorm(p, mean=mu.logr[5], sds[1,1])
+		y <- dnorm(x, mean=mu.logr[5], sd=sds[1,1])
+		polygon(c(x, rev(x)), c(rep(0, length(x)), rev(y)), col=colors[5])
+		## outlier
+		rect(xleft=CN.MIN, xright=CN.MAX,
+		     ybottom=0, ytop=1/(CN.MAX-CN.MIN), col=colors[6])
+		legend("left", bty="n", fill=colors,
+		       legend=c("homozygous del",
+		       "hemizygous del",
+		       "normal",
+		       "1 copy dup",
+		       "2 copy dup", "outlier"))
+		dev.off()
+
+		par(las=1, mfrow=c(1,1))
+		plot(0:1,
+		     type="n", xlab="", ylab="", ylim=c(0,80),
+		     yaxs="i", xlim=c(0, 1))
+		##
+		##
+		colors <- c("grey0",
+			    "grey20",
+			    "grey40",
+			    "grey80",
+			    "white", "lightblue")
+		colors <- makeTransparent(colors, alpha=0.3)
+		## homozygous deletion
+		rect(xleft=0, xright=1,
+		     ybottom=0, ytop=1,
+		     col=colors[6])
+		## hemizygous deletion
+		require(msm)
+		p <- seq(0, 1, by=0.001)
+		x <- qtnorm(p, mean=0, 0.02, lower=0, upper=1)
+		##plot(function(x) dnorm(x, log=TRUE), -60, 50,
+		##     main = "log { Normal density }")
+		y <- dtnorm(x, mean=0, 0.02, lower=0, upper=1)
+		##y <- y/max(y[is.finite(y)])
+		x[1]=0
+		polygon(c(x, rev(x)), c(rep(0, length(x)), rev(y)), col=colors[2])
+		x <- qtnorm(p, mean=1, 0.02, lower=0, upper=1)
+		y <- dtnorm(x, mean=1, 0.02, lower=0, upper=1)
+		##y <- y/max(y[is.finite(y)])
+		x[length(x)]=1
+		x[1]=0
+		polygon(c(x, rev(x)), c(rep(0, length(x)), rev(y)), col=colors[2])
+		## allowing for mosaic cn
+		rect(0, 0, 0.5, 0.5, col=colors[2])
+		rect(0.5, 0, 1, 0.5, col=colors[2])
+		## normal
+		x <- qnorm(p, mean=0.5, 0.03)
+		y <- dnorm(x, mean=0.5, 0.03)
+		##y <- y/max(y[is.finite(y)])
+		x[length(x)]=1
+		x[1]=0
+		polygon(c(x, rev(x)), c(rep(0, length(x)), rev(y)), col=colors[3])
+		## single dup
+		x <- qnorm(p, mean=1/3, 0.03)
+		y <- dnorm(x, mean=1/3, 0.03)
+		##y <- y/max(y[is.finite(y)])
+		x[length(x)]=1
+		x[1]=0
+		polygon(c(x, rev(x)), c(rep(0, length(x)), rev(y)), col=colors[4])
+		x <- qnorm(p, mean=2/3, 0.03)
+		y <- dnorm(x, mean=2/3, 0.03)
+		##y <- y/max(y[is.finite(y)])
+		x[length(x)]=1
+		x[1]=0
+		polygon(c(x, rev(x)), c(rep(0, length(x)), rev(y)), col=colors[4])
+		## 2 copy duplication
+		##...
+		legend("left", bty="n", fill=colors,
+		       legend=c("homozygous del",
+		       "hemizygous del",
+		       "normal",
+		       "1 copy dup",
+		       "2 copy dup", "outlier"))
+
+
+
 	}
 	return(object)
 }
@@ -1936,7 +2062,12 @@ minimumDistanceCalls <- function(id, container,
 		## do a second round of pruning for adjacent segments
 		## that have the same state
 		message("Pruning ranges")
-		rd <- pruneByFactor(prunedRanges, f=prunedRanges$argmax, verbose=verbose)
+		rd <- tryCatch(pruneByFactor(prunedRanges, f=prunedRanges$argmax, verbose=verbose),
+			       error=function(e) NULL)
+		if(is.null(rd)){
+			message("Not able to pruneByFactor. Return the ranges without pruning")
+			return(prunedRanges)
+		}
 		rd <- stack(RangedDataList(rd))
 		prunedRanges <- rd[, -ncol(rd)]
 	}
