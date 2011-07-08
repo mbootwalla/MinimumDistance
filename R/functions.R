@@ -2334,7 +2334,7 @@ minimumDistancePlot <- function(trioSets, ranges, md.segs, cbs.segs, frame=2e6){
 	return(list(f1, f2))
 }
 
-narrow <- function(md.range, cbs.segs, thr){
+narrow <- function(md.range, cbs.segs, trioSets, thr){
 	i <- which(sampleNames(cbs.segs) %in% sampleNames(md.range))
 	cbs.segs <- cbs.segs[i, ]
 	i <- which(chromosome(cbs.segs) %in% chromosome(md.range))
@@ -2388,25 +2388,25 @@ narrow <- function(md.range, cbs.segs, thr){
 		st <- start(cbs)[shits] * I1 + start(md)[qhits] * (1-I1)
 		en <- end(cbs)[shits] * I2 + end(md)[qhits] * (1-I2)
 		## For each md range, there should only be one I1 that is TRUE
-		ii <- which(diff(st) < 0) + 1
+		ii <- which(diff(st) <= 0) + 1
 		st <- st[-ii]
 		en <- en[-ii]
-		qhits <- qhits[-ii]
-		shits <- shits[-ii]
-		I1 <- I1[-ii]
-		I2 <- I2[-ii]
-		st.index <- (cbs$start.index[shits] * I1 + md$start.index[qhits]*(1-I1))
-		en.index <- (cbs$end.index[shits] * I1 + md$end.index[qhits]*(1-I1))
-		sm <- cbs$seg.mean[shits]*I1 + md$seg.mean[qhits]*(1-I1)
+		qhits2 <- qhits[-ii]
+		shits2 <- shits[-ii]
+		I12 <- I1[-ii]
+		I22 <- I2[-ii]
+		st.index <- (cbs$start.index[shits2] * I12 + md$start.index[qhits2]*(1-I12))
+		en.index <- (cbs$end.index[shits2] * I22 + md$end.index[qhits2]*(1-I22))
 		nm <- apply(cbind(st.index, en.index), 1, function(x) length(x[1]:x[2]))
+		## keep segment means the same as the minimum distance
 		tmp <- RangedData(IRanges(st, en),
-				    id=sampleNames(md)[qhits],
-				    chrom=chromosome(md)[qhits],
+				    id=sampleNames(md)[qhits2],
+				    chrom=chromosome(md)[qhits2],
 				    num.mark=nm,
-				    seg.mean=sm,
+				    seg.mean=md$seg.mean[qhits2],
 				    start.index=st.index,
 				    end.index=en.index,
-				    mindist.mad=md$mindist.mad[qhits])
+				    mindist.mad=md$mindist.mad[qhits2])
 		rdN[[i]] <- tmp[order(tmp$id, start(tmp)), ]
 	}
 	if(length(rdN) > 1){
