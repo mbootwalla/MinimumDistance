@@ -1167,7 +1167,7 @@ joint1 <- function(LLT, ##object,
 		   state.prev) {
 	state <- trio.states[state.index, ]
 	fmo <- c(LLT[1, state[1]], LLT[2, state[2]], LLT[3, state[3]])
-	if(segment.index == 1){
+	if(segment.index == 1 | is.null(state.prev)){
 		## assume Pr(z_1,f | lambda) = Pr(z_2,m | lambda) = pi
 		## For offspring, we have Pr(z_1,o | z_1,f, z_1,m, DN=0, 1)
 		##    or 1/5 if DN=1
