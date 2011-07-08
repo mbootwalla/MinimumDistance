@@ -1292,6 +1292,7 @@ joint4 <- function(trioSet,
 	weightR <- 1/2
 	state.names <- trioStateNames()
 	norm.index <- which(state.names=="333")
+	ranges <- ranges[order(start(ranges)), ]
 	##feature.index=which(baf(obj)[, 3] > 0.1 & baf(obj)[, 3] < 0.9)
 	##LLB[feature.index, 3, ]
 	for(i in seq(length=nrow(ranges))){
@@ -1836,13 +1837,13 @@ minimumDistanceCalls <- function(id, container,
 				 chromosomes=1:22,
 				 cbs.filename,
 				 segment.md=missing(cbs.filename),
-				 offspring.ranges,
 				 calculate.lr=TRUE,
 				 prOutlier=c(0.01, 1e-6),
 				 prMosaic=0.01,
 				 mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
 				 ##baf.sds=c(0.02, 0.3, 0.02),
 				 baf.sds=c(0.005, 0.2, 0.005),
+				 pruneMinimumDistance=FALSE,
 				 ..., verbose=TRUE, DNAcopy.verbose=0){
 	##---------------------------------------------------------------------------
 	##
@@ -1886,7 +1887,8 @@ minimumDistanceCalls <- function(id, container,
 		if(missing(cbs.filename)) stop("cbs.filename is missing, but segment.md=FALSE")
 		if(verbose) message("Loading saved cbs segmentation results")
 		load(cbs.filename)
-		mdRanges <- get("mdRanges")
+		nm <- strsplit(basename(cbs.filename), ".rda")[[1]][1]
+		mdRanges <- get(nm)
 	}
 	##---------------------------------------------------------------------------
 	##
@@ -1895,8 +1897,8 @@ minimumDistanceCalls <- function(id, container,
 	##---------------------------------------------------------------------------
 	## compute likelihood ratio to infer most likely state
 	if(calculate.lr){
-		message("Pruning ranges")
-		if(FALSE){
+		if(pruneMinimumDistance){
+			message("Pruning ranges")
 			pruned.segs <- prune(container[chromosomes],
 					     ranges=mdRanges,
 					     id=id,
@@ -1910,15 +1912,16 @@ minimumDistanceCalls <- function(id, container,
 			prunedRanges <- RangedDataCBS(ranges=ranges(rd), values=values(rd))
 			rm(rd, pruned.segs); gc()
 		} else {
+			message("Minimum distance ranges not pruned")
 			prunedRanges <- mdRanges
 			prunedRanges <- prunedRanges[sampleNames(prunedRanges) %in% id & chromosome(prunedRanges) %in% chromosomes, ]
 		}
-		if(!missing(offspring.ranges)){
-			ii <- which(sampleNames(offspring.ranges) %in% id & chromosome(offspring.ranges) %in% chromosomes)
-			offspring.ranges <- offspring.ranges[ii, ]
-			if(verbose) message("Narrowing ranges")
-			prunedRanges <- narrow(prunedRanges, offspring.ranges)
-		}
+##		if(!missing(offspring.ranges)){
+##			ii <- which(sampleNames(offspring.ranges) %in% id & chromosome(offspring.ranges) %in% chromosomes)
+##			offspring.ranges <- offspring.ranges[ii, ]
+##			if(verbose) message("Narrowing ranges")
+##			prunedRanges <- narrow(prunedRanges, offspring.ranges)
+##		}
 		tau <- transitionProbability(states=0:4, epsilon=0.5)
 		log.pi <- log(initialStateProbs(states=0:4, epsilon=0.5))
 		message("Computing bayes factors")
@@ -2372,8 +2375,16 @@ narrow <- function(md.range, cbs.segs){
 		I2 <- end(cbs)[shits] < end(md)[qhits] & end(cbs)[shits] > start(md)[qhits]
 		st <- start(cbs)[shits] * I1 + start(md)[qhits] * (1-I1)
 		en <- end(cbs)[shits] * I2 + end(md)[qhits] * (1-I2)
-		st.index <- cbs$start.index[shits] * I1 + md$start.index[qhits]*(1-I1)
-		en.index <- cbs$end.index[shits] * I1 + md$end.index[qhits]*(1-I1)
+		## For each md range, there should only be one I1 that is TRUE
+		ii <- which(diff(st) < 0) + 1
+		st <- st[-ii]
+		en <- en[-ii]
+		qhits <- qhits[-ii]
+		shits <- shits[-ii]
+		I1 <- I1[-ii]
+		I2 <- I2[-ii]
+		st.index <- (cbs$start.index[shits] * I1 + md$start.index[qhits]*(1-I1))
+		en.index <- (cbs$end.index[shits] * I1 + md$end.index[qhits]*(1-I1))
 		nm <- apply(cbind(st.index, en.index), 1, function(x) length(x[1]:x[2]))
 		rdN[[i]] <- RangedData(IRanges(st, en),
 				    id=sampleNames(md)[qhits],
