@@ -912,8 +912,9 @@ constructSet <- function(trioSet, CHR, id, states, ranges){
 		      loglik=loglik)
 	object$MAD <- mads
 	fData(object)$range.index <- NA
-	start.stop <- cbind(ranges$start.index, ranges$end.index)
-	if(is.null(start.stop)){
+	##start.stop <- cbind(ranges$start.index, ranges$end.index)
+##	if(is.null(start.stop)){
+	## if we 'narrow' the ranges, we must redo this
 		ir2 <- IRanges(start=position(object)-30, end=position(object)+30)
 		ir1 <- IRanges(start(ranges), end(ranges))
 		mm <- findOverlaps(ir1, ir2)
@@ -927,13 +928,13 @@ constructSet <- function(trioSet, CHR, id, states, ranges){
 		}
 		start.stop <- as.matrix(start.stop)
 		fData(object)$range.index[subject.index] <- queryHits(mm)
-	} else {
-		l <- apply(start.stop, 1, function(x) length(x[1]:x[2]))
-		ri <- rep(seq(length=nrow(ranges)), l)
-		if(length(ri)==nrow(object)){
-			fData(object)$range.index <- ri
-		} else fData(object)$range.index[seq_along(ri)] <- ri
-	}
+##	} else {
+##		l <- apply(start.stop, 1, function(x) length(x[1]:x[2]))
+##		ri <- rep(seq(length=nrow(ranges)), l)
+##		if(length(ri)==nrow(object)){
+##			fData(object)$range.index <- ri
+##		} else fData(object)$range.index[seq_along(ri)] <- ri
+##	}
 	close(baf(trioSet))
 	close(logR(trioSet))
 	return(object)
@@ -1296,6 +1297,7 @@ joint4 <- function(trioSet,
 	for(i in seq(length=nrow(ranges))){
 		##if(i==4) browser()
 		obj <- object[which(range.index(object) == i), ]
+		if(nrow(obj) < 2) next()
 		LLR <- loglik(obj)["logR", , ,  ]
 		LLB <- loglik(obj)["baf", , , ]
 		LL <- weightR * LLR + (1-weightR)*LLB
@@ -1834,6 +1836,7 @@ minimumDistanceCalls <- function(id, container,
 				 chromosomes=1:22,
 				 cbs.filename,
 				 segment.md=missing(cbs.filename),
+				 offspring.ranges,
 				 calculate.lr=TRUE,
 				 prOutlier=c(0.01, 1e-6),
 				 prMosaic=0.01,
@@ -1894,19 +1897,28 @@ minimumDistanceCalls <- function(id, container,
 	if(calculate.lr){
 		message("Pruning ranges")
 		if(FALSE){
-		pruned.segs <- prune(container[chromosomes],
-				     ranges=mdRanges,
-				     id=id,
-				     lambda=0.05,
-				     min.change=0.1,
-				     min.coverage=10,
-				     scale.exp=0.02,
-				     verbose=verbose)
-		rd <- stack(RangedDataList(pruned.segs))
-		rd <- rd[, -grep("sample", colnames(rd))]
-		prunedRanges <- RangedDataCBS(ranges=ranges(rd), values=values(rd))
-		rm(rd, pruned.segs); gc()
-	} else prunedRanges <- mdRanges
+			pruned.segs <- prune(container[chromosomes],
+					     ranges=mdRanges,
+					     id=id,
+					     lambda=0.05,
+					     min.change=0.1,
+					     min.coverage=10,
+					     scale.exp=0.02,
+					     verbose=verbose)
+			rd <- stack(RangedDataList(pruned.segs))
+			rd <- rd[, -grep("sample", colnames(rd))]
+			prunedRanges <- RangedDataCBS(ranges=ranges(rd), values=values(rd))
+			rm(rd, pruned.segs); gc()
+		} else {
+			prunedRanges <- mdRanges
+			prunedRanges <- prunedRanges[sampleNames(prunedRanges) %in% id & chromosome(prunedRanges) %in% chromosomes, ]
+		}
+		if(!missing(offspring.ranges)){
+			ii <- which(sampleNames(offspring.ranges) %in% id & chromosome(offspring.ranges) %in% chromosomes)
+			offspring.ranges <- offspring.ranges[ii, ]
+			if(verbose) message("Narrowing ranges")
+			prunedRanges <- narrow(prunedRanges, offspring.ranges)
+		}
 		tau <- transitionProbability(states=0:4, epsilon=0.5)
 		log.pi <- log(initialStateProbs(states=0:4, epsilon=0.5))
 		message("Computing bayes factors")
@@ -2378,4 +2390,14 @@ narrow <- function(md.range, cbs.segs){
 		rdCbs <- RangedDataCBS(ranges=ranges(rd), values=values(rd))
 	} else rdCbs <- RangedDataCBS(ranges=ranges(rdN[[1]]), values=values(rdN[[1]]))
 	return(rdCbs)
+}
+
+plotRange <- function(range, trioSets, md.segs,cbs.segs, penn.offspring, frame=2e6){
+	tmp <- MinimumDistance:::minimumDistancePlot(trioSets=trioSets,
+						     ranges=range,
+						     md.segs=md.segs,
+						     cbs.segs=cbs.segs,
+						     frame=frame)
+	penn.call <- correspondingCall(range, penn.offspring, subject.method="PennCNV")
+	MinimumDistance:::gridlayout2(tmp, penn.call, ranges=range)
 }
