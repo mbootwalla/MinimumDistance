@@ -2334,7 +2334,7 @@ minimumDistancePlot <- function(trioSets, ranges, md.segs, cbs.segs, frame=2e6){
 	return(list(f1, f2))
 }
 
-narrow <- function(md.range, cbs.segs, trioSets, thr){
+narrow <- function(md.range, cbs.segs, thr, verbose=TRUE){
 	i <- which(sampleNames(cbs.segs) %in% sampleNames(md.range))
 	cbs.segs <- cbs.segs[i, ]
 	i <- which(chromosome(cbs.segs) %in% chromosome(md.range))
@@ -2343,7 +2343,12 @@ narrow <- function(md.range, cbs.segs, trioSets, thr){
 	}
 	chroms <- unique(chromosome(md.range))
 	rdN <- list()
+	if(verbose) {
+		message("Calculating the proportion of ranges in common for list sizes 1 to ", max(list.size))
+		pb <- txtProgressBar(min=0, max=length(chroms), style=3)
+	}
 	for(i in seq_along(chroms)){
+		if(verbose) setTxtProgressBar(pb, i)
 		j <- chroms[i]
 		md <- md.range[chromosome(md.range) == j, ]
 		md <- md[order(sampleNames(md), start(md)), ]
@@ -2409,6 +2414,7 @@ narrow <- function(md.range, cbs.segs, trioSets, thr){
 				    mindist.mad=md$mindist.mad[qhits2])
 		rdN[[i]] <- tmp[order(tmp$id, start(tmp)), ]
 	}
+	if(verbose) close(pb)
 	if(length(rdN) > 1){
 		rdL <- stack(RangedDataList(rdN))
 		rd <- rdL[, -grep("sample", colnames(rdL))]
