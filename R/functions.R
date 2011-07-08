@@ -2334,7 +2334,7 @@ minimumDistancePlot <- function(trioSets, ranges, md.segs, cbs.segs, frame=2e6){
 	return(list(f1, f2))
 }
 
-narrow <- function(md.range, cbs.segs){
+narrow <- function(md.range, cbs.segs, thr){
 	i <- which(sampleNames(cbs.segs) %in% sampleNames(md.range))
 	cbs.segs <- cbs.segs[i, ]
 	i <- which(chromosome(cbs.segs) %in% chromosome(md.range))
@@ -2346,8 +2346,10 @@ narrow <- function(md.range, cbs.segs){
 	for(i in seq_along(chroms)){
 		j <- chroms[i]
 		md <- md.range[chromosome(md.range) == j, ]
+		md <- md[order(sampleNames(md), start(md)), ]
 		jj <- which(chromosome(cbs.segs)==j)
 		cbs <- cbs.segs[jj, ]
+		cbs <- cbs[order(sampleNames(cbs), start(cbs)), ]
 		ir1 <- IRanges(start(md), end(md))
 		ir2 <- IRanges(start(cbs), end(cbs))
 		mm <- findOverlaps(ir1, ir2)
@@ -2371,8 +2373,18 @@ narrow <- function(md.range, cbs.segs){
 ##		qhits <- qhits[index]
 ##		shits <- shits[index]
 		##   -- even then, we might not need to do anything
-		I1 <- start(cbs)[shits] > start(md)[qhits] & start(cbs)[shits] < end(md)[qhits]
-		I2 <- end(cbs)[shits] < end(md)[qhits] & end(cbs)[shits] > start(md)[qhits]
+		##---------------------------------------------------------------------------
+		##
+		## only narrow the range if the minimum distance is
+		## bigger than some nominal value. Otherwise, we use
+		## the minimum distance range as is.
+		##
+		##
+		##---------------------------------------------------------------------------
+		abs.thr <- abs(md$seg.mean) > thr
+		## I1 is an indicator for whether to use the cbs start
+		I1 <- start(cbs)[shits] > start(md)[qhits] & start(cbs)[shits] < end(md)[qhits] & abs.thr[qhits]
+		I2 <- end(cbs)[shits] < end(md)[qhits] & end(cbs)[shits] > start(md)[qhits] & abs.thr[qhits]
 		st <- start(cbs)[shits] * I1 + start(md)[qhits] * (1-I1)
 		en <- end(cbs)[shits] * I2 + end(md)[qhits] * (1-I2)
 		## For each md range, there should only be one I1 that is TRUE
@@ -2385,15 +2397,17 @@ narrow <- function(md.range, cbs.segs){
 		I2 <- I2[-ii]
 		st.index <- (cbs$start.index[shits] * I1 + md$start.index[qhits]*(1-I1))
 		en.index <- (cbs$end.index[shits] * I1 + md$end.index[qhits]*(1-I1))
+		sm <- cbs$seg.mean[shits]*I1 + md$seg.mean[qhits]*(1-I1)
 		nm <- apply(cbind(st.index, en.index), 1, function(x) length(x[1]:x[2]))
-		rdN[[i]] <- RangedData(IRanges(st, en),
+		tmp <- RangedData(IRanges(st, en),
 				    id=sampleNames(md)[qhits],
 				    chrom=chromosome(md)[qhits],
 				    num.mark=nm,
-				    seg.mean=md$seg.mean[qhits],
+				    seg.mean=sm,
 				    start.index=st.index,
 				    end.index=en.index,
 				    mindist.mad=md$mindist.mad[qhits])
+		rdN[[i]] <- tmp[order(tmp$id, start(tmp)), ]
 	}
 	if(length(rdN) > 1){
 		rdL <- stack(RangedDataList(rdN))
