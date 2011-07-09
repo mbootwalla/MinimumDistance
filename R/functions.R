@@ -589,10 +589,18 @@ pruneByFactor <- function(range.object, f, verbose){
 
 combineRangesByFactor <- function(range.object, f){
 	i <- which(is.na(f))
-	if(length(i) > 0){
-		f[is.na(f)] <- f[i-1]
+	j <- 1
+	while(length(i) > 0){
+		if(is.na(f[1])){
+			f[1] <- f[2]
+		} else {
+			f[is.na(f)] <- f[i-1]
+		}
+		i <- which(is.na(f))
+		j <- j+1
+		if(j > 10) stop("too many na's in f")
 	}
-	stopifnot(all(!is.na(f)))
+	##stopifnot(all(!is.na(f)))
 	ff <- cumsum(c(0, abs(diff(as.integer(as.factor(f))))))
 	if(!any(duplicated(ff))) return(range.object)
 	for(i in seq_along(unique(ff))){
@@ -920,19 +928,25 @@ constructSet <- function(trioSet, CHR, id, states, ranges){
 	##start.stop <- cbind(ranges$start.index, ranges$end.index)
 ##	if(is.null(start.stop)){
 	## if we 'narrow' the ranges, we must redo this
-		ir2 <- IRanges(start=position(object)-30, end=position(object)+30)
-		ir1 <- IRanges(start(ranges), end(ranges))
-		mm <- findOverlaps(ir1, ir2)
-		subject.index <- subjectHits(mm)
-		start.stop <- lapply(split(subject.index, queryHits(mm)), range)
-		if(length(start.stop) > 1) {
-			start.stop <- do.call(rbind, start.stop)
-		} else {
-			start.stop <- start.stop[[1]]
-			start.stop <- matrix(start.stop, 1, 2)
-		}
-		start.stop <- as.matrix(start.stop)
-		fData(object)$range.index[subject.index] <- queryHits(mm)
+	ir1 <- IRanges(start=position(object), end=position(object))
+	ir2 <- IRanges(start(ranges), end(ranges))
+	##mm <- findOverlaps(ir1, ir2)
+	mm <- findOverlaps(ir1, ir2)
+	subject.index <- subjectHits(mm)
+	## there should be no query that is in more than 1 subject
+	qhits <- queryHits(mm)
+	tmp <- split(subject.index, qhits)
+
+	fData(object)$range.index <- qhits
+##	start.stop <- lapply(split(subject.index, queryHits(mm)), range)
+##	if(length(start.stop) > 1) {
+##		start.stop <- do.call(rbind, start.stop)
+##	} else {
+##		start.stop <- start.stop[[1]]
+##		start.stop <- matrix(start.stop, 1, 2)
+##	}
+##	start.stop <- as.matrix(start.stop)
+	fData(object)$range.index[subject.index] <- queryHits(mm)
 ##	} else {
 ##		l <- apply(start.stop, 1, function(x) length(x[1]:x[2]))
 ##		ri <- rep(seq(length=nrow(ranges)), l)
@@ -1424,7 +1438,10 @@ joint4 <- function(trioSet,
 	for(i in seq(length=nrow(ranges))){
 		##if(i==4) browser()
 		obj <- object[which(range.index(object) == i), ]
-		if(nrow(obj) < 2) next()
+		if(nrow(obj) < 2){
+			##state.prev <- trio.states[norm.index, ]
+			next()
+		}
 		LLR <- loglik(obj)["logR", , ,  ]
 		LLB <- loglik(obj)["baf", , , ]
 		LL <- weightR * LLR + (1-weightR)*LLB
@@ -2475,7 +2492,7 @@ narrow <- function(md.range, cbs.segs, thr, verbose=TRUE){
 	chroms <- unique(chromosome(md.range))
 	rdN <- list()
 	if(verbose) {
-		message("Calculating the proportion of ranges in common for list sizes 1 to ", max(list.size))
+		message("Narrowing the ranges with segment mean above ", thr, " if the offspring has a start/stop in the region")
 		pb <- txtProgressBar(min=0, max=length(chroms), style=3)
 	}
 	for(i in seq_along(chroms)){
@@ -2496,19 +2513,6 @@ narrow <- function(md.range, cbs.segs, thr, verbose=TRUE){
 			qhits <- qhits[index]
 			shits <- shits[index]
 		} else stop("no overlap")
-		## there are several queries not present in the cbs segmentation
-		##I <- seq(length=nrow(md))
-		##missing.qhits <- I[!I %in% qhits][1]
-		##ir1 <- IRanges(start(md)[missing.qhits], end(md)[missing.qhits])
-		##all(sampleNames(md)[tmp] %in% sampleNames(cbs))
-		## number of subject ranges that overlap with a single query
-##		freq <- table(qhits)
-##		query.index <- as.integer(names(table(qhits)[table(qhits) > 1]))
-##		## we only need to do something if the freq is greater than 1
-##		index <- which(qhits %in% query.index)
-##		qhits <- qhits[index]
-##		shits <- shits[index]
-		##   -- even then, we might not need to do anything
 		##---------------------------------------------------------------------------
 		##
 		## only narrow the range if the minimum distance is
@@ -2519,30 +2523,47 @@ narrow <- function(md.range, cbs.segs, thr, verbose=TRUE){
 		##---------------------------------------------------------------------------
 		abs.thr <- abs(md$seg.mean) > thr
 		## I1 is an indicator for whether to use the cbs start
-		I1 <- start(cbs)[shits] > start(md)[qhits] & start(cbs)[shits] < end(md)[qhits] & abs.thr[qhits]
-		I2 <- end(cbs)[shits] < end(md)[qhits] & end(cbs)[shits] > start(md)[qhits] & abs.thr[qhits]
+		I1 <- start(cbs)[shits] >= start(md)[qhits] & start(cbs)[shits] <= end(md)[qhits] & abs.thr[qhits]
+		I2 <- end(cbs)[shits] <= end(md)[qhits] & end(cbs)[shits] >= start(md)[qhits] & abs.thr[qhits]
 		st <- start(cbs)[shits] * I1 + start(md)[qhits] * (1-I1)
 		en <- end(cbs)[shits] * I2 + end(md)[qhits] * (1-I2)
+		st.index <- (cbs$start.index[shits] * I1 + md$start.index[qhits]*(1-I1))
+		en.index <- (cbs$end.index[shits] * I2 + md$end.index[qhits]*(1-I2))
 		## For each md range, there should only be one I1 that is TRUE
-		ii <- which(diff(st) <= 0) + 1
-		st <- st[-ii]
-		en <- en[-ii]
-		qhits2 <- qhits[-ii]
-		shits2 <- shits[-ii]
-		I12 <- I1[-ii]
-		I22 <- I2[-ii]
-		st.index <- (cbs$start.index[shits2] * I12 + md$start.index[qhits2]*(1-I12))
-		en.index <- (cbs$end.index[shits2] * I22 + md$end.index[qhits2]*(1-I22))
+		## If I1 and I2 are true, then a range is completely contained within the md segment
+		ids <- md$id[qhits]
+		##  |--------------|
+		## ---|--------|-----
+		## Becomes
+		##  |-|--------|---|
+		index <- which(I1 & I2)-1
+		index <- index[index!=0]
+		index <- index[ids[index] == ids[index+1]]
+		if(length(index) > 1){
+			en[index] <- st[index+1]-1
+			en.index[index] <- st.index[index+1]-1
+		}
+		##split(I1, qhits)
+		##split(I2, qhits)
+		stopifnot(sapply(split(st, qhits), function(x) all(diff(x) >= 0)))
 		nm <- apply(cbind(st.index, en.index), 1, function(x) length(x[1]:x[2]))
 		## keep segment means the same as the minimum distance
 		tmp <- RangedData(IRanges(st, en),
-				    id=sampleNames(md)[qhits2],
-				    chrom=chromosome(md)[qhits2],
+				    id=sampleNames(md)[qhits],
+				    chrom=chromosome(md)[qhits],
 				    num.mark=nm,
-				    seg.mean=md$seg.mean[qhits2],
+				    seg.mean=md$seg.mean[qhits],
 				    start.index=st.index,
 				    end.index=en.index,
-				    mindist.mad=md$mindist.mad[qhits2])
+				  mindist.mad=md$mindist.mad[qhits])
+		##ranges.below.thr <- split(!abs.thr[qhits], qhits)
+		##ns <- sapply(ranges.below.thr, sum)
+		uid <- paste(tmp$id, start(tmp), tmp$chrom, sep="")
+		duplicated(uid)
+		tmp <- tmp[!duplicated(uid), ]
+		## for each subject, the following must be true
+		index <- which(tmp$id[-nrow(tmp)] == tmp$id[-1])
+		stopifnot(all(end(tmp)[index] < start(tmp)[index+1]))
 		rdN[[i]] <- tmp[order(tmp$id, start(tmp)), ]
 	}
 	if(verbose) close(pb)
