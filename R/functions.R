@@ -925,35 +925,15 @@ constructSet <- function(trioSet, CHR, id, states, ranges){
 		      loglik=loglik)
 	object$MAD <- mads
 	fData(object)$range.index <- NA
-	##start.stop <- cbind(ranges$start.index, ranges$end.index)
-##	if(is.null(start.stop)){
-	## if we 'narrow' the ranges, we must redo this
 	ir1 <- IRanges(start=position(object), end=position(object))
 	ir2 <- IRanges(start(ranges), end(ranges))
-	##mm <- findOverlaps(ir1, ir2)
 	mm <- findOverlaps(ir1, ir2)
 	subject.index <- subjectHits(mm)
 	## there should be no query that is in more than 1 subject
 	qhits <- queryHits(mm)
-	tmp <- split(subject.index, qhits)
-
-	fData(object)$range.index <- qhits
-##	start.stop <- lapply(split(subject.index, queryHits(mm)), range)
-##	if(length(start.stop) > 1) {
-##		start.stop <- do.call(rbind, start.stop)
-##	} else {
-##		start.stop <- start.stop[[1]]
-##		start.stop <- matrix(start.stop, 1, 2)
-##	}
-##	start.stop <- as.matrix(start.stop)
-	fData(object)$range.index[subject.index] <- queryHits(mm)
-##	} else {
-##		l <- apply(start.stop, 1, function(x) length(x[1]:x[2]))
-##		ri <- rep(seq(length=nrow(ranges)), l)
-##		if(length(ri)==nrow(object)){
-##			fData(object)$range.index <- ri
-##		} else fData(object)$range.index[seq_along(ri)] <- ri
-##	}
+	shits <- subjectHits(mm)
+	fData(object)$range.index <- NA
+	fData(object)$range.index[qhits] <- shits
 	close(baf(trioSet))
 	close(logR(trioSet))
 	return(object)
