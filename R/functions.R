@@ -996,21 +996,12 @@ computeLoglik <- function(id,
 	##CN.MIN=-10
 	if(any(lR < CN.MIN, na.rm=TRUE)) lR[lR < CN.MIN] <- CN.MIN
 	if(any(lR > CN.MAX, na.rm=TRUE)) lR[lR > CN.MAX] <- CN.MAX
-	##tmp <- array(NA, dim=dim(loglik(object))[2:4])
-##	for(i in seq_along(states)) {
-##		loglik(object)["logR", , , i] <- (p1)*dnorm(lR, mu.logr[i], sds) + (1-p1) * dunif(lR, CN.MIN, CN.MAX)
-##		##tmp[, , i] <- dnorm(lR, mu.logr[i], sds)
-##	}
 	UNIF <- dunif(lR, CN.MIN, CN.MAX)
 	loglik(object)["logR", , , 1] <- p1 * dunif(lR, CN.MIN, -1) + (1-p1)*UNIF
 	loglik(object)["logR", , , 2] <- p1 * (prMosaic * dunif(lR, -1, 0) + (1-prMosaic) * dunif(lR, mu.logr[2], sds)) + (1-p1)*UNIF
 	loglik(object)["logR", , , 3] <- p1 * dnorm(lR, mu.logr[3], sds) + (1-p1)*UNIF
-	loglik(object)["logR", , , 4] <- p1 * dnorm(lR, mu.logr[4], sds) * (1-p1)*UNIF
-	loglik(object)["logR", , , 5] <- p1 * dnorm(lR, mu.logr[5], sds) * (1-p1)*UNIF
-	##index <- which(position(object) >= start(rd)[2] & position(object) <= end(rd)[2])
-##	df <- cbind(round(tmp[index,3, ], 3),
-##			 lr=logR(object)[index, 3])
-##	loglik(object)["logR", index, 3, ]
+	loglik(object)["logR", , , 4] <- p1 * dnorm(lR, mu.logr[4], sds) + (1-p1)*UNIF
+	loglik(object)["logR", , , 5] <- p1 * dnorm(lR, mu.logr[5], sds) + (1-p1)*UNIF
 	p1 <- 1-prOutlier.baf
 	bf <- baf(object)
 	if(!is(baf.sds, "array")){
@@ -1057,6 +1048,8 @@ computeLoglik <- function(id,
 		LL <- LLR + LLB
 		LLT <- matrix(NA, 3, 5)
 		for(j in 1:3) LLT[j, ] <- apply(LL[, j, ], 2, sum, na.rm=TRUE)
+		rownames(LLT) <- c("F", "M", "O")
+		colnames(LLT) <- paste("CN_", states, sep="")
 	}
 	if(FALSE){
 		pdf("../../figures/mixture.pdf", width=8, height=6)
@@ -1474,21 +1467,25 @@ joint4 <- function(trioSet,
 			is.denovo <- FALSE
 			bf <- tmp[argmax1, 1]
 		}
-		ranges$lik.state[i] <- bf
+		##ranges$lik.state[i] <- bf
+		##stopifnot(!is.na(bf))
 		##ranges$DN[i] <- is.denovo
 		ranges$lik.norm[i] <- lik.norm
 		ranges$argmax[i] <- argmax
-		if("state" %in% colnames(ranges)){
-			if(!is.na(state(ranges)[i])){
+		##if("state" %in% colnames(ranges)){
+		##if(!is.na(state(ranges)[i])){
 				## if state is not missing, return the log likelihood for the given state
-				st <- state(ranges)[i]
-				ii <- which(trioStateNames()==st)
-				ranges$lik.state[i] <- tmp[ii, is.denovo+1]
-			}
-		}
+		##st <- state(ranges)[i]
+		##ii <- which(trioStateNames()==st)
+		##ranges$lik.state[i] <- tmp[ii, is.denovo+1]
+		ranges$lik.state[i] <- tmp[argmax, is.denovo+1]
+		stopifnot(!is.na(ranges$lik.state[i]))
+	##}
+		##}
 		denovo.prev <- is.denovo
 		state.prev <- trio.states[argmax, ]
 	}
+	ranges$state <- trioStateNames()[ranges$argmax]
 	ranges
 }
 
@@ -1967,6 +1964,7 @@ minimumDistanceCalls <- function(id, container,
 				 ##baf.sds=c(0.02, 0.3, 0.02),
 				 baf.sds=c(0.005, 0.2, 0.005),
 				 pruneMinimumDistance=FALSE,
+				 min.coverage=10,
 				 ..., verbose=TRUE, DNAcopy.verbose=0){
 	##---------------------------------------------------------------------------
 	##
@@ -2048,6 +2046,7 @@ minimumDistanceCalls <- function(id, container,
 		tau <- transitionProbability(states=0:4, epsilon=0.5)
 		log.pi <- log(initialStateProbs(states=0:4, epsilon=0.5))
 		message("Computing bayes factors")
+		prunedRanges$state <- NA
 		prunedRanges <- computeBayesFactor(object=container[chromosomes],
 						   ranges=prunedRanges,
 						   tau=tau,
@@ -2056,6 +2055,7 @@ minimumDistanceCalls <- function(id, container,
 						   prMosaic=prMosaic,
 						   mu.logr=mu.logr,
 						   baf.sds=baf.sds)
+		prunedRanges <- prunedRanges[prunedRanges$num.mark >= min.coverage, ]
 		## do a second round of pruning for adjacent segments
 		## that have the same state
 		message("Pruning ranges")
@@ -2069,6 +2069,7 @@ minimumDistanceCalls <- function(id, container,
 		prunedRanges <- rd[, -ncol(rd)]
 	}
 	prunedRanges$state <- trioStateNames()[prunedRanges$argmax]
+	prunedRanges <- prunedRanges[order(prunedRanges$id, prunedRanges$chrom, start(prunedRanges)), ]
 	return(prunedRanges)
 }
 
@@ -2315,12 +2316,25 @@ gridlayout2 <- function(xyList, otherCall, ranges){
 	stopifnot(length(ix) > 0)
 	stopifnot(all(nms2[ix] == nms))
 	ranges <- ranges[ix, ]
+	if(is(otherCall, "character")){
+		if(otherCall == "no overlap")
+			plotOtherCall <- FALSE
+	} else plotOtherCall <- TRUE
 	for(i in seq_along(f1)){
 		gridlayout(lattice.object=list(f1[[i]], f2[[i]]),
 			   rd=ranges[i, ],
 			   col="orange", cex=0.5,
 			   cex.pch=0.1, fill="transparent", lty="solid", lwd=1)
-		if(!missing(otherCall)){
+		if(is(otherCall, "character")){
+			if(otherCall == "no overlap"){
+				upViewport(0)
+				grid.text("PennCNV call: 333",
+					  x=unit(0.6, "npc"),
+					  y=unit(0.01, "npc"),
+					  gp=gpar(col="grey30", cex=0.5))
+				pr <- NULL
+			}
+		} else {
 			pr <- otherCall[otherCall$id == ranges$id[i], ]
 			if(nrow(pr) == 0){
 				stopifnot(otherCall$method[1]=="PennCNV")
@@ -2329,8 +2343,10 @@ gridlayout2 <- function(xyList, otherCall, ranges){
 					  x=unit(0.6, "npc"),
 					  y=unit(0.01, "npc"),
 					  gp=gpar(col="grey30", cex=0.5))
-				next()
+				pr <- NULL
 			}
+		}
+		if(!is.null(pr)){
 			pc <- paste(state(pr), collapse="-")
 			upViewport(0)
 			method <- unique(otherCall$method)
@@ -2338,17 +2354,19 @@ gridlayout2 <- function(xyList, otherCall, ranges){
 				  x=unit(0.6, "npc"),
 				  y=unit(0.01, "npc"),
 				  gp=gpar(col="grey30", cex=0.5))
-			lr1 <- ranges$lik.state[i]
-			lr2 <- ranges$lik.norm[i]
-			lrr <- lr1-lr2
-			l <- formatC(c(lr1, lr2, lrr), digits=1, format="f")
-			grid.text(paste("LL 332:", l[1], "\n",
-					"LL 333:", l[2], "\n",
-					"LLR:", l[3], "\n"),
-				  x=unit(1, "npc"),
-				  y=unit(0, "npc"),
-				  just=c("right", "bottom"),
-				  gp=gpar(col="grey10", cex=0.6))
+		}
+		lr1 <- ranges$lik.state[i]
+		lr2 <- ranges$lik.norm[i]
+		lrr <- lr1-lr2
+		l <- formatC(c(lr1, lr2, lrr), digits=1, format="f")
+		grid.text(paste("LL 332:", l[1], "\n",
+				"LL 333:", l[2], "\n",
+				"LLR:", l[3], "\n"),
+			  x=unit(1, "npc"),
+			  y=unit(0, "npc"),
+			  just=c("right", "bottom"),
+			  gp=gpar(col="grey10", cex=0.6))
+		if(!is.null(pr)){
 			pr <- pr[state(pr) != "333", ]
 			if(nrow(pr)==0) next()
 			L <- length(f2[[i]]$panel.args)
