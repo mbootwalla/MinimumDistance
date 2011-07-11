@@ -2325,7 +2325,9 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 	TRUE
 }
 
-gridlayout2 <- function(xyList, otherCall, ranges){
+gridlayout2 <- function(method1, xyList, otherCall, ranges){
+	stopifnot(!missing(method1))
+	stopifnot(method1 %in% c("penn", "md"))
 	f1 <- xyList[[1]]
 	f2 <- xyList[[2]]
 	nms <- names(f1)
@@ -2360,18 +2362,33 @@ gridlayout2 <- function(xyList, otherCall, ranges){
 				grid.text("PennCNV call: 333",
 					  x=unit(0.6, "npc"),
 					  y=unit(0.01, "npc"),
-					  gp=gpar(col="grey30", cex=0.5))
+					  gp=gpar(col="blue", cex=0.5))
 				pr <- NULL
 			}
 		}
 		if(!is.null(pr)){
+			method <- unique(otherCall$method)
+			if(method=="PennCNV"){
+				pc <- paste(pr$triostate, collapse="-")
+			}
 			pc <- paste(state(pr), collapse="-")
 			upViewport(0)
-			method <- unique(otherCall$method)
 			grid.text(paste(method, "call:", pc),
 				  x=unit(0.6, "npc"),
 				  y=unit(0.01, "npc"),
-				  gp=gpar(col="grey30", cex=0.5))
+				  gp=gpar(col="blue", cex=0.5))
+		}
+		if(method1=="penn"){
+			grid.text(paste(method1, "call:", ranges$triostate[i]),
+				  x=unit(0.2, "npc"),
+				  y=unit(0.01, "npc"),
+				  gp=gpar(col="orange", cex=0.5))
+		}
+		if(method1=="md"){
+			grid.text(paste("min dist call:", state(ranges)[i]),
+				  x=unit(0.2, "npc"),
+				  y=unit(0.01, "npc"),
+				  gp=gpar(col="orange", cex=0.5))
 		}
 		lr1 <- ranges$lik.state[i]
 		lr2 <- ranges$lik.norm[i]
