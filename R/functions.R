@@ -1955,6 +1955,7 @@ minimumDistance <- function(path, samplesheet, pedigree,
 
 minimumDistanceCalls <- function(id, container,
 				 chromosomes=1:22,
+				 ranges,
 				 cbs.filename,
 				 segment.md=missing(cbs.filename),
 				 calculate.lr=TRUE,
@@ -1975,8 +1976,19 @@ minimumDistanceCalls <- function(id, container,
 		id <- sampleNames(container)
 	} else stopifnot(all(id %in% sampleNames(container)))
 	stopifnot(all(chromosomes %in% 1:22))
-	if(!missing(cbs.filename)){
-		segment.md <- ifelse(file.exists(cbs.filename), FALSE, TRUE)
+	if(missing(ranges)){
+		if(!missing(cbs.filename)){
+			if(file.exists(cbs.filename)) {
+				loadRanges <- TRUE
+				segment.md <- FALSE
+			} else {
+				loadRanges <- FALSE
+				segment.md <- TRUE
+			}
+		}
+	} else {
+		segment.md <- FALSE
+		loadRanges <- FALSE
 	}
 ##	if(missing(segment.md)){
 ##		if(file.exists(cbs.filename)) {
@@ -2005,11 +2017,16 @@ minimumDistanceCalls <- function(id, container,
 		message("Saving the segmentation results from CBS (prior to pruning) to ", cbs.filename)
 		save(mdRanges, file=cbs.filename)
 	} else {
-		if(missing(cbs.filename)) stop("cbs.filename is missing, but segment.md=FALSE")
-		if(verbose) message("Loading saved cbs segmentation results")
-		load(cbs.filename)
-		nm <- strsplit(basename(cbs.filename), ".rda")[[1]][1]
-		mdRanges <- get(nm)
+		if(loadRanges){
+			if(missing(cbs.filename)) stop("cbs.filename is missing, but segment.md=FALSE")
+			if(verbose) message("Loading saved cbs segmentation results")
+			load(cbs.filename)
+			nm <- strsplit(basename(cbs.filename), ".rda")[[1]][1]
+			mdRanges <- get(nm)
+		} else {
+			mdRanges <- ranges
+			rm(ranges);gc()
+		}
 	}
 	##---------------------------------------------------------------------------
 	##
@@ -2036,6 +2053,7 @@ minimumDistanceCalls <- function(id, container,
 			message("Minimum distance ranges not pruned")
 			prunedRanges <- mdRanges
 			prunedRanges <- prunedRanges[sampleNames(prunedRanges) %in% id & chromosome(prunedRanges) %in% chromosomes, ]
+			rm(mdRanges); gc()
 		}
 ##		if(!missing(offspring.ranges)){
 ##			ii <- which(sampleNames(offspring.ranges) %in% id & chromosome(offspring.ranges) %in% chromosomes)
