@@ -1039,8 +1039,13 @@ computeLoglik <- function(id,
 					    ) + (1-p1)  ## * dunif(bf, 0, 1) = 1
 	## a better solution for loh would be to add a latent indicator for
 	## LOH, and then integrate this out of the likelihood
-	tmp1 <- p1*(1/3*TN(bf, 0, sd0) + 1/3*TN(bf, 0.5, sd.5) + 1/3*TN(bf, 1, sd1))+ (1-p1)
+	tmp1 <- p1*(p2*(1/3*TN(bf, 0, sd0) + 1/3*TN(bf, 0.5, sd.5) + 1/3*TN(bf, 1, sd1)) + (1-p2)*(1/3*dunif(bf, 0, 0.2) + 1/3*dunif(bf, 0.3, 0.7) + 1/3*dunif(bf, 0.8, 1)))+ (1-p1)
 	tmp2 <- p1*(p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/2*dunif(bf, 0, 0.2) + 1/2*dunif(bf,0.8,1))) + 1-p1
+	if(FALSE){
+		ii <- which(range.index(object)==i)
+		tmp3 <- cbind(log(tmp1[ii, 3]), log(tmp2[ii, 3]), bf[ii, 3])
+		colnames(tmp3) <- c("norm", "loh", "b")
+	}
 	Lik.Nor <- matrix(NA, nrow(tmp1), ncol(tmp1))
 	ri <- range.index(object)
 	while(any(is.na(ri))) ri[is.na(ri)] <- ri[which(is.na(ri))+1]
@@ -1062,8 +1067,9 @@ computeLoglik <- function(id,
 		LLB <- loglik(object)["baf", range.index(object)==i , , ]
 		ii <- which(range.index(object)==i)
 		b=bf[ii, 3]
-		tmp <- cbind(LLB[195:210, 3, 2:3], b[195:210])
-		tmp <- cbind(LLB[1:20, 3, 2:3], b[1:20])
+		##tmp <- cbind(LLB[1:20, 3, 2:3], b[1:20])
+		##tmp <- cbind(LLB[, 3, 2:3], b)
+		##tmp <- cbind(LLB[, 1, 2:3], bf[ii, 1])
 		apply(LLB[, 1, ], 2, sum, na.rm=TRUE)
 		apply(LLR[, 1, ], 2, sum, na.rm=TRUE)
 		apply(LLB[, 3, ], 2, sum, na.rm=TRUE)
