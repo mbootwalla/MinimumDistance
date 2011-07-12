@@ -1043,6 +1043,7 @@ computeLoglik <- function(id,
 	tmp2 <- p1*(p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/2*dunif(bf, 0, 0.2) + 1/2*dunif(bf,0.8,1))) + 1-p1
 	Lik.Nor <- matrix(NA, nrow(tmp1), ncol(tmp1))
 	ri <- range.index(object)
+	while(any(is.na(ri))) ri[is.na(ri)] <- ri[which(is.na(ri))+1]
 	for(l in 1:3){
 		lik.normal <- sapply(split(log(tmp1[, l]), ri), sum,na.rm=T)
 		lik.loh <- sapply(split(log(tmp2[, l]), ri), sum, na.rm=T)
