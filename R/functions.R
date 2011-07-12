@@ -1002,6 +1002,7 @@ computeLoglik <- function(id,
 	loglik(object)["logR", , , 3] <- p1 * dnorm(lR, mu.logr[3], sds) + (1-p1)*UNIF
 	loglik(object)["logR", , , 4] <- p1 * dnorm(lR, mu.logr[4], sds) + (1-p1)*UNIF
 	loglik(object)["logR", , , 5] <- p1 * dnorm(lR, mu.logr[5], sds) + (1-p1)*UNIF
+	loglik(object)["logR", , , ] <- log(loglik(object)["logR", , , ])
 	p1 <- 1-prOutlier.baf
 	bf <- baf(object)
 	if(!is(baf.sds, "array")){
@@ -1012,11 +1013,11 @@ computeLoglik <- function(id,
 	} else{
 		sample.index <- match(id[3], rownames(baf.sds))
 		stopifnot(length(sample.index)==1)
-		baf.sds <- baf.sds[sample.index, , ]
+		baf.sds2 <- baf.sds[sample.index, , ]
 		nr <- nrow(bf)
-		sd0 <- matrix(baf.sds[, "AA"], nr, 3, byrow=TRUE)
-		sd.5 <- matrix(baf.sds[, "AB"], nr, 3, byrow=TRUE)
-		sd1 <- matrix(baf.sds[, "BB"], nr, 3, byrow=TRUE)
+		sd0 <- matrix(baf.sds2[, "AA"], nr, 3, byrow=TRUE)
+		sd.5 <- matrix(baf.sds2[, "AB"], nr, 3, byrow=TRUE)
+		sd1 <- matrix(baf.sds2[, "BB"], nr, 3, byrow=TRUE)
 	}
 	## model emission as a mixture of normals (genotype is correct) and a uniform (error)
 	## Wang et al. use mixture probabilities from a binomial
@@ -1027,21 +1028,43 @@ computeLoglik <- function(id,
 	##   Below, I,ve just used a mixture model.  I have not integrated out the
 	##      copy number of the B allele, nor do I make use of MAF estimates.
 	##   TN vs dnorm shouldn't make much diff.
+	ploh <- 0.01
 	p2 <- 1-prMosaic
 	loglik(object)["baf", , , 1] <-  1
 	##loglik(object)["baf", , , 2] <- p1*((1/2*TN(bf, 0, sd0) + 1/2*TN(bf, 1, sd1))) + (1-p1)  ## * dunif(bf, 0, 1) = 1
 	t0 <- TN(bf, 0, sd0); t1 <- TN(bf, 1, sd1)
 	t0.25 <- dnorm(bf, 0.25, sd.5); t0.75 <- dnorm(bf, 0.75, sd.5)
 	loglik(object)["baf", , , 2] <- p1*(
-					    p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/4*t0 + 1/4*t1 + 1/4*t0.25 + 1/4*t0.75)
+					    p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/4*dunif(bf, 0, 0.2) + 1/4*dunif(bf, 0.8,1) + 1/4*t0.25 + 1/4*t0.75)
 					    ) + (1-p1)  ## * dunif(bf, 0, 1) = 1
-	loglik(object)["baf", , , 3] <- p1*((1/3*TN(bf, 0, sd0) + 1/3*TN(bf, 0.5, sd.5) + 1/3*TN(bf, 1, sd1)))+ (1-p1)
+	## a better solution for loh would be to add a latent indicator for
+	## LOH, and then integrate this out of the likelihood
+	tmp1 <- p1*(1/3*TN(bf, 0, sd0) + 1/3*TN(bf, 0.5, sd.5) + 1/3*TN(bf, 1, sd1))+ (1-p1)
+	tmp2 <- p1*(p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/2*dunif(bf, 0, 0.2) + 1/2*dunif(bf,0.8,1))) + 1-p1
+	Lik.Nor <- matrix(NA, nrow(tmp1), ncol(tmp1))
+	ri <- range.index(object)
+	for(l in 1:3){
+		lik.normal <- sapply(split(log(tmp1[, l]), ri), sum,na.rm=T)
+		lik.loh <- sapply(split(log(tmp2[, l]), ri), sum, na.rm=T)
+		isloh <- lik.loh > lik.normal
+		f <- sapply(split(ri, ri), length)
+		isloh <- rep(isloh,f)
+		Lik.Nor[, l] <- tmp1[, l]*(1-isloh) + isloh*(tmp2[, l])
+	}
+	##loglik(object)["baf", , , 3] <- p1*((1-ploh)*(1/3*TN(bf, 0, sd0) + 1/3*TN(bf, 0.5, sd.5) + 1/3*TN(bf, 1, sd1)) + ploh*(1/2*t0 + 1/2*t1))+ (1-p1)
+	loglik(object)["baf", , , 3] <- Lik.Nor
 	loglik(object)["baf", , , 4] <- p1*((1/4*TN(bf, 0, sd0) + 1/4*TN(bf, 1/3, sd.5) + 1/4*TN(bf, 2/3, sd.5) + 1/4*TN(bf, 1, sd1))) + (1-p1)
 	loglik(object)["baf", , , 5] <- p1*((1/5*TN(bf, 0, sd0) + 1/5*TN(bf, 1/4, sd.5) + 1/5*TN(bf, 0.5, sd.5) + 1/5*TN(bf, 3/4, sd.5) + 1/5*TN(bf, 1, sd1))) + (1-p1)
-	loglik(object) <- log(loglik(object))
+	loglik(object)["baf", , , ] <- log(loglik(object)["baf", , , ])
 	if(FALSE){
 		LLR <- loglik(object)["logR", range.index(object)==i, ,  ]
 		LLB <- loglik(object)["baf", range.index(object)==i , , ]
+		ii <- which(range.index(object)==i)
+		b=bf[ii, 3]
+		tmp <- cbind(LLB[195:210, 3, 2:3], b[195:210])
+		tmp <- cbind(LLB[1:20, 3, 2:3], b[1:20])
+		apply(LLB[, 1, ], 2, sum, na.rm=TRUE)
+		apply(LLR[, 1, ], 2, sum, na.rm=TRUE)
 		apply(LLB[, 3, ], 2, sum, na.rm=TRUE)
 		apply(LLR[, 3, ], 2, sum, na.rm=TRUE)
 		LLT <- matrix(NA, 3, 5)
@@ -1421,7 +1444,7 @@ joint4 <- function(trioSet,
 		LLT <- matrix(NA, 3, 5)
 		for(j in 1:3) LLT[j, ] <- apply(LL[, j, ], 2, sum, na.rm=TRUE)
 		if(FALSE){
-			apply(LLB[, 3, ], 2, sum, na.rm=TRUE)
+			apply(LLB[, 1, ], 2, sum, na.rm=TRUE)
 			apply(LLR[, 3, ], 2, sum, na.rm=TRUE)
 		}
 		rownames(LLT) <- c("F", "M", "O")
@@ -1959,12 +1982,13 @@ minimumDistanceCalls <- function(id, container,
 				 cbs.filename,
 				 segment.md=missing(cbs.filename),
 				 calculate.lr=TRUE,
-				 prOutlier=c(0.01, 1e-6),
+				 prOutlier=c(0.01, 1e-15),
 				 prMosaic=0.01,
 				 mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
 				 ##baf.sds=c(0.02, 0.3, 0.02),
 				 baf.sds=c(0.005, 0.2, 0.005),
 				 pruneMinimumDistance=FALSE,
+				 prune.by.call=TRUE,
 				 min.coverage=10,
 				 ..., verbose=TRUE, DNAcopy.verbose=0){
 	##---------------------------------------------------------------------------
@@ -2076,15 +2100,17 @@ minimumDistanceCalls <- function(id, container,
 		prunedRanges <- prunedRanges[prunedRanges$num.mark >= min.coverage, ]
 		## do a second round of pruning for adjacent segments
 		## that have the same state
-		message("Pruning ranges")
-		rd <- tryCatch(pruneByFactor(prunedRanges, f=prunedRanges$argmax, verbose=verbose),
-			       error=function(e) NULL)
-		if(is.null(rd)){
-			message("Not able to pruneByFactor. Return the ranges without pruning")
-			return(prunedRanges)
+		if(prune.by.call){
+			message("Pruning ranges")
+			rd <- tryCatch(pruneByFactor(prunedRanges, f=prunedRanges$argmax, verbose=verbose),
+				       error=function(e) NULL)
+			if(is.null(rd)){
+				message("Not able to pruneByFactor. Return the ranges without pruning")
+				return(prunedRanges)
+			}
+			rd <- stack(RangedDataList(rd))
+			prunedRanges <- rd[, -ncol(rd)]
 		}
-		rd <- stack(RangedDataList(rd))
-		prunedRanges <- rd[, -ncol(rd)]
 	}
 	prunedRanges$state <- trioStateNames()[prunedRanges$argmax]
 	prunedRanges <- prunedRanges[order(prunedRanges$id, prunedRanges$chrom, start(prunedRanges)), ]
@@ -2615,5 +2641,5 @@ plotRange <- function(range, trioSets, md.segs,cbs.segs, penn.offspring, frame=2
 						     cbs.segs=cbs.segs,
 						     frame=frame)
 	penn.call <- correspondingCall(range, penn.offspring, subject.method="PennCNV")
-	MinimumDistance:::gridlayout2(tmp, penn.call, ranges=range)
+	MinimumDistance:::gridlayout2("md", tmp, penn.call, ranges=range)
 }
