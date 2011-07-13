@@ -1034,28 +1034,52 @@ computeLoglik <- function(id,
 	##loglik(object)["baf", , , 2] <- p1*((1/2*TN(bf, 0, sd0) + 1/2*TN(bf, 1, sd1))) + (1-p1)  ## * dunif(bf, 0, 1) = 1
 	t0 <- TN(bf, 0, sd0); t1 <- TN(bf, 1, sd1)
 	t0.25 <- dnorm(bf, 0.25, sd.5); t0.75 <- dnorm(bf, 0.75, sd.5)
-	loglik(object)["baf", , , 2] <- p1*(
-					    p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/4*dunif(bf, 0, 0.2) + 1/4*dunif(bf, 0.8,1) + 1/4*t0.25 + 1/4*t0.75)
+##	tmp <- p1*(
+##					    p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/4*dunif(bf, 0, 0.2) + 1/4*dunif(bf, 0.8,1) + 1/4*t0.25 + 1/4*t0.75)
+##					    ) + (1-p1)  ## * dunif(bf, 0, 1) = 1
+	tmp <- p1*(
+					    p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/2*dunif(bf, 0, 0.4) + 1/2*dunif(bf, 0.6,1))
 					    ) + (1-p1)  ## * dunif(bf, 0, 1) = 1
+	loglik(object)["baf", , , 2] <- tmp
 	## a better solution for loh would be to add a latent indicator for
 	## LOH, and then integrate this out of the likelihood
 	tmp1 <- p1*(p2*(1/3*TN(bf, 0, sd0) + 1/3*TN(bf, 0.5, sd.5) + 1/3*TN(bf, 1, sd1)) + (1-p2)*(1/3*dunif(bf, 0, 0.2) + 1/3*dunif(bf, 0.3, 0.7) + 1/3*dunif(bf, 0.8, 1)))+ (1-p1)
-	tmp2 <- p1*(p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/2*dunif(bf, 0, 0.2) + 1/2*dunif(bf,0.8,1))) + 1-p1
-	if(FALSE){
-		ii <- which(range.index(object)==i)
-		tmp3 <- cbind(log(tmp1[ii, 3]), log(tmp2[ii, 3]), bf[ii, 3])
-		colnames(tmp3) <- c("norm", "loh", "b")
-	}
+	##tmp2 <- p1*(p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/2*dunif(bf, 0, 0.2) + 1/2*dunif(bf,0.8,1))) + 1-p1
 	Lik.Nor <- matrix(NA, nrow(tmp1), ncol(tmp1))
 	ri <- range.index(object)
-	while(any(is.na(ri))) ri[is.na(ri)] <- ri[which(is.na(ri))+1]
+	if(mean(is.na(ri)) > 0.50){
+		##
+		## For computing the bayes factor for just 1 range (e.g., a
+		## range identified by another method)
+		##
+		##   -- would be better to explicitly indicate this
+		##
+		## assign 'fake' range indices to the other markers
+		first <- which(!is.na(ri))[1]
+		last <- rev(which(!is.na(ri)))[1]
+		stopifnot(all(!is.na(ri[first:last])))
+		ri[1:(first-1)] <- ri[first]-1
+		ri[(last+1):length(ri)] <- ri[last]+1
+	}
+	counter <- 1
+	while(any(is.na(ri))){
+		isna.index <- which(is.na(ri))
+		if(any(isna.index == length(ri))){
+			ri[length(ri)] <- ri[length(ri)-1]
+		}
+		isna.index <- which(is.na(ri))
+		if(length(isna.index) > 0)
+			ri[isna.index] <- ri[isna.index+1]
+		counter <- counter+1
+		if(counter > 5) stop("problems with nas in range indx")
+	}
 	for(l in 1:3){
 		lik.normal <- sapply(split(log(tmp1[, l]), ri), sum,na.rm=T)
-		lik.loh <- sapply(split(log(tmp2[, l]), ri), sum, na.rm=T)
+		lik.loh <- sapply(split(log(tmp[, l]), ri), sum, na.rm=T)
 		isloh <- lik.loh > lik.normal
 		f <- sapply(split(ri, ri), length)
 		isloh <- rep(isloh,f)
-		Lik.Nor[, l] <- tmp1[, l]*(1-isloh) + isloh*(tmp2[, l])
+		Lik.Nor[, l] <- tmp1[, l]*(1-isloh) + isloh*(tmp[, l])
 	}
 	##loglik(object)["baf", , , 3] <- p1*((1-ploh)*(1/3*TN(bf, 0, sd0) + 1/3*TN(bf, 0.5, sd.5) + 1/3*TN(bf, 1, sd1)) + ploh*(1/2*t0 + 1/2*t1))+ (1-p1)
 	loglik(object)["baf", , , 3] <- Lik.Nor
