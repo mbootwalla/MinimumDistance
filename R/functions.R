@@ -998,7 +998,7 @@ computeLoglik <- function(id,
 	if(any(lR > CN.MAX, na.rm=TRUE)) lR[lR > CN.MAX] <- CN.MAX
 	UNIF <- dunif(lR, CN.MIN, CN.MAX)
 	loglik(object)["logR", , , 1] <- p1 * dunif(lR, CN.MIN, -1) + (1-p1)*UNIF
-	loglik(object)["logR", , , 2] <- p1 * (prMosaic * dunif(lR, -1, 0) + (1-prMosaic) * dunif(lR, mu.logr[2], sds)) + (1-p1)*UNIF
+	loglik(object)["logR", , , 2] <- p1 * (prMosaic * dunif(lR, -1, 0) + (1-prMosaic) * dnorm(lR, mu.logr[2], sds)) + (1-p1)*UNIF
 	loglik(object)["logR", , , 3] <- p1 * dnorm(lR, mu.logr[3], sds) + (1-p1)*UNIF
 	loglik(object)["logR", , , 4] <- p1 * dnorm(lR, mu.logr[4], sds) + (1-p1)*UNIF
 	loglik(object)["logR", , , 5] <- p1 * dnorm(lR, mu.logr[5], sds) + (1-p1)*UNIF
@@ -1091,11 +1091,12 @@ computeLoglik <- function(id,
 		LLB <- loglik(object)["baf", range.index(object)==i , , ]
 		ii <- which(range.index(object)==i)
 		b=bf[ii, 3]
-		##tmp <- cbind(LLB[1:20, 3, 2:3], b[1:20])
-		##tmp <- cbind(LLB[, 3, 2:3], b)
-		##tmp <- cbind(LLB[, 1, 2:3], bf[ii, 1])
+		colnames(tmp4) <- c("hemizygous", "normal", "log r")
+		##loglik(object)["logR", , , 3] <- p1 * dnorm(lR, mu.logr[3], sds) + (1-p1)*UNIF
 		apply(LLB[, 1, ], 2, sum, na.rm=TRUE)
 		apply(LLR[, 1, ], 2, sum, na.rm=TRUE)
+		apply(LLB[, 2, ], 2, sum, na.rm=TRUE)
+		apply(LLR[, 2, ], 2, sum, na.rm=TRUE)
 		apply(LLB[, 3, ], 2, sum, na.rm=TRUE)
 		apply(LLR[, 3, ], 2, sum, na.rm=TRUE)
 		LLT <- matrix(NA, 3, 5)
