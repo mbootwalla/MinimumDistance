@@ -2128,7 +2128,17 @@ minimumDistanceCalls <- function(id, container,
 						   prMosaic=prMosaic,
 						   mu.logr=mu.logr,
 						   baf.sds=baf.sds)
-		prunedRanges <- prunedRanges[prunedRanges$num.mark >= min.coverage, ]
+		##---------------------------------------------------------------------------
+		## The following line needs to be commented. Here's why
+		##  suppose the x's indicate a CNV
+		##   9----------xxxxxx--------30
+		##  And the copy numbers are
+		##   222222222220000002222222222
+		##  If we remove small segments, we get
+		##   22222222222 <gap>2222222222
+		##  And after pruneByFactor, we would have
+		##   222222222222222222222222222
+		## prunedRanges <- prunedRanges[prunedRanges$num.mark >= min.coverage, ]
 		## do a second round of pruning for adjacent segments
 		## that have the same state
 		if(prune.by.call){
@@ -2382,7 +2392,7 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 	TRUE
 }
 
-gridlayout2 <- function(method1, xyList, otherCall, ranges){
+gridlayout2 <- function(method1, xyList, otherCall, ranges, cex.call=0.6){
 	stopifnot(!missing(method1))
 	stopifnot(method1 %in% c("penn", "md"))
 	f1 <- xyList[[1]]
@@ -2408,7 +2418,7 @@ gridlayout2 <- function(method1, xyList, otherCall, ranges){
 				grid.text("PennCNV call: 333",
 					  x=unit(0.6, "npc"),
 					  y=unit(0.01, "npc"),
-					  gp=gpar(col="grey30", cex=0.5))
+					  gp=gpar(col="grey30", cex=cex.call))
 				pr <- NULL
 			}
 		} else {
@@ -2419,7 +2429,7 @@ gridlayout2 <- function(method1, xyList, otherCall, ranges){
 				grid.text("PennCNV call: 333",
 					  x=unit(0.6, "npc"),
 					  y=unit(0.01, "npc"),
-					  gp=gpar(col="blue", cex=0.5))
+					  gp=gpar(col="blue", cex=cex.call))
 				pr <- NULL
 			}
 		}
@@ -2433,19 +2443,19 @@ gridlayout2 <- function(method1, xyList, otherCall, ranges){
 			grid.text(paste(method, "call:", pc),
 				  x=unit(0.6, "npc"),
 				  y=unit(0.01, "npc"),
-				  gp=gpar(col="blue", cex=0.5))
+				  gp=gpar(col="blue", cex=cex.call))
 		}
 		if(method1=="penn"){
 			grid.text(paste(method1, "call:", ranges$triostate[i]),
 				  x=unit(0.2, "npc"),
 				  y=unit(0.01, "npc"),
-				  gp=gpar(col="orange", cex=0.5))
+				  gp=gpar(col="orange", cex=cex.call))
 		}
 		if(method1=="md"){
 			grid.text(paste("min dist call:", state(ranges)[i]),
 				  x=unit(0.2, "npc"),
 				  y=unit(0.01, "npc"),
-				  gp=gpar(col="orange", cex=0.5))
+				  gp=gpar(col="orange", cex=cex.call))
 		}
 		lr1 <- ranges$lik.state[i]
 		lr2 <- ranges$lik.norm[i]
@@ -2457,7 +2467,7 @@ gridlayout2 <- function(method1, xyList, otherCall, ranges){
 			  x=unit(1, "npc"),
 			  y=unit(0, "npc"),
 			  just=c("right", "bottom"),
-			  gp=gpar(col="grey10", cex=0.6))
+			  gp=gpar(col="grey10", cex=cex.call))
 		if(!is.null(pr)){
 			pr <- pr[state(pr) != "333", ]
 			if(nrow(pr)==0) next()
