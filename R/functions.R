@@ -1091,8 +1091,11 @@ computeLoglik <- function(id,
 		LLB <- loglik(object)["baf", range.index(object)==i , , ]
 		ii <- which(range.index(object)==i)
 		b=bf[ii, 3]
-		colnames(tmp4) <- c("hemizygous", "normal", "log r")
+		##colnames(tmp4) <- c("hemizygous", "normal", "log r")
 		##loglik(object)["logR", , , 3] <- p1 * dnorm(lR, mu.logr[3], sds) + (1-p1)*UNIF
+		r <- cbind(LLR[, 1, 2:3], lR[ii, 1])
+		p1 <- prOutlier[1]
+		tmp <- p1 * dnorm(lR[ii, 1], mu.logr[3], sds[ii, 1]) + (1-p1)*UNIF[ii,1]
 		apply(LLB[, 1, ], 2, sum, na.rm=TRUE)
 		apply(LLR[, 1, ], 2, sum, na.rm=TRUE)
 		apply(LLB[, 2, ], 2, sum, na.rm=TRUE)
@@ -1329,9 +1332,9 @@ joint1 <- function(LLT, ##object,
 		   state.index,
 		   table1,
 		   table3,
-		   is.denovo,
+		   is.denovo=FALSE,
 		   Prob.DN=1.5e-6,
-		   denovo.prev,
+		   denovo.prev=FALSE,
 		   state.prev) {
 	state <- trio.states[state.index, ]
 	fmo <- c(LLT[1, state[1]], LLT[2, state[2]], LLT[3, state[3]])
@@ -1343,10 +1346,14 @@ joint1 <- function(LLT, ##object,
 		## if DN is 0 (not devovo), then many of the hidden
 		##  states should have essentially an epsilon
 		##  probability of occurring.
+		##log.Prob.DN <- ifelse(is.denovo, log(Prob.DN), log(1-Prob.DN))
 		pi.offspring <- c(lookUpTable1(table1, state),  1/5)
-		pi.offspring <- pi.offspring[[is.denovo+1]]
-		## could log.pi just have length(0:4)??
-		log.pi <- c(log.pi[state[1]], log.pi[state[2]], log(pi.offspring))
+		lpr.offspring <- log(pi.offspring[1] * (1-Prob.DN) + pi.offspring[2]+Prob.DN)
+		##pi.offspring <- pi.offspring[[is.denovo+1]]
+		log.pi <- c(log.pi[state[1]], ## father
+			    log.pi[state[2]], ## mother
+			    lpr.offspring)
+			    ##log(pi.offspring))## offspring
 		##fmo <- apply(fmo, 2, sum, na.rm=TRUE)
 		fmo <- fmo + log.pi
 ##		for(j in 1:2) fmo[j] <- fmo[j]+log.pi[state.index]
@@ -1355,8 +1362,9 @@ joint1 <- function(LLT, ##object,
 ##		o <- sum(fmo[[3]])+log(pi.offspring)
 		## p.E138 top left: Pr(DN_1 = 1 | model)
 		##  -- the probability the first marker is in a denovo region
-		log.Prob.DN <- ifelse(is.denovo, log(Prob.DN), log(1-Prob.DN))
-		fmo[3] <- fmo[3]+log.Prob.DN
+		##log.Prob.DN <- ifelse(is.denovo, log(Prob.DN), log(1-Prob.DN))
+		##pr.offspring <-
+		##fmo[3] <- fmo[3]+log.Prob.DN
 	} else{
 		##** Note that when state is the 'normal.state'**
 		##    (state.index == normal.index)
@@ -1368,7 +1376,31 @@ joint1 <- function(LLT, ##object,
 		for(j in 1:2) fmo[j] <- fmo[j]+log(tau[state.prev[j], state[j]])
 		##f <- log(tau[state.prev[1], state[1]]) + sum(fmo[[1]])
 		##m <- log(tau[state.prev[2], state[1]]) + sum(fmo[[2]])
-		if(denovo.prev & is.denovo){
+		##if(denovo.prev){
+		##
+		## Previous non-mendelian
+		##
+		## current Mendelian
+		tabled.value <- lookUpTable1(table1, state)
+		p1 <- 1/5*tabled.value
+		## current non-Mendelian
+		p2 <- 1/5*tau[state.prev[3], state[3]]  ## eq. 9
+		##fmo[3] <- log(p1 + p2)
+		##fmo[3] <- (1/5*tau[state.prev[3], state[3]]*
+		##fmo[3] <- log(1/5) + log(tau[state.prev[3], state[3]]) + fmo[3]
+		##
+		## Previous Mendelian
+		##
+		## current mendelian
+		tabled.value <- lookUpTable3(table3, state.prev, state.curr=state)
+		p3 <- tabled.value
+		## current non-mendelian
+		p4 <- 1/5*lookUpTable1(table1, state) ## eq. 10
+		##
+		fmo[3] <- fmo[3]+log(p1+p2+p3+p4)
+		##fmo[3] <- log(p1+p2)
+		##fmo[3] <- log(tabled.value) + fmo[3]
+		##if(denovo.prev & is.denovo){
 			## Equation 9: Wang et al.
 			## if previous marker was in a range that was called denovo
 			## Pr(z_j,o, z_j-1,o | DN_j=1, DN_j-1=1)
@@ -1376,24 +1408,24 @@ joint1 <- function(LLT, ##object,
 			##    2nd term is 1/5
 			##    1st term is
 			## Pr(CN state of offspring in previous segment | previous segment was denovo) = 1/5
-			fmo[3] <- log(1/5) + log(tau[state.prev[3], state[3]]) + fmo[3]
-		}
-		if(denovo.prev & !is.denovo){
-			## Equation 10: Wang et al.
-			## previous marker was in a range that was not called denovo
-			tabled.value <- lookUpTable1(table1, state)
-			fmo[3] <- log(1/5) + log(tabled.value) + fmo[3]
-		}
-		if(!denovo.prev & is.denovo){
-			## Equation 10
-			tabled.value <- lookUpTable1(table1, state.prev)
-			fmo[3] <- log(1/5) + log(tabled.value) + fmo[3]
-		}
-		if(!denovo.prev & !is.denovo){
-			## 25 x 25 x 25 table available in source code of software
-			tabled.value <- lookUpTable3(table3, state.prev, state.curr=state)
-			fmo[3] <- log(tabled.value) + fmo[3]
-		}
+##			fmo[3] <- log(1/5) + log(tau[state.prev[3], state[3]]) + fmo[3]
+##		}
+##		if(denovo.prev & !is.denovo){
+##			## Equation 10: Wang et al.
+##			## previous marker was in a range that was not called denovo
+##			tabled.value <- lookUpTable1(table1, state)
+##			fmo[3] <- log(1/5) + log(tabled.value) + fmo[3]
+##		}
+##		if(!denovo.prev & is.denovo){
+##			## Equation 10
+##			tabled.value <- lookUpTable1(table1, state.prev)
+##			fmo[3] <- log(1/5) + log(tabled.value) + fmo[3]
+##		}
+##		if(!denovo.prev & !is.denovo){
+##			## 25 x 25 x 25 table available in source code of software
+##			tabled.value <- lookUpTable3(table3, state.prev, state.curr=state)
+##			fmo[3] <- log(tabled.value) + fmo[3]
+##		}
 	}
 	## RS: comment 4/29/2011
 	## add the probability of transitioning back to the normal state
@@ -1447,8 +1479,9 @@ joint4 <- function(trioSet,
 				prMosaic=prMosaic,
 				df0=df0)
 	trio.states <- trioStates(states)
-	tmp <- matrix(NA, nrow(trio.states), 2)
-	colnames(tmp) <- c("DN=0", "DN=1")
+	##tmp <- matrix(NA, nrow(trio.states), 2)
+	tmp <- rep(NA, nrow(trio.states))
+	##colnames(tmp) <- c("DN=0", "DN=1")
 	## take into account 'the prior'
 	##  -- the probability of transitioning to and from an altered state for each range
 	##  -- the initial state probability if range is denovo
@@ -1464,7 +1497,7 @@ joint4 <- function(trioSet,
 	##feature.index=which(baf(obj)[, 3] > 0.1 & baf(obj)[, 3] < 0.9)
 	##LLB[feature.index, 3, ]
 	for(i in seq(length=nrow(ranges))){
-		##if(i==4) browser()
+		##if(i==9) break()
 		obj <- object[which(range.index(object) == i), ]
 		if(nrow(obj) < 2){
 			##state.prev <- trio.states[norm.index, ]
@@ -1482,62 +1515,24 @@ joint4 <- function(trioSet,
 		rownames(LLT) <- c("F", "M", "O")
 		colnames(LLT) <- paste("CN_", states, sep="")
 		for(j in 1:nrow(trio.states)){
-			for(DN in c(FALSE, TRUE)){
-				tmp[j, DN+1] <- joint1(##object=obj,
-						       LLT=LLT,
-						       trio.states=trio.states,
-						      tau=tau,
-						      log.pi=log.pi,
-						      normal.index=normal.index,
-						      segment.index=i,
-						      state.index=j,
-						      table1=table1,
-						      table3=table3,
-						      is.denovo=DN,
-						      state.prev=state.prev,
-						      denovo.prev=denovo.prev)
-			}
+			tmp[j] <- joint1(LLT=LLT,
+					 trio.states=trio.states,
+					 tau=tau,
+					 log.pi=log.pi,
+					 normal.index=normal.index,
+					 segment.index=i,
+					 state.index=j,
+					 table1=table1,
+					 table3=table3,
+					 state.prev=state.prev)
 		}
 		## RS 4/29/2011
-		##integrate out the denovo indicator
-		##one.finite <- which(rowSums(is.finite(tmp))==1)
-		argmax1 <- which.max(tmp[,1])
-		argmax2 <- which.max(tmp[,2])
-		lik.norm <- tmp[norm.index, ]
-		lik.norm <- lik.norm[which.max(lik.norm)]
-		if(argmax1 != argmax2){
-			lik1 <- tmp[argmax1, 1]
-			lik2 <- tmp[argmax2, 2]
-			if(lik1 >= lik2){
-				argmax <- argmax1
-				is.denovo <- FALSE
-				bf <- tmp[argmax1, 1]
-			} else{
-				is.denovo <- TRUE
-				argmax <- argmax2
-				bf <- tmp[argmax2, 2]
-			}
-		} else{
-			argmax <- argmax1
-			is.denovo <- FALSE
-			bf <- tmp[argmax1, 1]
-		}
-		##ranges$lik.state[i] <- bf
-		##stopifnot(!is.na(bf))
-		##ranges$DN[i] <- is.denovo
+		argmax <- which.max(tmp)
+		lik.norm <- tmp[norm.index]
 		ranges$lik.norm[i] <- lik.norm
 		ranges$argmax[i] <- argmax
-		##if("state" %in% colnames(ranges)){
-		##if(!is.na(state(ranges)[i])){
-				## if state is not missing, return the log likelihood for the given state
-		##st <- state(ranges)[i]
-		##ii <- which(trioStateNames()==st)
-		##ranges$lik.state[i] <- tmp[ii, is.denovo+1]
-		ranges$lik.state[i] <- tmp[argmax, is.denovo+1]
+		ranges$lik.state[i] <- tmp[argmax]
 		stopifnot(!is.na(ranges$lik.state[i]))
-	##}
-		##}
-		denovo.prev <- is.denovo
 		state.prev <- trio.states[argmax, ]
 	}
 	ranges$state <- trioStateNames()[ranges$argmax]
@@ -2012,7 +2007,9 @@ minimumDistanceCalls <- function(id, container,
 				 chromosomes=1:22,
 				 ranges,
 				 cbs.filename,
-				 segment.md=missing(cbs.filename),
+				 segment.md=missing(cbs.filename)&missing(ranges),
+				 offspring.segs,
+				 mindistance.threshold=0.075,
 				 calculate.lr=TRUE,
 				 prOutlier=c(0.01, 1e-15),
 				 prMosaic=0.01,
@@ -2041,6 +2038,8 @@ minimumDistanceCalls <- function(id, container,
 				loadRanges <- FALSE
 				segment.md <- TRUE
 			}
+		} else {
+			stop("Must provide name of file to store results from circular binary segmentation of the minimum distance")
 		}
 	} else {
 		segment.md <- FALSE
@@ -2067,6 +2066,11 @@ minimumDistanceCalls <- function(id, container,
 					  seg.mean=df$seg.mean,
 					  startIndexInChromosome=df$start.index,
 					  endIndexInChromosome=df$end.index)
+		if(!missing(offspring.segs)){
+			message("\tChecking the offspring segmentation to see whether breakpoints occur within the minimum distance interval...")
+			mdRanges <- narrow(mdRanges, offspring.segs, thr=mindistance.threshold)
+			message("\tFinished 'narrowing' the minimum distance ranges")
+		}
 		mads <- container[[1]]$mindist.mad
 		ix <- match(sampleNames(mdRanges), id)
 		mdRanges$mindist.mad <- mads[ix]
