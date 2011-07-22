@@ -900,12 +900,22 @@ initializeBigArray <- function(name, dim, vmode="integer", initdata=NA){
 }
 
 ## pdf of standard normal
+## the msm package has this stuff, but it seemed slow...
 phi <- function(x, mu, sigma) dnorm(x, mu, sigma)
 ## cdf of standard normal
 Phi <- function(x, mu, sigma) pnorm(x, mu, sigma)
 ## pdf of truncated normal on support [0, 1]
-tnorm <- function(x, mu, sigma) phi(x, mu, sigma)/(Phi(1, mu, sigma)-Phi(0, mu, sigma))
+##tnorm <- function(x, mu, sigma) phi(x, mu, sigma)/(Phi(1, mu, sigma)-Phi(0, mu, sigma))
+tnorm <- function(x, mean, sd, lower=0, upper=1){
+	res <- phi(x, mean, sd)/(Phi(upper, mean, sd)-Phi(lower, mean, sd))
+	ind <- which(x < lower | x > upper)
+	if(any(ind)){
+		res[ind] <- 0
+	}
+	res
+}
 TN <- tnorm
+
 
 constructSet <- function(trioSet, CHR, id, states, ranges){
 	open(baf(trioSet))
@@ -953,6 +963,112 @@ shrinkTo <- function(x, x.0, DF.PRIOR){
 dna <- function(object) harmonizeDnaLabels(phenoData2(object[[1]])[, "DNA.Source", ])
 plate <- function(object) phenoData2(object[[1]])[, "Sample.Plate", ]
 
+
+
+emissionB <- function(p.roh=0.01, q.roh=1-p.roh,
+		      p.mos=0.01, q.mos=1-p.mos,
+		      p.out=1e-15, q.out=1-p.out,
+		      sd0, sd1, sd.5,
+		      object){
+	## model emission as a mixture of normals (genotype is correct) and a uniform (error)
+	## Wang et al. use mixture probabilities from a binomial
+	##
+	##   pi ~ binomial(C(z), allele freq)
+	##   and integrates out the number of copies of the B allele.
+	##
+	##   Below, I,ve just used a mixture model.  I have not integrated out the
+	##      copy number of the B allele, nor do I make use of MAF estimates.
+	##   TN vs dnorm shouldn't make much diff.
+	sd.mosaic <- 0.05
+	bf <- baf(object)
+	##p.mos <- prMosaic
+	q.mos <- 1-p.mos
+	p.out <- 1e-15
+	q.out <- p.out
+	TN0 <- tnorm(bf, 0, sd0);
+	TN1 <- tnorm(bf, 1, sd1)
+	TN.3 <- tnorm(bf, 1/3, sd.5)
+	TN.6 <- tnorm(bf, 2/3, sd.5)
+	TN.25 <- tnorm(bf, 0.25, sd.5);
+	TN.5 <- tnorm(bf, 0.5, sd.5);
+	TN.75 <- tnorm(bf, 0.75, sd.5)
+	TN.M1 <- tnorm(bf, 0.25, sd.mosaic);
+	TN.M2 <- tnorm(bf, 0.75, sd.mosaic);
+	## p1 <- dunif(bf, 0, 1)  if you do a uniform for mosaic, it allows baf's near 0.5 to creep in
+	p1 <- 0.5*TN.M1 + 0.5*TN.M2
+	beta.hemizygous <- p.mosaic*p1 + q.mosaic*(0.5*TN0+0.5*TN1)
+	p.mosaic <- 0.001
+	##pr1 <- dunif(bf, 0, 1)
+	pr1 <- p1
+	pr2 <- 0.5*TN0 + 0.5*TN1
+	pr3 <- p.roh*(p.mosaic*pr1 + q.mosaic*pr2)
+	##pr4 <- dunif(bf, 0, 1)
+	pr4 <- p1
+	pr5 <- 1/3*TN0 + 1/3*TN.5 + 1/3*TN1
+	pr6 <- q.roh*(p.mosaic*pr4 +  q.mosaic*pr5)
+	beta.normal <- pr3+pr6
+	##Pr.Mos <- 0.5*TN.M1 + 0.5*TN.M2
+	##Pr.Mos <- dunif(bf, 0, 1)
+	Pr.Mos <- 0.5*TN.M1 + 0.5*TN.M2
+	loglik(object)["baf", , , 1] <- dunif(bf, 0, 1)
+	##loglik(object)["baf", , , 2] <- p.mos*dunif(bf, 0, 1) + q.mos*(0.5*TN0 + 0.5*TN1)
+	##loglik(object)["baf", , , 2] <- p.mos*Pr.Mos + q.mos*(0.5*TN0 + 0.5*TN1)
+	loglik(object)["baf", , , 2] <- beta.hemizygous
+	##loglik(object)["baf", , , 3] <- q.roh*(p.mos*Pr.Mos + q.mos*(1/3*TN0 + 1/3*TN.5 + 1/3*TN1)) +
+		##p.roh*(p.mos*dunif(bf, 0, 1) + q.mos *(0.5*TN0 + 0.5*TN1))
+	loglik(object)["baf", , , 3] <- beta.normal
+	loglik(object)["baf", , , 4] <- p.mos*dunif(bf, 0, 1) + q.mos*(1/4*TN0 + 1/4*TN.3 + 1/4*TN.6 + 1/4*TN1)
+	loglik(object)["baf", , , 5] <- p.mos*dunif(bf, 0, 1) + q.mos*(1/5*TN(bf, 0, sd0) + 1/5*TN(bf, 1/4, sd.5) + 1/5*TN(bf, 0.5, sd.5) + 1/5*TN(bf, 0.75, sd.5) + 1/5*TN(bf, 1, sd1))
+	loglik(object)["baf", , , ] <- log(loglik(object)["baf", , , ])
+	if(FALSE){
+		LLB <- loglik(object)["baf", range.index(object)==i , , ]
+		LLR <- loglik(object)["logR", range.index(object)==i , , ]
+		ii <- which(range.index(object)==i)
+		apply(LLB[, 1, ], 2, sum, na.rm=TRUE)
+		apply(LLR[, 1, ], 2, sum, na.rm=TRUE)
+		apply(LLB[, 2, ], 2, sum, na.rm=TRUE)
+		apply(LLB[, 3, ], 2, sum, na.rm=TRUE)
+		apply(LLR[, 3, ], 2, sum, na.rm=TRUE)
+		LL <- LLR + LLB
+		LLT <- matrix(NA, 3, 5)
+		for(j in 1:3) LLT[j, ] <- apply(LL[, j, ], 2, sum, na.rm=TRUE)
+		rownames(LLT) <- c("F", "M", "O")
+		colnames(LLT) <- paste("CN_", 0:4, sep="")
+	}
+	return(object)
+}
+
+emissionLR <- function(mu.logr, CN.MIN, CN.MAX, prMosaic, prOutlier, sds, object, ranges){
+	##CN.MAX=10
+	##CN.MIN=-10
+	p.out <- prOutlier
+	q.out <- 1-p.out
+	lR <- logR(object)
+	if(any(lR < CN.MIN, na.rm=TRUE)) lR[lR < CN.MIN] <- CN.MIN
+	if(any(lR > CN.MAX, na.rm=TRUE)) lR[lR > CN.MAX] <- CN.MAX
+	UNIF <- dunif(lR, CN.MIN, CN.MAX)
+	loglik(object)["logR", , , 1] <- q.out * dunif(lR, CN.MIN, -1) + p.out*UNIF
+	loglik(object)["logR", , , 2] <- q.out * (prMosaic * dnorm(lR, mu.logr[2]/3, sds) + (1-prMosaic) * dnorm(lR, mu.logr[2], sds)) + p.out*UNIF
+	loglik(object)["logR", , , 3] <- q.out * dnorm(lR, mu.logr[3], sds) + p.out*UNIF
+	loglik(object)["logR", , , 4] <- q.out * dnorm(lR, mu.logr[4], sds) + p.out*UNIF
+	loglik(object)["logR", , , 5] <- q.out * dnorm(lR, mu.logr[5], sds) + p.out*UNIF
+	loglik(object)["logR", , , ] <- log(loglik(object)["logR", , , ])
+	if(FALSE){
+		LLB <- loglik(object)["baf", range.index(object)==i , , ]
+		LLR <- loglik(object)["logR", range.index(object)==i , , ]
+		ii <- which(range.index(object)==i)
+		apply(LLR[, 1, ], 2, sum, na.rm=TRUE)
+		apply(LLR[, 2, ], 2, sum, na.rm=TRUE)
+		apply(LLR[, 3, ], 2, sum, na.rm=TRUE)
+		LL <- LLR + LLB
+		LLT <- matrix(NA, 3, 5)
+		for(j in 1:3) LLT[j, ] <- apply(LL[, j, ], 2, sum, na.rm=TRUE)
+		rownames(LLT) <- c("F", "M", "O")
+		colnames(LLT) <- paste("CN_", 0:4, sep="")
+	}
+	return(object)
+}
+
 computeLoglik <- function(id,
 			  trioSet, #L,
 			  ranges,
@@ -964,7 +1080,8 @@ computeLoglik <- function(id,
 			  prOutlier.logR=0.01,
 			  prOutlier.baf=1e-5,
 			  prMosaic=0.01,
-			  df0=50){
+			  df0=50,
+			  returnEmission=FALSE){
 	CHR <- chromosome(trioSet)[1]
 	##p1 <- prGtCorrect; rm(prGtCorrect)
 	p1 <- 1-prOutlier.logR
@@ -992,18 +1109,13 @@ computeLoglik <- function(id,
 	lR <- logR(object)
 	## the uniform needs to cover the support
 	CN.MIN <- -5; CN.MAX <- 1.5
-	##CN.MAX=10
-	##CN.MIN=-10
-	if(any(lR < CN.MIN, na.rm=TRUE)) lR[lR < CN.MIN] <- CN.MIN
-	if(any(lR > CN.MAX, na.rm=TRUE)) lR[lR > CN.MAX] <- CN.MAX
-	UNIF <- dunif(lR, CN.MIN, CN.MAX)
-	loglik(object)["logR", , , 1] <- p1 * dunif(lR, CN.MIN, -1) + (1-p1)*UNIF
-	loglik(object)["logR", , , 2] <- p1 * (prMosaic * dunif(lR, -1, 0) + (1-prMosaic) * dnorm(lR, mu.logr[2], sds)) + (1-p1)*UNIF
-	loglik(object)["logR", , , 3] <- p1 * dnorm(lR, mu.logr[3], sds) + (1-p1)*UNIF
-	loglik(object)["logR", , , 4] <- p1 * dnorm(lR, mu.logr[4], sds) + (1-p1)*UNIF
-	loglik(object)["logR", , , 5] <- p1 * dnorm(lR, mu.logr[5], sds) + (1-p1)*UNIF
-	loglik(object)["logR", , , ] <- log(loglik(object)["logR", , , ])
-	p1 <- 1-prOutlier.baf
+	object <- emissionLR(mu.logr=mu.logr, CN.MIN=CN.MIN, CN.MAX=CN.MAX,
+			     prMosaic=prMosaic,
+			     prOutlier=prOutlier.logR,
+			     sds=sds,
+			     object=object,
+			     ranges=ranges)
+	##p1 <- 1-prOutlier.baf
 	bf <- baf(object)
 	if(!is(baf.sds, "array")){
 		stopifnot(length(baf.sds)==3)
@@ -1019,73 +1131,99 @@ computeLoglik <- function(id,
 		sd.5 <- matrix(baf.sds2[, "AB"], nr, 3, byrow=TRUE)
 		sd1 <- matrix(baf.sds2[, "BB"], nr, 3, byrow=TRUE)
 	}
-	## model emission as a mixture of normals (genotype is correct) and a uniform (error)
-	## Wang et al. use mixture probabilities from a binomial
-	##
-	##   pi ~ binomial(C(z), allele freq)
-	##   and integrates out the number of copies of the B allele.
-	##
-	##   Below, I,ve just used a mixture model.  I have not integrated out the
-	##      copy number of the B allele, nor do I make use of MAF estimates.
-	##   TN vs dnorm shouldn't make much diff.
-	ploh <- 0.01
-	p2 <- 1-prMosaic
-	loglik(object)["baf", , , 1] <-  1
-	##loglik(object)["baf", , , 2] <- p1*((1/2*TN(bf, 0, sd0) + 1/2*TN(bf, 1, sd1))) + (1-p1)  ## * dunif(bf, 0, 1) = 1
-	t0 <- TN(bf, 0, sd0); t1 <- TN(bf, 1, sd1)
-	t0.25 <- dnorm(bf, 0.25, sd.5); t0.75 <- dnorm(bf, 0.75, sd.5)
-##	tmp <- p1*(
-##					    p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/4*dunif(bf, 0, 0.2) + 1/4*dunif(bf, 0.8,1) + 1/4*t0.25 + 1/4*t0.75)
+	object <- emissionB(p.roh=0.01,
+			    p.mos=prMosaic,
+			    p.out=prOutlier.baf,
+			    sd0=sd0, sd1=sd1, sd.5=sd.5,
+			    object=object)
+##	p.mos <- prMosaic
+##	q.mos <- 1-p.mos
+##	p.out <- 1e-15
+##	q.out <- p.out
+##	TN0 <- TN(bf, 0, sd0);
+##	TN1 <- TN(bf, 1, sd1)
+##	TN.3 <- dnorm(bf, 1/3, sd.5)
+##	TN.6 <- dnorm(bf, 2/3, sd.5)
+##	TN.25 <- dnorm(bf, 0.25, sd.5);
+##	TN.5 <- dnorm(bf, 0.5, sd.5);
+##	TN.75 <- dnorm(bf, 0.75, sd.5)
+##	loglik(object)["baf", , , 1] <- dunif(b, 0, 1)
+##	loglik(object)["baf", , , 2] <- p.mos*dunif(b, 0, 1) + q.mos*(0.5*TN0 + 0.5*TN1)
+##	loglik(object)["baf", , , 3] <- q.roh*(p.mos*dunif(b, 0, 1) + q.mos*(1/3*TN0 + 1/3*TN.5 + 1/3*TN1)) +
+##		p.roh*(p.mos*dunif(b, 0, 1) + q.mos *(0.5*TN0 + 0.5*TN1))
+##	loglik(object)["baf", , , 4] <- p.mos*dunif(b, 0, 1) + q.mos*(1/4*TN0 + 1/4*TN.3 + 1/4*TN.6 + 1/4*TN1)
+##	loglik(object)["baf", , , 5] <- p.mos*dunif(b, 0, 1) + q.mos*(1/5*TN(bf, 0, sd0) + 1/5*TN(bf, 1/4, sd.5) + 1/5*TN(bf, 0.5, sd.5) + 1/5*TN(bf, 0.75, sd.5) + 1/5*TN(bf, 1, sd1))
+##	return(object)
+##}
+##
+##	ploh <- 0.01
+##	p.m <- prMosaic
+##	q.m <- 1-p.m
+##	pi.roh <- 0.01 ## region of homozygosity
+##	loglik(object)["baf", , , 1] <-  1
+##	##loglik(object)["baf", , , 2] <- p1*((1/2*TN(bf, 0, sd0) + 1/2*TN(bf, 1, sd1))) + (1-p1)  ## * dunif(bf, 0, 1) = 1
+##	t0 <- TN(bf, 0, sd0); t1 <- TN(bf, 1, sd1)
+##	t0.25 <- dnorm(bf, 0.25, sd.5); t0.75 <- dnorm(bf, 0.75, sd.5)
+####	tmp <- p1*(
+####					    p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/4*dunif(bf, 0, 0.2) + 1/4*dunif(bf, 0.8,1) + 1/4*t0.25 + 1/4*t0.75)
+####					    ) + (1-p1)  ## * dunif(bf, 0, 1) = 1
+##
+##	tmp <- q.m*(0.5*t0 + 0.5*t1) + p.m*dunif(bf, 0, 1)
+##					    p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/2*dunif(bf, 0, 0.4) + 1/2*dunif(bf, 0.6,1))
 ##					    ) + (1-p1)  ## * dunif(bf, 0, 1) = 1
-	tmp <- p1*(
-					    p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/2*dunif(bf, 0, 0.4) + 1/2*dunif(bf, 0.6,1))
-					    ) + (1-p1)  ## * dunif(bf, 0, 1) = 1
-	loglik(object)["baf", , , 2] <- tmp
-	## a better solution for loh would be to add a latent indicator for
-	## LOH, and then integrate this out of the likelihood
-	tmp1 <- p1*(p2*(1/3*TN(bf, 0, sd0) + 1/3*TN(bf, 0.5, sd.5) + 1/3*TN(bf, 1, sd1)) + (1-p2)*(1/3*dunif(bf, 0, 0.2) + 1/3*dunif(bf, 0.3, 0.7) + 1/3*dunif(bf, 0.8, 1)))+ (1-p1)
-	##tmp2 <- p1*(p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/2*dunif(bf, 0, 0.2) + 1/2*dunif(bf,0.8,1))) + 1-p1
-	Lik.Nor <- matrix(NA, nrow(tmp1), ncol(tmp1))
-	ri <- range.index(object)
-	if(mean(is.na(ri)) > 0.50){
-		##
-		## For computing the bayes factor for just 1 range (e.g., a
-		## range identified by another method)
-		##
-		##   -- would be better to explicitly indicate this
-		##
-		## assign 'fake' range indices to the other markers
-		first <- which(!is.na(ri))[1]
-		last <- rev(which(!is.na(ri)))[1]
-		stopifnot(all(!is.na(ri[first:last])))
-		ri[1:(first-1)] <- ri[first]-1
-		ri[(last+1):length(ri)] <- ri[last]+1
+####	tmp <- p1*(
+####					    p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/2*dunif(bf, 0, 0.4) + 1/2*dunif(bf, 0.6,1))
+####					    ) + (1-p1)  ## * dunif(bf, 0, 1) = 1
+##	loglik(object)["baf", , , 2] <- tmp
+##	## a better solution for loh would be to add a latent indicator for
+##	## LOH, and then integrate this out of the likelihood
+##
+##	tmp1 <- p1*(p2*(1/3*TN(bf, 0, sd0) + 1/3*TN(bf, 0.5, sd.5) + 1/3*TN(bf, 1, sd1)) + (1-p2)*(1/3*dunif(bf, 0, 0.2) + 1/3*dunif(bf, 0.3, 0.7) + 1/3*dunif(bf, 0.8, 1)))+ (1-p1)
+##	##tmp2 <- p1*(p2*(1/2*t0 + 1/2*t1) + (1-p2)*(1/2*dunif(bf, 0, 0.2) + 1/2*dunif(bf,0.8,1))) + 1-p1
+##	Lik.Nor <- matrix(NA, nrow(tmp1), ncol(tmp1))
+##	ri <- range.index(object)
+##	if(mean(is.na(ri)) > 0.50){
+##		##
+##		## For computing the bayes factor for just 1 range (e.g., a
+##		## range identified by another method)
+##		##
+##		##   -- would be better to explicitly indicate this
+##		##
+##		## assign 'fake' range indices to the other markers
+##		first <- which(!is.na(ri))[1]
+##		last <- rev(which(!is.na(ri)))[1]
+##		stopifnot(all(!is.na(ri[first:last])))
+##		ri[1:(first-1)] <- ri[first]-1
+##		ri[(last+1):length(ri)] <- ri[last]+1
+##	}
+##	counter <- 1
+##	while(any(is.na(ri))){
+##		isna.index <- which(is.na(ri))
+##		if(any(isna.index == length(ri))){
+##			ri[length(ri)] <- ri[length(ri)-1]
+##		}
+##		isna.index <- which(is.na(ri))
+##		if(length(isna.index) > 0)
+##			ri[isna.index] <- ri[isna.index+1]
+##		counter <- counter+1
+##		if(counter > 5) stop("problems with nas in range indx")
+##	}
+##	for(l in 1:3){
+##		lik.normal <- sapply(split(log(tmp1[, l]), ri), sum,na.rm=T)
+##		lik.loh <- sapply(split(log(tmp[, l]), ri), sum, na.rm=T)
+##		isloh <- lik.loh > lik.normal
+##		f <- sapply(split(ri, ri), length)
+##		isloh <- rep(isloh,f)
+##		Lik.Nor[, l] <- tmp1[, l]*(1-isloh) + isloh*(tmp[, l])
+##	}
+##	##loglik(object)["baf", , , 3] <- p1*((1-ploh)*(1/3*TN(bf, 0, sd0) + 1/3*TN(bf, 0.5, sd.5) + 1/3*TN(bf, 1, sd1)) + ploh*(1/2*t0 + 1/2*t1))+ (1-p1)
+##	loglik(object)["baf", , , 3] <- Lik.Nor
+##	loglik(object)["baf", , , 4] <- p1*((1/4*TN(bf, 0, sd0) + 1/4*TN(bf, 1/3, sd.5) + 1/4*TN(bf, 2/3, sd.5) + 1/4*TN(bf, 1, sd1))) + (1-p1)
+##	loglik(object)["baf", , , 5] <- p1*((1/5*TN(bf, 0, sd0) + 1/5*TN(bf, 1/4, sd.5) + 1/5*TN(bf, 0.5, sd.5) + 1/5*TN(bf, 3/4, sd.5) + 1/5*TN(bf, 1, sd1))) + (1-p1)
+##	loglik(object)["baf", , , ] <- log(loglik(object)["baf", , , ])
+	if(returnEmission){
+		return(object)
 	}
-	counter <- 1
-	while(any(is.na(ri))){
-		isna.index <- which(is.na(ri))
-		if(any(isna.index == length(ri))){
-			ri[length(ri)] <- ri[length(ri)-1]
-		}
-		isna.index <- which(is.na(ri))
-		if(length(isna.index) > 0)
-			ri[isna.index] <- ri[isna.index+1]
-		counter <- counter+1
-		if(counter > 5) stop("problems with nas in range indx")
-	}
-	for(l in 1:3){
-		lik.normal <- sapply(split(log(tmp1[, l]), ri), sum,na.rm=T)
-		lik.loh <- sapply(split(log(tmp[, l]), ri), sum, na.rm=T)
-		isloh <- lik.loh > lik.normal
-		f <- sapply(split(ri, ri), length)
-		isloh <- rep(isloh,f)
-		Lik.Nor[, l] <- tmp1[, l]*(1-isloh) + isloh*(tmp[, l])
-	}
-	##loglik(object)["baf", , , 3] <- p1*((1-ploh)*(1/3*TN(bf, 0, sd0) + 1/3*TN(bf, 0.5, sd.5) + 1/3*TN(bf, 1, sd1)) + ploh*(1/2*t0 + 1/2*t1))+ (1-p1)
-	loglik(object)["baf", , , 3] <- Lik.Nor
-	loglik(object)["baf", , , 4] <- p1*((1/4*TN(bf, 0, sd0) + 1/4*TN(bf, 1/3, sd.5) + 1/4*TN(bf, 2/3, sd.5) + 1/4*TN(bf, 1, sd1))) + (1-p1)
-	loglik(object)["baf", , , 5] <- p1*((1/5*TN(bf, 0, sd0) + 1/5*TN(bf, 1/4, sd.5) + 1/5*TN(bf, 0.5, sd.5) + 1/5*TN(bf, 3/4, sd.5) + 1/5*TN(bf, 1, sd1))) + (1-p1)
-	loglik(object)["baf", , , ] <- log(loglik(object)["baf", , , ])
 	if(FALSE){
 		LLR <- loglik(object)["logR", range.index(object)==i, ,  ]
 		LLB <- loglik(object)["baf", range.index(object)==i , , ]
@@ -1093,9 +1231,9 @@ computeLoglik <- function(id,
 		b=bf[ii, 3]
 		##colnames(tmp4) <- c("hemizygous", "normal", "log r")
 		##loglik(object)["logR", , , 3] <- p1 * dnorm(lR, mu.logr[3], sds) + (1-p1)*UNIF
-		r <- cbind(LLR[, 1, 2:3], lR[ii, 1])
-		p1 <- prOutlier[1]
-		tmp <- p1 * dnorm(lR[ii, 1], mu.logr[3], sds[ii, 1]) + (1-p1)*UNIF[ii,1]
+		r <- cbind(LLR[, 3, 2:3], lR[ii, 3])
+		##p1 <- prOutlier[1]
+		##tmp <- p1 * dnorm(lR[ii, 1], mu.logr[3], sds[ii, 1]) + (1-p1)*UNIF[ii,1]
 		apply(LLB[, 1, ], 2, sum, na.rm=TRUE)
 		apply(LLR[, 1, ], 2, sum, na.rm=TRUE)
 		apply(LLB[, 2, ], 2, sum, na.rm=TRUE)
@@ -1333,9 +1471,10 @@ joint1 <- function(LLT, ##object,
 		   table1,
 		   table3,
 		   is.denovo=FALSE,
-		   Prob.DN=1.5e-6,
+		   prob.nonMendelian=1.5e-6,
 		   denovo.prev=FALSE,
 		   state.prev) {
+	Prob.DN <- prob.nonMendelian
 	state <- trio.states[state.index, ]
 	fmo <- c(LLT[1, state[1]], LLT[2, state[2]], LLT[3, state[3]])
 	if(segment.index == 1 | is.null(state.prev)){
@@ -1457,7 +1596,9 @@ joint4 <- function(trioSet,
 		   verbose=TRUE,
 		   prOutlier=c(0.01, 1e-5),
 		   prMosaic=0.01,
-		   df0=50){ ## ignored
+		   df0=50,
+		   prob.nonMendelian=1.5e-6,
+		   returnEmission=FALSE){ ## ignored
 	stopifnot(states == 0:4)
 	stopifnot(length(unique(ranges$chrom)) == 1)
 	##family.id <- unique(ss(ranges$id))
@@ -1477,7 +1618,9 @@ joint4 <- function(trioSet,
 				prOutlier.logR=prOutlier[1],
 				prOutlier.baf=prOutlier[2],
 				prMosaic=prMosaic,
-				df0=df0)
+				df0=df0,
+				returnEmission=returnEmission)
+	if(returnEmission) return(object)
 	trio.states <- trioStates(states)
 	##tmp <- matrix(NA, nrow(trio.states), 2)
 	tmp <- rep(NA, nrow(trio.states))
@@ -1509,8 +1652,13 @@ joint4 <- function(trioSet,
 		LLT <- matrix(NA, 3, 5)
 		for(j in 1:3) LLT[j, ] <- apply(LL[, j, ], 2, sum, na.rm=TRUE)
 		if(FALSE){
+			ii <- which(range.index(object)==i)
 			apply(LLB[, 1, ], 2, sum, na.rm=TRUE)
+			apply(LLB[, 1, ], 2, sum, na.rm=TRUE)
+			apply(LLB[, 3, ], 2, sum, na.rm=TRUE)
 			apply(LLR[, 3, ], 2, sum, na.rm=TRUE)
+			r <- logR(obj)[, 3]
+			tmp <- cbind(LLR[, 3, c(2,3)], r)
 		}
 		rownames(LLT) <- c("F", "M", "O")
 		colnames(LLT) <- paste("CN_", states, sep="")
@@ -1524,7 +1672,8 @@ joint4 <- function(trioSet,
 					 state.index=j,
 					 table1=table1,
 					 table3=table3,
-					 state.prev=state.prev)
+					 state.prev=state.prev,
+					 prob.nonMendelian=prob.nonMendelian)
 		}
 		## RS 4/29/2011
 		argmax <- which.max(tmp)
@@ -2019,6 +2168,7 @@ minimumDistanceCalls <- function(id, container,
 				 pruneMinimumDistance=FALSE,
 				 prune.by.call=TRUE,
 				 min.coverage=10,
+				 returnEmission=FALSE,
 				 ..., verbose=TRUE, DNAcopy.verbose=0){
 	##---------------------------------------------------------------------------
 	##
@@ -2125,14 +2275,22 @@ minimumDistanceCalls <- function(id, container,
 		log.pi <- log(initialStateProbs(states=0:4, epsilon=0.5))
 		message("Computing bayes factors")
 		prunedRanges$state <- NA
-		prunedRanges <- computeBayesFactor(object=container[chromosomes],
+		object <- computeBayesFactor(object=container[chromosomes],
 						   ranges=prunedRanges,
 						   tau=tau,
 						   log.pi=log.pi,
 						   prOutlier=prOutlier,
 						   prMosaic=prMosaic,
 						   mu.logr=mu.logr,
-						   baf.sds=baf.sds)
+						   baf.sds=baf.sds,
+						   returnEmission=returnEmission)
+		if(returnEmission){
+			##return LogLik set
+			return(object)
+		} else {
+			prunedRanges <- object
+			rm(object);gc()
+		}
 		##---------------------------------------------------------------------------
 		## The following line needs to be commented. Here's why
 		##  suppose the x's indicate a CNV

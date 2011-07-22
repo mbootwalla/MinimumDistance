@@ -438,8 +438,10 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 		   a,
 		   prOutlier=c(0.01, 1e-5),
 		   prMosaic=0.01,
+		   prob.nonMendelian,
 		   df0,
-		   verbose, ...){
+		   verbose,
+		   returnEmission=FALSE, ...){
 		  if(missing(tau)) tau <- transitionProbability(states=0:4, epsilon=0.5)
 		  if(missing(log.pi)) log.pi <- log(initialStateProbs(states=0:4, epsilon=0.5))
 		  CHR <- unique(chromosome(object))
@@ -478,7 +480,10 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 				       prOutlier=prOutlier,
 				       prMosaic=prMosaic,
 				       df0=df0,
-				       verbose=verbose)##, F=F, M=M, O=O)
+				       verbose=verbose,
+				       prob.nonMendelian=prob.nonMendelian,
+				       returnEmission=returnEmission)##, F=F, M=M, O=O)
+			  if(returnEmission) return(rd)
 			  ranges$lik.state[j] <- rd$lik.state
 			  ranges$argmax[j] <- rd$argmax
 			  ranges$lik.norm[j] <- rd$lik.norm
