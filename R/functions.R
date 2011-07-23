@@ -966,6 +966,14 @@ plate <- function(object) phenoData2(object[[1]])[, "Sample.Plate", ]
 
 mosaicProb <- function(bf, sd.mosaic, sd0, sd.5, sd1, rangeIndex, normalCN=FALSE){
 	initialP <- 0.99## initial probabilty not mosaic
+	if(any(is.na(rangeIndex))){
+		ii <- which(is.na(rangeIndex))
+		if(ii < length(rangeIndex)){
+			rangeIndex[ii] <- rangeIndex[ii+1]
+		} else{
+			rangeIndex[ii] <- rangeIndex[ii-1]
+		}
+	}
 	f1 <- tnorm(bf, 0, sd0)
 	f2 <- tnorm(bf, 1, sd1)
 	f3 <- tnorm(bf, 0.25, sd.mosaic, lower=0.05, upper=0.4)
@@ -973,14 +981,15 @@ mosaicProb <- function(bf, sd.mosaic, sd0, sd.5, sd1, rangeIndex, normalCN=FALSE
 	if(normalCN) f5 <- tnorm(bf, 0.5, sd.5)
 	tau <- matrix(initialP, nrow(f1), ncol(f1))
 	LL <- sapply(split(rangeIndex, rangeIndex), length)
+	p.out <- 1e-10
 	## updating f3,f4 might help
 	for(k in 1:3){
 		if(!normalCN){
-			T1.num <- tau * (0.5*f1 + 0.5*f2)
-			T.den <- tau * (0.5*f1 + 0.5*f2) + (1-tau)*(0.25*f1 + 0.25*f3 + 0.25*f4 + 0.25*f2)
+			T1.num <- tau * ((1-p.out)*(0.5*f1 + 0.5*f2) + p.out)
+			T.den <- tau * ((1-p.out)*(0.5*f1 + 0.5*f2) + p.out) + (1-tau)*((1-p.out)*0.25*f1 + 0.25*f3 + 0.25*f4 + 0.25*f2) + p.out
 		} else {
-			T1.num <- tau * (1/3*f1 + 1/3*f2 + 1/3*f5)
-			T.den <- tau * (1/3*f1 + 1/3*f2 + 1/3*f5) + (1-tau)*(0.25*f1 + 0.25*f3 + 0.25*f4 + 0.25*f2)
+			T1.num <- tau * ((1-p.out)*(1/3*f1 + 1/3*f2 + 1/3*f5) + p.out)
+			T.den <- tau * ((1-p.out)*(1/3*f1 + 1/3*f2 + 1/3*f5) + p.out) + (1-tau)*((1-p.out)*(0.25*f1 + 0.25*f3 + 0.25*f4 + 0.25*f2) + p.out)
 		}
 		T1 <- T1.num/T.den
 		tau.F <- sapply(split(T1[, 1], rangeIndex), mean, na.rm=TRUE)
@@ -999,6 +1008,8 @@ mosaicProb <- function(bf, sd.mosaic, sd0, sd.5, sd1, rangeIndex, normalCN=FALSE
 }
 
 
+
+
 emissionB <- function(p.roh=0.01, q.roh=1-p.roh,
 		      p.mos=0.01, q.mos=1-p.mos,
 		      p.out=1e-15, q.out=1-p.out,
@@ -1013,15 +1024,20 @@ emissionB <- function(p.roh=0.01, q.roh=1-p.roh,
 	##   Below, I,ve just used a mixture model.  I have not integrated out the
 	##      copy number of the B allele, nor do I make use of MAF estimates.
 	##   TN vs dnorm shouldn't make much diff.
-	q.mosaic <- mosaicProb(bf=bf, sd.mosaic=sd.mosaic/2,
-			    sd=sd0, sd.5=sd.5, sd1=sd1,
-			    rangeIndex=range.index(object),
-			    normalCN=FALSE)
+	p.mosaic=p.mos
 	sd.mosaic <- 0.05
 	bf <- baf(object)
+	if(FALSE){
+		ii <- which(range.index(object)==i)
+		q.mos <- mosaicProb(bf=bf, sd.mosaic=sd.mosaic/2,
+				       sd=sd0, sd.5=sd.5, sd1=sd1,
+				       rangeIndex=range.index(object),
+				       normalCN=FALSE)
+		p.mos <- 1-q.mos
+	}
 	##p.mos <- prMosaic
 	q.mos <- 1-p.mos
-	p.out <- 1e-15
+	p.out <- 1e-10
 	q.out <- p.out
 	TN0 <- tnorm(bf, 0, sd0);
 	TN1 <- tnorm(bf, 1, sd1)
@@ -1030,22 +1046,23 @@ emissionB <- function(p.roh=0.01, q.roh=1-p.roh,
 	TN.25 <- tnorm(bf, 0.25, sd.5);
 	TN.5 <- tnorm(bf, 0.5, sd.5);
 	TN.75 <- tnorm(bf, 0.75, sd.5)
-	TN.M1 <- tnorm(bf, 0.25, sd.mosaic);
-	TN.M2 <- tnorm(bf, 0.75, sd.mosaic);
+	TN.M1 <- tnorm(bf, 0.25, sd.mosaic, lower=0.02, upper=0.46);
+	TN.M2 <- tnorm(bf, 0.75, sd.mosaic, lower=0.54, upper=0.98);
 	## p1 <- dunif(bf, 0, 1)  if you do a uniform for mosaic, it allows baf's near 0.5 to creep in
 	p1 <- 0.5*TN.M1 + 0.5*TN.M2
-	beta.hemizygous <- p.mos*p1 + q.mos*(0.5*TN0+0.5*TN1)
-	q.mos <- mosaicProb(bf=bf, sd.mosaic=sd.mosaic,
+	beta.hemizygous <- (1-q.out)*(p.mos*p1 + q.mos*(0.5*TN0+0.5*TN1)) + p.out
+	q.mos2 <- mosaicProb(bf=bf, sd.mosaic=sd.mosaic,
 			    sd=sd0, sd.5=sd.5, sd1=sd1,
 			    rangeIndex=range.index(object),
 			    normalCN=TRUE)
-	p.mos <- 1-q.mos
+	q.mos2[is.nan(q.mos2)] <- 0.99
+	p.mos2 <- 1-q.mos2
 	pr1 <- p1
 	pr2 <- 0.5*TN0 + 0.5*TN1
-	pr3 <- p.roh*(p.mos*pr1 + q.mos*pr2)
+	pr3 <- p.roh*(p.mos2*pr1 + q.mos2*pr2)
 	pr4 <- p1
 	pr5 <- 1/3*TN0 + 1/3*TN.5 + 1/3*TN1
-	pr6 <- q.roh*(p.mos*pr4 +  q.mos*pr5)
+	pr6 <- q.roh*(p.mos2*pr4 +  q.mos2*pr5)
 	beta.normal <- pr3+pr6
 	loglik(object)["baf", , , 1] <- dunif(bf, 0, 1)
 	loglik(object)["baf", , , 2] <- beta.hemizygous
@@ -1057,6 +1074,8 @@ emissionB <- function(p.roh=0.01, q.roh=1-p.roh,
 		LLB <- loglik(object)["baf", range.index(object)==i , , ]
 		LLR <- loglik(object)["logR", range.index(object)==i , , ]
 		ii <- which(range.index(object)==i)
+		b <- baf(object)[ii, 3]
+		ii2 <- which(b > 0.45 & b < 0.55)
 		apply(LLB[, 1, ], 2, sum, na.rm=TRUE)
 		apply(LLR[, 1, ], 2, sum, na.rm=TRUE)
 		apply(LLB[, 2, ], 2, sum, na.rm=TRUE)
@@ -1071,7 +1090,34 @@ emissionB <- function(p.roh=0.01, q.roh=1-p.roh,
 	return(object)
 }
 
-emissionLR <- function(mu.logr, CN.MIN, CN.MAX, prMosaic, prOutlier, sds, object, ranges){
+	rohProb <- function(x, sd0, sd.5, sd1, rangeIndex){
+		initialP <- 0.01## initial probabilty for region of homozygosity
+		fAA <- tnorm(x, 0, sd0)
+		fBB <- tnorm(x, 1, sd1)
+		fAB <- tnorm(x, 0.5, sd.5)
+		tau <- matrix(initialP, nrow(fAA), ncol(fAA))
+		LL <- sapply(split(rangeIndex, rangeIndex), length)
+		p.out <- 1e-10
+		## updating f3,f4 might help
+		for(k in 1:3){
+			T1.num <- tau * ((1-p.out)*(0.5*fAA + 0.5*fBB) + p.out)
+			T.den <- tau * ((1-p.out)*(0.5*fAA + 0.5*fBB) + p.out) + (1-tau)*((1-p.out)*(1/3*fAA + 1/3*AB + 1/3*fBB) + p.out)
+			T1 <- T1.num/T.den
+			tau.F <- sapply(split(T1[, 1], rangeIndex), mean, na.rm=TRUE)
+			tau.M <- sapply(split(T1[, 2], rangeIndex), mean, na.rm=TRUE)
+			tau.O <- sapply(split(T1[, 3], rangeIndex), mean, na.rm=TRUE)
+			tau.F <- rep(tau.F, LL)
+			tau.M <- rep(tau.M, LL)
+			tau.O <- rep(tau.O, LL)
+			tau.next <- cbind(tau.F, tau.M, tau.O)
+			if(abs(sum(tau.next - tau, na.rm=TRUE)) < 1) break()
+			tau <- tau.next
+		}
+		tau
+	}
+
+emissionLR <- function(mu.logr, CN.MIN, CN.MAX, prMosaic,
+		       prOutlier, sds, object, ranges){
 	##CN.MAX=10
 	##CN.MIN=-10
 	p.out <- prOutlier
@@ -1080,6 +1126,23 @@ emissionLR <- function(mu.logr, CN.MIN, CN.MAX, prMosaic, prOutlier, sds, object
 	if(any(lR < CN.MIN, na.rm=TRUE)) lR[lR < CN.MIN] <- CN.MIN
 	if(any(lR > CN.MAX, na.rm=TRUE)) lR[lR > CN.MAX] <- CN.MAX
 	UNIF <- dunif(lR, CN.MIN, CN.MAX)
+	##pRoh <- rohProb(x=baf(object), sd0=sd0, )
+##	bf <- baf(object)
+##	ri <- range.index(object)
+##	LL <- sapply(split(ri,ri), length)
+##	phom <- function(x) mean(x < 0.02 | x > 0.98, na.rm=TRUE)
+##	pHet.F <- sapply(split(bf[,1], ri), phom)
+##	pHet.F <- rep(pHet.F, LL)
+##	pHet.M <- sapply(split(bf[,2], ri), phom)
+##	pHet.M <- rep(pHet.M, LL)
+##	pHet.O <- sapply(split(bf[,3], ri), phom)
+##	pHet.O <- rep(pHet.O, LL)
+##	mu <- matrix(mu.logr[2], nrow(lR), ncol(lR))
+##	mu[, 1] <- ifelse(pHet.F < 0.01, mu[,1]/3,  mu[,1])
+##	mu[, 2] <- ifelse(pHet.M < 0.01, mu[,1]/3,  mu[,2])
+##	mu[, 3] <- ifelse(pHet.O < 0.01, mu[,1]/3,  mu[,3])
+	##MU <- matrix(-0.5, nrow(lR), ncol(lR))
+	##MU2 <- MU * (1-p
 	loglik(object)["logR", , , 1] <- q.out * dunif(lR, CN.MIN, -1) + p.out*UNIF
 	##propGreaterZero <- sapply(split(lR, range.index(object)), function(x) mean(x>0,na.rm=T))
 	##test whether = 0.5
@@ -1087,12 +1150,14 @@ emissionLR <- function(mu.logr, CN.MIN, CN.MAX, prMosaic, prOutlier, sds, object
  	##prMosaic <- ifelse(p > 0.4, 0.01, 1-
 	## estimate prMosaic
 	## perhaps EM with 2 or 3 iterations to keep it fast
+##	loglik(object)["logR", , , 2] <- q.out * (prMosaic * dnorm(lR, mu.logr[2]/2, sds) + (1-prMosaic) * dnorm(lR, mu.logr[2], sds)) + p.out*UNIF
 	loglik(object)["logR", , , 2] <- q.out * (prMosaic * dnorm(lR, mu.logr[2]/2, sds) + (1-prMosaic) * dnorm(lR, mu.logr[2], sds)) + p.out*UNIF
 	loglik(object)["logR", , , 3] <- q.out * dnorm(lR, mu.logr[3], sds) + p.out*UNIF
 	loglik(object)["logR", , , 4] <- q.out * dnorm(lR, mu.logr[4], sds) + p.out*UNIF
 	loglik(object)["logR", , , 5] <- q.out * dnorm(lR, mu.logr[5], sds) + p.out*UNIF
 	loglik(object)["logR", , , ] <- log(loglik(object)["logR", , , ])
 	if(FALSE){
+		q.out[ii, ]
 		LLB <- loglik(object)["baf", range.index(object)==i , , ]
 		LLR <- loglik(object)["logR", range.index(object)==i , , ]
 		ii <- which(range.index(object)==i)
@@ -1167,6 +1232,7 @@ computeLoglik <- function(id,
 			       sd0=sd0, sd.5=sd.5,
 			       sd1=sd1,
 			       rangeIndex=range.index(object))
+	q.mosaic[is.nan(q.mosaic)] <- 0.99 ## prob not mosaic
 	p.mosaic <- 1-q.mosaic
 	## the uniform needs to cover the support
 	CN.MIN <- -5; CN.MAX <- 1.5
