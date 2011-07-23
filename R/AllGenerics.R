@@ -44,7 +44,7 @@ setGeneric("computeBayesFactor", function(object,
 					  prob.nonMendelian=1.5e-6,
 					  df0=10,
 					  verbose=TRUE,
-					  returnEmission=FALSE, ...)
+					  returnEmission=FALSE)
 	   standardGeneric("computeBayesFactor"))
 setGeneric("todf", function(object, range, frame, ...) standardGeneric("todf"))
 setGeneric("offspringNames", function(object) standardGeneric("offspringNames"))

@@ -964,6 +964,40 @@ dna <- function(object) harmonizeDnaLabels(phenoData2(object[[1]])[, "DNA.Source
 plate <- function(object) phenoData2(object[[1]])[, "Sample.Plate", ]
 
 
+mosaicProb <- function(bf, sd.mosaic, sd0, sd.5, sd1, rangeIndex, normalCN=FALSE){
+	tau <- 0.99
+	f1 <- tnorm(bf, 0, sd0)
+	f2 <- tnorm(bf, 1, sd1)
+	f3 <- tnorm(bf, 0.25, sd.mosaic)
+	f4 <- tnorm(bf, 0.75, sd.mosaic)
+	if(normalCN) f5 <- tnorm(bf, 0.5, sd.5)
+	tau <- matrix(0.99, nrow(f1), ncol(f1))
+	LL <- sapply(split(rangeIndex, rangeIndex), length)
+	## updating f3,f4 might help
+	for(k in 1:3){
+		if(!normalCN){
+			T1.num <- tau * (0.5*f1 + 0.5*f2)
+			T.den <- tau * (0.5*f1 + 0.5*f2) + (1-tau)*(0.5*f3 + 0.5*f4)
+		} else {
+			T1.num <- tau * (1/3*f1 + 1/3*f2 + 1/3*f5)
+			T.den <- tau * (1/3*f1 + 1/3*f2 + 1/3*f5) + (1-tau)*(0.5*f3 + 0.5*f4)
+		}
+		T1 <- T1.num/T.den
+		tau.F <- sapply(split(T1[, 1], rangeIndex), mean, na.rm=TRUE)
+		tau.M <- sapply(split(T1[, 2], rangeIndex), mean, na.rm=TRUE)
+		tau.O <- sapply(split(T1[, 3], rangeIndex), mean, na.rm=TRUE)
+		tau.F <- rep(tau.F, LL)
+		tau.M <- rep(tau.M, LL)
+		tau.O <- rep(tau.O, LL)
+		tau.next <- cbind(tau.F, tau.M, tau.O)
+		if(abs(sum(tau.next - tau)) < 1) break()
+		tau <- tau.next
+		##tau.next <- apply(T1, 2, mean, na.rm=TRUE)
+		##tau <- tau.next
+	}
+	tau
+}
+
 
 emissionB <- function(p.roh=0.01, q.roh=1-p.roh,
 		      p.mos=0.01, q.mos=1-p.mos,
@@ -996,29 +1030,24 @@ emissionB <- function(p.roh=0.01, q.roh=1-p.roh,
 	TN.M2 <- tnorm(bf, 0.75, sd.mosaic);
 	## p1 <- dunif(bf, 0, 1)  if you do a uniform for mosaic, it allows baf's near 0.5 to creep in
 	p1 <- 0.5*TN.M1 + 0.5*TN.M2
-	beta.hemizygous <- p.mosaic*p1 + q.mosaic*(0.5*TN0+0.5*TN1)
-	p.mosaic <- 0.001
-	##pr1 <- dunif(bf, 0, 1)
+	beta.hemizygous <- p.mos*p1 + q.mos*(0.5*TN0+0.5*TN1)
+	q.mos <- mosaicProb(bf=bf, sd.mosaic=sd.mosaic,
+			    sd=sd0, sd.5=sd.5, sd1=sd1,
+			    rangeIndex=range.index(object),
+			    normalCN=TRUE)
+	p.mos <- 1-q.mos
 	pr1 <- p1
 	pr2 <- 0.5*TN0 + 0.5*TN1
-	pr3 <- p.roh*(p.mosaic*pr1 + q.mosaic*pr2)
-	##pr4 <- dunif(bf, 0, 1)
+	pr3 <- p.roh*(p.mos*pr1 + q.mos*pr2)
 	pr4 <- p1
 	pr5 <- 1/3*TN0 + 1/3*TN.5 + 1/3*TN1
-	pr6 <- q.roh*(p.mosaic*pr4 +  q.mosaic*pr5)
+	pr6 <- q.roh*(p.mos*pr4 +  q.mos*pr5)
 	beta.normal <- pr3+pr6
-	##Pr.Mos <- 0.5*TN.M1 + 0.5*TN.M2
-	##Pr.Mos <- dunif(bf, 0, 1)
-	Pr.Mos <- 0.5*TN.M1 + 0.5*TN.M2
 	loglik(object)["baf", , , 1] <- dunif(bf, 0, 1)
-	##loglik(object)["baf", , , 2] <- p.mos*dunif(bf, 0, 1) + q.mos*(0.5*TN0 + 0.5*TN1)
-	##loglik(object)["baf", , , 2] <- p.mos*Pr.Mos + q.mos*(0.5*TN0 + 0.5*TN1)
 	loglik(object)["baf", , , 2] <- beta.hemizygous
-	##loglik(object)["baf", , , 3] <- q.roh*(p.mos*Pr.Mos + q.mos*(1/3*TN0 + 1/3*TN.5 + 1/3*TN1)) +
-		##p.roh*(p.mos*dunif(bf, 0, 1) + q.mos *(0.5*TN0 + 0.5*TN1))
 	loglik(object)["baf", , , 3] <- beta.normal
-	loglik(object)["baf", , , 4] <- p.mos*dunif(bf, 0, 1) + q.mos*(1/4*TN0 + 1/4*TN.3 + 1/4*TN.6 + 1/4*TN1)
-	loglik(object)["baf", , , 5] <- p.mos*dunif(bf, 0, 1) + q.mos*(1/5*TN(bf, 0, sd0) + 1/5*TN(bf, 1/4, sd.5) + 1/5*TN(bf, 0.5, sd.5) + 1/5*TN(bf, 0.75, sd.5) + 1/5*TN(bf, 1, sd1))
+	loglik(object)["baf", , , 4] <- 1/4*TN0 + 1/4*TN.3 + 1/4*TN.6 + 1/4*TN1
+	loglik(object)["baf", , , 5] <- 1/5*TN(bf, 0, sd0) + 1/5*TN(bf, 1/4, sd.5) + 1/5*TN(bf, 0.5, sd.5) + 1/5*TN(bf, 0.75, sd.5) + 1/5*TN(bf, 1, sd1)
 	loglik(object)["baf", , , ] <- log(loglik(object)["baf", , , ])
 	if(FALSE){
 		LLB <- loglik(object)["baf", range.index(object)==i , , ]
@@ -1048,7 +1077,13 @@ emissionLR <- function(mu.logr, CN.MIN, CN.MAX, prMosaic, prOutlier, sds, object
 	if(any(lR > CN.MAX, na.rm=TRUE)) lR[lR > CN.MAX] <- CN.MAX
 	UNIF <- dunif(lR, CN.MIN, CN.MAX)
 	loglik(object)["logR", , , 1] <- q.out * dunif(lR, CN.MIN, -1) + p.out*UNIF
-	loglik(object)["logR", , , 2] <- q.out * (prMosaic * dnorm(lR, mu.logr[2]/3, sds) + (1-prMosaic) * dnorm(lR, mu.logr[2], sds)) + p.out*UNIF
+	##propGreaterZero <- sapply(split(lR, range.index(object)), function(x) mean(x>0,na.rm=T))
+	##test whether = 0.5
+	##p <- ifelse(propGreaterZero > 0.4, prMosaic=0.01, 0.99)
+ 	##prMosaic <- ifelse(p > 0.4, 0.01, 1-
+	## estimate prMosaic
+	## perhaps EM with 2 or 3 iterations to keep it fast
+	loglik(object)["logR", , , 2] <- q.out * (prMosaic * dnorm(lR, mu.logr[2]/2, sds) + (1-prMosaic) * dnorm(lR, mu.logr[2], sds)) + p.out*UNIF
 	loglik(object)["logR", , , 3] <- q.out * dnorm(lR, mu.logr[3], sds) + p.out*UNIF
 	loglik(object)["logR", , , 4] <- q.out * dnorm(lR, mu.logr[4], sds) + p.out*UNIF
 	loglik(object)["logR", , , 5] <- q.out * dnorm(lR, mu.logr[5], sds) + p.out*UNIF
@@ -1107,15 +1142,7 @@ computeLoglik <- function(id,
 	## -- how much do we want to shrink towards a sample-level estimate of noise?
 	sds <- (sds.marker * df1 + (df1*4)*sds.sample)/(df1 + df1*4)
 	lR <- logR(object)
-	## the uniform needs to cover the support
-	CN.MIN <- -5; CN.MAX <- 1.5
-	object <- emissionLR(mu.logr=mu.logr, CN.MIN=CN.MIN, CN.MAX=CN.MAX,
-			     prMosaic=prMosaic,
-			     prOutlier=prOutlier.logR,
-			     sds=sds,
-			     object=object,
-			     ranges=ranges)
-	##p1 <- 1-prOutlier.baf
+
 	bf <- baf(object)
 	if(!is(baf.sds, "array")){
 		stopifnot(length(baf.sds)==3)
@@ -1131,8 +1158,24 @@ computeLoglik <- function(id,
 		sd.5 <- matrix(baf.sds2[, "AB"], nr, 3, byrow=TRUE)
 		sd1 <- matrix(baf.sds2[, "BB"], nr, 3, byrow=TRUE)
 	}
+	q.mosaic <- mosaicProb(bf=bf,
+			       sd.mosaic=sd.mosaic,
+			       sd0=sd0, sd.5=sd.5,
+			       sd1=sd1,
+			       rangeIndex=range.index(object))
+	p.mosaic <- 1-q.mosaic
+	## the uniform needs to cover the support
+	CN.MIN <- -5; CN.MAX <- 1.5
+	object <- emissionLR(mu.logr=mu.logr, CN.MIN=CN.MIN, CN.MAX=CN.MAX,
+			     prMosaic=p.mosaic,
+			     prOutlier=prOutlier.logR,
+			     sds=sds,
+			     object=object,
+			     ranges=ranges)
+	##p1 <- 1-prOutlier.baf
+
 	object <- emissionB(p.roh=0.01,
-			    p.mos=prMosaic,
+			    p.mos=p.mosaic,
 			    p.out=prOutlier.baf,
 			    sd0=sd0, sd1=sd1, sd.5=sd.5,
 			    object=object)
@@ -1461,6 +1504,66 @@ lookUpTable3 <- function(table3, state.prev, state.curr){
 	return(table3[f1, f2, m1, m2, o1, o2])
 }
 
+## p.00 = Prob(S_l, S_l-1 | I_l-1 = 0, I_l = 0)
+##      = lookuptable3        ## both Mendelian
+## p.10 = Prob(S_l, S_l-1 | I_l-1 = 1, I_l = 0) ## previous is nonmendelian
+##      = 1/5*Prob(S_l | s_l,m, s_l,f, I_l=0)
+##      = 1/5*lookUpTable(current state)
+## p.01 = Prob(S_l, S_l-1 | I_l-1 = 0, I_l = 1)
+##      = Prob(S_l-1 | s_l-1,m, s_l-1,f, ...)
+##      = 1/5*lookUpTable(previous state)  ##previous is mendelian
+## p.11 = Prob(S_l, S_l-1 | I_l-1 = 1, I_l = 1)
+##      = Prob(s_l | s_l-1)* Prob(s_l-1 | I_l-1=1)
+##      = tau.o * 1/5, where
+##  tau.o = Prob(s_l | s_l-1 )
+## tauI.00 = Prob(I_l = 0 | I_l-1 = 0)
+## tauI.10 = Prob(I_l = 0 | I_l-1 = 1)
+## tauI.01 = Prob(I_l = 1 | I_l-1 = 0)
+## tauI.11 = Prob(I_l = 1 | I_l-1 = 1)
+## piI0 = Prob(I_l-1 = 0)
+## piI1 = Prob(I_l-1 = 1)
+## beta.r = Prob(r | ...) = P(r_f|...)*P(r_m|...)*P(r_o|...)
+## beta.b = Prob(b | ...)
+## beta = beta.r*beta.b
+## tau.f  = Prob(s_l,f | s_l-1,f)
+## tau.m  = Prob(s_l,m | s_l-1,m)
+## pi.f = Prob(s_l-1,f | theta)
+## pi.m = Prob(s_l-1,m | theta)
+## then
+jointProb <- function(segment.index, ## so that we can insert a browser for a specific segment
+		      state,
+		      state.prev,
+		      prob.nonMendelian,
+		      log.pi,
+		      tau,
+		      table1,
+		      table3,
+		      log.lik){
+	pi.f <- exp(log.pi[state[1]])
+	pi.m <- exp(log.pi[state[2]])
+	tau.o <- tau[state.prev[3], state[3]]
+	tau.m <- tau[state.prev[2], state[2]]
+	tau.f <- tau[state.prev[1], state[1]]
+	p.00 <- lookUpTable3(table3, state.prev, state.curr=state) ## both Mendelian
+	p.10 <- 1/5*lookUpTable1(table1, state) ## previous non-Mendelian * current Mendelian
+	p.01 <- lookUpTable1(table1, state.prev) * 1/5 ## previous Mendlian * current non-mendelian
+	p.11 <- 1/5*tau.o
+	piI0 <- 1-prob.nonMendelian
+	p.NM <- piI1 <- prob.nonMendelian
+	## setting this to a small value will favor '2,2,1' versus '3,3,1' (for example)
+	## setting prob.nonMendelian smaller would not have an effect
+	tauI.11 <- tauI.00 <- 1-.01
+	tauI.10 <- tauI.01 <- 1-tauI.11
+	##beta <- exp(log.lik)
+	##pr.off <- p.00*tauI.00*piI0 + p.10*tauI.10*piI1 + p.01*tauI.01*piI0 +p.11*tauI.11*piI1
+	pr.off <- p.NM*(p.11*tauI.11 + p.10*tauI.10) + (1-p.NM)*(p.00*tauI.00+p.01*tauI.01)
+	log.lik <- sum(log.lik) + log(pr.off*tau.m*pi.m*tau.f*pi.f)
+	## lik.f*lik.m*lik.o*pr.off*tau.m*pi.m*tau.f*pi.f
+	##log.lik[3] <- log.lik[3]+log(pr.off)
+	##log.lik[2] <- log.lik[2]+log(tau.m*pi.m)
+	##log.lik[1] <- log.lik[1]+log(tau.f*pi.f)
+}
+
 joint1 <- function(LLT, ##object,
 		   trio.states,
 		   tau,
@@ -1495,6 +1598,7 @@ joint1 <- function(LLT, ##object,
 			    ##log(pi.offspring))## offspring
 		##fmo <- apply(fmo, 2, sum, na.rm=TRUE)
 		fmo <- fmo + log.pi
+		log.emit <- fmo
 ##		for(j in 1:2) fmo[j] <- fmo[j]+log.pi[state.index]
 ##		f <- sum(fmo[[1]])+log.pi[state.index]
 ##		m <- sum(fmo[[2]])+log.pi[state.index]
@@ -1505,38 +1609,47 @@ joint1 <- function(LLT, ##object,
 		##pr.offspring <-
 		##fmo[3] <- fmo[3]+log.Prob.DN
 	} else{
-		##** Note that when state is the 'normal.state'**
-		##    (state.index == normal.index)
-		##    tau is the probability of staying in the same state
-		##
-		##for k = normal.index, it would do the right thing
-		## prob. leaving normal state to state k
-		##fmo <- apply(fmo, 2, sum, na.rm=TRUE)
-		for(j in 1:2) fmo[j] <- fmo[j]+log(tau[state.prev[j], state[j]])
-		##f <- log(tau[state.prev[1], state[1]]) + sum(fmo[[1]])
-		##m <- log(tau[state.prev[2], state[1]]) + sum(fmo[[2]])
-		##if(denovo.prev){
-		##
-		## Previous non-mendelian
-		##
-		## current Mendelian
-		tabled.value <- lookUpTable1(table1, state)
-		p1 <- 1/5*tabled.value
-		## current non-Mendelian
-		p2 <- 1/5*tau[state.prev[3], state[3]]  ## eq. 9
-		##fmo[3] <- log(p1 + p2)
-		##fmo[3] <- (1/5*tau[state.prev[3], state[3]]*
-		##fmo[3] <- log(1/5) + log(tau[state.prev[3], state[3]]) + fmo[3]
-		##
-		## Previous Mendelian
-		##
-		## current mendelian
-		tabled.value <- lookUpTable3(table3, state.prev, state.curr=state)
-		p3 <- tabled.value
-		## current non-mendelian
-		p4 <- 1/5*lookUpTable1(table1, state) ## eq. 10
-		##
-		fmo[3] <- fmo[3]+log(p1+p2+p3+p4)
+		log.emit <- jointProb(segment.index=segment.index,
+				      state=state,
+				  state.prev=state.prev,
+				  prob.nonMendelian=prob.nonMendelian,
+				  log.pi=log.pi,
+				  tau=tau,
+				  table1=table1,
+				  table3=table3,
+				  log.lik=fmo)
+##		##** Note that when state is the 'normal.state'**
+##		##    (state.index == normal.index)
+##		##    tau is the probability of staying in the same state
+##		##
+##		##for k = normal.index, it would do the right thing
+##		## prob. leaving normal state to state k
+##		##fmo <- apply(fmo, 2, sum, na.rm=TRUE)
+##		for(j in 1:2) fmo[j] <- fmo[j]+log(tau[state.prev[j], state[j]])
+##		##f <- log(tau[state.prev[1], state[1]]) + sum(fmo[[1]])
+##		##m <- log(tau[state.prev[2], state[1]]) + sum(fmo[[2]])
+##		##if(denovo.prev){
+##		##
+##		## Previous non-mendelian
+##		##
+##		## current Mendelian
+##		tabled.value <- lookUpTable1(table1, state)
+##		p1 <- 1/5*tabled.value
+##		## current non-Mendelian
+##		p2 <- 1/5*tau[state.prev[3], state[3]]  ## eq. 9
+##		##fmo[3] <- log(p1 + p2)
+##		##fmo[3] <- (1/5*tau[state.prev[3], state[3]]*
+##		##fmo[3] <- log(1/5) + log(tau[state.prev[3], state[3]]) + fmo[3]
+##		##
+##		## Previous Mendelian
+##		##
+##		## current mendelian
+##		tabled.value <- lookUpTable3(table3, state.prev, state.curr=state)
+##		p3 <- tabled.value
+##		## current non-mendelian
+##		p4 <- 1/5*lookUpTable1(table1, state) ## eq. 10
+##		##
+##		fmo[3] <- fmo[3]+log(p1+p2+p3+p4)
 		##fmo[3] <- log(p1+p2)
 		##fmo[3] <- log(tabled.value) + fmo[3]
 		##if(denovo.prev & is.denovo){
@@ -1572,7 +1685,8 @@ joint1 <- function(LLT, ##object,
 	##f <- f+log(tau[state[1], 3])
 	##m <- m+log(tau[state[2], 3])
 	##o <- o+log(tau[state[3], 3])
-	res <- sum(fmo)
+	##res <- sum(fmo)
+	res <- sum(log.emit)
 	stopifnot(!is.na(res))
 	##
 	## we all need a transition proability for not denovo -> denovo -> not denovo
@@ -1637,10 +1751,8 @@ joint4 <- function(trioSet,
 	state.names <- trioStateNames()
 	norm.index <- which(state.names=="333")
 	ranges <- ranges[order(start(ranges)), ]
-	##feature.index=which(baf(obj)[, 3] > 0.1 & baf(obj)[, 3] < 0.9)
-	##LLB[feature.index, 3, ]
 	for(i in seq(length=nrow(ranges))){
-		##if(i==9) break()
+		##if(i==7) break()
 		obj <- object[which(range.index(object) == i), ]
 		if(nrow(obj) < 2){
 			##state.prev <- trio.states[norm.index, ]
@@ -1651,6 +1763,8 @@ joint4 <- function(trioSet,
 		LL <- weightR * LLR + (1-weightR)*LLB
 		LLT <- matrix(NA, 3, 5)
 		for(j in 1:3) LLT[j, ] <- apply(LL[, j, ], 2, sum, na.rm=TRUE)
+		rownames(LLT) <- c("F", "M", "O")
+		colnames(LLT) <- paste("CN_", states, sep="")
 		if(FALSE){
 			ii <- which(range.index(object)==i)
 			apply(LLB[, 1, ], 2, sum, na.rm=TRUE)
@@ -1660,8 +1774,6 @@ joint4 <- function(trioSet,
 			r <- logR(obj)[, 3]
 			tmp <- cbind(LLR[, 3, c(2,3)], r)
 		}
-		rownames(LLT) <- c("F", "M", "O")
-		colnames(LLT) <- paste("CN_", states, sep="")
 		for(j in 1:nrow(trio.states)){
 			tmp[j] <- joint1(LLT=LLT,
 					 trio.states=trio.states,
@@ -2162,6 +2274,7 @@ minimumDistanceCalls <- function(id, container,
 				 calculate.lr=TRUE,
 				 prOutlier=c(0.01, 1e-15),
 				 prMosaic=0.01,
+				 prob.nonMendelian=1.5e-6,
 				 mu.logr=c(-2, -0.5, 0, 0.3, 0.75),
 				 ##baf.sds=c(0.02, 0.3, 0.02),
 				 baf.sds=c(0.005, 0.2, 0.005),
@@ -2276,14 +2389,15 @@ minimumDistanceCalls <- function(id, container,
 		message("Computing bayes factors")
 		prunedRanges$state <- NA
 		object <- computeBayesFactor(object=container[chromosomes],
-						   ranges=prunedRanges,
-						   tau=tau,
-						   log.pi=log.pi,
-						   prOutlier=prOutlier,
-						   prMosaic=prMosaic,
-						   mu.logr=mu.logr,
-						   baf.sds=baf.sds,
-						   returnEmission=returnEmission)
+					     ranges=prunedRanges,
+					     tau=tau,
+					     log.pi=log.pi,
+					     prOutlier=prOutlier,
+					     prMosaic=prMosaic,
+					     prob.nonMendelian=prob.nonMendelian,
+					     mu.logr=mu.logr,
+					     baf.sds=baf.sds,
+					     returnEmission=returnEmission)
 		if(returnEmission){
 			##return LogLik set
 			return(object)
