@@ -965,22 +965,22 @@ plate <- function(object) phenoData2(object[[1]])[, "Sample.Plate", ]
 
 
 mosaicProb <- function(bf, sd.mosaic, sd0, sd.5, sd1, rangeIndex, normalCN=FALSE){
-	tau <- 0.99
+	initialP <- 0.99## initial probabilty not mosaic
 	f1 <- tnorm(bf, 0, sd0)
 	f2 <- tnorm(bf, 1, sd1)
-	f3 <- tnorm(bf, 0.25, sd.mosaic)
-	f4 <- tnorm(bf, 0.75, sd.mosaic)
+	f3 <- tnorm(bf, 0.25, sd.mosaic, lower=0.05, upper=0.4)
+	f4 <- tnorm(bf, 0.75, sd.mosaic, lower=0.6, upper=0.95)
 	if(normalCN) f5 <- tnorm(bf, 0.5, sd.5)
-	tau <- matrix(0.99, nrow(f1), ncol(f1))
+	tau <- matrix(initialP, nrow(f1), ncol(f1))
 	LL <- sapply(split(rangeIndex, rangeIndex), length)
 	## updating f3,f4 might help
 	for(k in 1:3){
 		if(!normalCN){
 			T1.num <- tau * (0.5*f1 + 0.5*f2)
-			T.den <- tau * (0.5*f1 + 0.5*f2) + (1-tau)*(0.5*f3 + 0.5*f4)
+			T.den <- tau * (0.5*f1 + 0.5*f2) + (1-tau)*(0.25*f1 + 0.25*f3 + 0.25*f4 + 0.25*f2)
 		} else {
 			T1.num <- tau * (1/3*f1 + 1/3*f2 + 1/3*f5)
-			T.den <- tau * (1/3*f1 + 1/3*f2 + 1/3*f5) + (1-tau)*(0.5*f3 + 0.5*f4)
+			T.den <- tau * (1/3*f1 + 1/3*f2 + 1/3*f5) + (1-tau)*(0.25*f1 + 0.25*f3 + 0.25*f4 + 0.25*f2)
 		}
 		T1 <- T1.num/T.den
 		tau.F <- sapply(split(T1[, 1], rangeIndex), mean, na.rm=TRUE)
@@ -990,7 +990,7 @@ mosaicProb <- function(bf, sd.mosaic, sd0, sd.5, sd1, rangeIndex, normalCN=FALSE
 		tau.M <- rep(tau.M, LL)
 		tau.O <- rep(tau.O, LL)
 		tau.next <- cbind(tau.F, tau.M, tau.O)
-		if(abs(sum(tau.next - tau)) < 1) break()
+		if(abs(sum(tau.next - tau, na.rm=TRUE)) < 1) break()
 		tau <- tau.next
 		##tau.next <- apply(T1, 2, mean, na.rm=TRUE)
 		##tau <- tau.next
@@ -1013,6 +1013,10 @@ emissionB <- function(p.roh=0.01, q.roh=1-p.roh,
 	##   Below, I,ve just used a mixture model.  I have not integrated out the
 	##      copy number of the B allele, nor do I make use of MAF estimates.
 	##   TN vs dnorm shouldn't make much diff.
+	q.mosaic <- mosaicProb(bf=bf, sd.mosaic=sd.mosaic/2,
+			    sd=sd0, sd.5=sd.5, sd1=sd1,
+			    rangeIndex=range.index(object),
+			    normalCN=FALSE)
 	sd.mosaic <- 0.05
 	bf <- baf(object)
 	##p.mos <- prMosaic
@@ -1159,7 +1163,7 @@ computeLoglik <- function(id,
 		sd1 <- matrix(baf.sds2[, "BB"], nr, 3, byrow=TRUE)
 	}
 	q.mosaic <- mosaicProb(bf=bf,
-			       sd.mosaic=sd.mosaic,
+			       sd.mosaic=0.05,
 			       sd0=sd0, sd.5=sd.5,
 			       sd1=sd1,
 			       rangeIndex=range.index(object))
