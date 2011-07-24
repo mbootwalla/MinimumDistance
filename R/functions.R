@@ -967,11 +967,23 @@ plate <- function(object) phenoData2(object[[1]])[, "Sample.Plate", ]
 mosaicProb <- function(bf, sd.mosaic, sd0, sd.5, sd1, rangeIndex, normalCN=FALSE){
 	initialP <- 0.99## initial probabilty not mosaic
 	if(any(is.na(rangeIndex))){
-		ii <- which(is.na(rangeIndex))
-		if(ii < length(rangeIndex)){
-			rangeIndex[ii] <- rangeIndex[ii+1]
-		} else{
-			rangeIndex[ii] <- rangeIndex[ii-1]
+		if(sum(is.na(rangeIndex)) > 1000 & unique(rangeIndex[!is.na(rangeIndex)]) == 1){
+			## for calculating the posterior for a single range
+			## essentially, ignoring what comes before and what comes after
+			ii <- range(which(!is.na(rangeIndex)))
+			if(ii[1] > 1){
+				rangeIndex[1:(ii[1]-1)] <- 0
+			}
+			if(ii[2] < length(rangeIndex)){
+				rangeIndex[(ii[2]+1):length(rangeIndex)] <- 2
+			}
+		} else {
+			ii <- which(is.na(rangeIndex))
+			if(ii < length(rangeIndex)){
+				rangeIndex[ii] <- rangeIndex[ii+1]
+			} else{
+				rangeIndex[ii] <- rangeIndex[ii-1]
+			}
 		}
 	}
 	f1 <- tnorm(bf, 0, sd0)
