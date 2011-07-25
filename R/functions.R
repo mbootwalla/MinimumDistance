@@ -964,27 +964,42 @@ dna <- function(object) harmonizeDnaLabels(phenoData2(object[[1]])[, "DNA.Source
 plate <- function(object) phenoData2(object[[1]])[, "Sample.Plate", ]
 
 
-mosaicProb <- function(bf, sd.mosaic, sd0, sd.5, sd1, rangeIndex, normalCN=FALSE){
-	initialP <- 0.99## initial probabilty not mosaic
-	if(any(is.na(rangeIndex))){
-		if(sum(is.na(rangeIndex)) > 1000 & unique(rangeIndex[!is.na(rangeIndex)]) == 1){
-			## for calculating the posterior for a single range
-			## essentially, ignoring what comes before and what comes after
-			ii <- range(which(!is.na(rangeIndex)))
-			if(ii[1] > 1){
-				rangeIndex[1:(ii[1]-1)] <- 0
-			}
-			if(ii[2] < length(rangeIndex)){
-				rangeIndex[(ii[2]+1):length(rangeIndex)] <- 2
-			}
-		} else {
-			ii <- which(is.na(rangeIndex))
-			if(ii < length(rangeIndex)){
-				rangeIndex[ii] <- rangeIndex[ii+1]
-			} else{
-				rangeIndex[ii] <- rangeIndex[ii-1]
+fillInMissing <- function(rangeIndex){
+	if(!any(is.na(rangeIndex))) return(rangeIndex)
+	if(sum(is.na(rangeIndex)) > 1000 & length(unique(rangeIndex[!is.na(rangeIndex)])) == 1){
+		## for calculating the posterior for a single range
+		## essentially, ignoring what comes before and what comes after
+		ii <- range(which(!is.na(rangeIndex)))
+		if(ii[1] > 1){
+			rangeIndex[1:(ii[1]-1)] <- 0
+		}
+		if(ii[2] < length(rangeIndex)){
+			rangeIndex[(ii[2]+1):length(rangeIndex)] <- 2
+		}
+	} else {
+		ii <- which(is.na(rangeIndex))
+		if(max(ii) < length(rangeIndex)){
+			rangeIndex[ii] <- rangeIndex[ii+1]
+		} else{
+			rangeIndex[max(ii)] <- rangeIndex[max(ii)-1]
+			if(any(ii != max(ii))){
+				iii <- ii[ii != max(ii)]
+				rangeIndex[iii] <- rangeIndex[iii+1]
 			}
 		}
+	}
+	return(rangeIndex)
+}
+
+
+
+mosaicProb <- function(bf, sd.mosaic, sd0, sd.5, sd1, rangeIndex, normalCN=FALSE){
+	initialP <- 0.99## initial probabilty not mosaic
+	iter <- 1
+	while(any(is.na(rangeIndex))){
+		rangeIndex <- fillInMissing(rangeIndex)
+		iter <- iter+1
+		if(iter > 5) break()
 	}
 	f1 <- tnorm(bf, 0, sd0)
 	f2 <- tnorm(bf, 1, sd1)
@@ -1016,7 +1031,7 @@ mosaicProb <- function(bf, sd.mosaic, sd0, sd.5, sd1, rangeIndex, normalCN=FALSE
 		##tau.next <- apply(T1, 2, mean, na.rm=TRUE)
 		##tau <- tau.next
 	}
-	tau
+	return(tau)
 }
 
 
@@ -2820,9 +2835,9 @@ gridlayout2 <- function(method1, xyList, otherCall, ranges, cex.call=0.6){
 		lr2 <- ranges$lik.norm[i]
 		lrr <- lr1-lr2
 		l <- formatC(c(lr1, lr2, lrr), digits=1, format="f")
-		grid.text(paste("LL 332:", l[1], "\n",
-				"LL 333:", l[2], "\n",
-				"LLR:", l[3], "\n"),
+		grid.text(paste("log(Pr(332 | .))=", l[1], "\n",
+				"log(Pr(333 | .))=", l[2], "\n",
+				"log ratio:", l[3], "\n"),
 			  x=unit(1, "npc"),
 			  y=unit(0, "npc"),
 			  just=c("right", "bottom"),
