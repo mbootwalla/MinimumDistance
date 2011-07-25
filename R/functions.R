@@ -993,9 +993,10 @@ fillInMissing <- function(rangeIndex){
 
 
 
-mosaicProb <- function(bf, sd.mosaic, sd0, sd.5, sd1, rangeIndex, normalCN=FALSE){
+mosaicProb <- function(bf, sd.mosaic, sd0, sd.5, sd1, rangeIndex, normalCN=FALSE, object){
 	initialP <- 0.99## initial probabilty not mosaic
 	iter <- 1
+	##ri=range.index(object)
 	while(any(is.na(rangeIndex))){
 		rangeIndex <- fillInMissing(rangeIndex)
 		iter <- iter+1
@@ -1258,7 +1259,8 @@ computeLoglik <- function(id,
 			       sd.mosaic=0.05,
 			       sd0=sd0, sd.5=sd.5,
 			       sd1=sd1,
-			       rangeIndex=range.index(object))
+			       rangeIndex=range.index(object),
+			       object=object)
 	q.mosaic[is.nan(q.mosaic)] <- 0.99 ## prob not mosaic
 	p.mosaic <- 1-q.mosaic
 	## the uniform needs to cover the support

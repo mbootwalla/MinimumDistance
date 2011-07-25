@@ -42,7 +42,6 @@ setMethod("computeBayesFactor", signature(object="TrioSetList"),
 		  chromosomes <- sapply(object, function(x) unique(chromosome(x)))
 		  ranges <- ranges[chromosome(ranges) %in% chromosomes, ]
 		  ranges <- ranges[ranges$id %in% id, ]
-		  print(prob.nonMendelian)
 ##		  if(!"bayes.factor" %in% colnames(ranges)){
 ##			  ranges$bayes.factor <- NA
 ##		  }

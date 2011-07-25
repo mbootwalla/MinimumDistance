@@ -442,7 +442,6 @@ setMethod("computeBayesFactor", signature(object="TrioSet"),
 		   df0,
 		   verbose,
 		   returnEmission=FALSE){
-		  print(prob.nonMendelian)
 		  if(missing(tau)) tau <- transitionProbability(states=0:4, epsilon=0.5)
 		  if(missing(log.pi)) log.pi <- log(initialStateProbs(states=0:4, epsilon=0.5))
 		  CHR <- unique(chromosome(object))
