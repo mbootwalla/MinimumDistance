@@ -2913,6 +2913,8 @@ myfilter <- function(x, filter, ...){
 }
 
 minimumDistancePlot <- function(trioSets, ranges, md.segs, cbs.segs, frame=2e6){
+	md.segs <- md.segs[chromosome(md.segs) %in% chromosome(ranges) & sampleNames(md.segs) %in% sampleNames(ranges), ]
+	cbs.segs <- cbs.segs[chromosome(md.segs) %in% chromosome(ranges) & sssampleNames(md.segs) %in% sssampleNames(ranges),]
 	r1 <- ranges
 	f1 <- f2 <- list()
 	for(i in 1:nrow(r1)){
