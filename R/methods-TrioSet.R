@@ -509,6 +509,7 @@ setMethod("todf", signature(object="TrioSet", range="RangedData"),
 		  b <- baf(object)[marker.index, sample.index, ]
 		  r <- logR(object)[marker.index, sample.index, ]
 		  md <- mindist(object)[marker.index, sample.index]
+		  is.snp <- matrix(isSnp(object)[marker.index], nrow=length(marker.index), ncol=length(sample.index), byrow=FALSE)
 		  close(baf(object))
 		  close(logR(object))
 		  close(mindist(object))
@@ -521,14 +522,16 @@ setMethod("todf", signature(object="TrioSet", range="RangedData"),
 		  ##	r <- c(as.numeric(r), md, 0, 0)
 		  ##	x <- c(rep(position(object)[marker.index], 4), 0, 0)
 		  id <- c(as.character(id), rep("min dist",length(md)))##, c("genes", "CNV"))
+		  is.snp <- c(as.integer(is.snp), empty)
 		  b <- c(as.numeric(b), empty)
 		  r <- c(as.numeric(r), md)
 		  x <- rep(position(object)[marker.index], 4)/1e6
-		  df <- data.frame(x=x, b=b, r=r, id=id)
+		  df <- data.frame(x=x, b=b, r=r, id=id, is.snp=is.snp)
 		  df2 <- data.frame(id=c(as.character(df$id), "genes", "CNV"),
 				    b=c(df$b, NA, NA),
 				    r=c(df$r, NA, NA),
-				    x=c(df$x, NA, NA))
+				    x=c(df$x, NA, NA),
+				    is.snp=c(df$is.snp,NA, NA))
 		  df2$id <- factor(df2$id, levels=c("father", "mother", "offspring", "min dist", "genes", "CNV"), ordered=TRUE)
 		  return(df2)
 	  })
