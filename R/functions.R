@@ -2612,6 +2612,7 @@ thresholdY <- function(object){
 xypanel <- function(x, y, panelLabels,
 		    xlimit,
 		    ylimit,
+		    is.snp,
 		    ##segments=TRUE,
 		    ##segments.md=TRUE,
 		    range, fmonames,
@@ -2626,6 +2627,8 @@ xypanel <- function(x, y, panelLabels,
 	stopifnot(length(what) == 1)
 	##if(panelLabels[panel.number()] == "min dist") y <- -1*y
 	panel.xyplot(x, y, ...)
+	is.snp <- is.snp[subscripts]
+	lpoints(x[!is.snp], y[!is.snp], pch=21, col="royalblue")
 	index <- which(x >= start(range)/1e6 & x <= end(range)/1e6)
 	##panelLabels <- rev(panelLabels)
 	CHR <- range$chrom
@@ -2913,8 +2916,16 @@ myfilter <- function(x, filter, ...){
 }
 
 minimumDistancePlot <- function(trioSets, ranges, md.segs, cbs.segs, frame=2e6){
-	md.segs <- md.segs[chromosome(md.segs) %in% chromosome(ranges) & sampleNames(md.segs) %in% sampleNames(ranges), ]
-	cbs.segs <- cbs.segs[chromosome(md.segs) %in% chromosome(ranges) & sssampleNames(md.segs) %in% sssampleNames(ranges),]
+	index <- which(chromosome(md.segs) %in% chromosome(ranges) & sampleNames(md.segs) %in% sampleNames(ranges))
+	stopifnot(length(index) > 0)
+	if(length(index) > 0){
+		md.segs <- md.segs[index,]
+	}
+	index <- which(chromosome(cbs.segs) %in% chromosome(ranges) & sssampleNames(cbs.segs) %in% sssampleNames(ranges))
+	stopifnot(length(index) > 0)
+	if(length(index) > 0){
+		cbs.segs <- cbs.segs[index, ]
+	}
 	r1 <- ranges
 	f1 <- f2 <- list()
 	for(i in 1:nrow(r1)){

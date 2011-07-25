@@ -509,7 +509,6 @@ setMethod("todf", signature(object="TrioSet", range="RangedData"),
 		  b <- baf(object)[marker.index, sample.index, ]
 		  r <- logR(object)[marker.index, sample.index, ]
 		  md <- mindist(object)[marker.index, sample.index]
-		  is.snp <- matrix(isSnp(object)[marker.index], nrow=length(marker.index), ncol=length(sample.index), byrow=FALSE)
 		  close(baf(object))
 		  close(logR(object))
 		  close(mindist(object))
@@ -518,14 +517,11 @@ setMethod("todf", signature(object="TrioSet", range="RangedData"),
 		  ## A trick to add an extra panel for genes and cnv
 		  ##df <- rbind(df, list(as.integer(NA), as.numeric(NA), as.numeric(NA), as.factor("genes")))
 		  ## The NA's are to create extra panels (when needed for lattice plotting)
-		  ##	b <- c(as.numeric(b), empty, 0, 0)
-		  ##	r <- c(as.numeric(r), md, 0, 0)
-		  ##	x <- c(rep(position(object)[marker.index], 4), 0, 0)
 		  id <- c(as.character(id), rep("min dist",length(md)))##, c("genes", "CNV"))
-		  is.snp <- c(as.integer(is.snp), empty)
 		  b <- c(as.numeric(b), empty)
 		  r <- c(as.numeric(r), md)
 		  x <- rep(position(object)[marker.index], 4)/1e6
+		  is.snp <- rep(isSnp(object)[marker.index], 4)
 		  df <- data.frame(x=x, b=b, r=r, id=id, is.snp=is.snp)
 		  df2 <- data.frame(id=c(as.character(df$id), "genes", "CNV"),
 				    b=c(df$b, NA, NA),
@@ -621,6 +617,7 @@ setMethod("xyplot", signature(x="formula", data="TrioSet"),
 		  rng <- list(...)[["range"]]
 		  fmonames <- fmoNames(data)[match(rng$id, offspringNames(data)), ]
 		  data <- todf(data, ...)
+		  ##data <- as(data, "DataFrameCNV")
 		  if(sum(data$id == "min dist") > 0)
 			  data$r[data$id == "min dist"] <- -1*data$r[data$id == "min dist"]
 		  if("panelLabels" %in% names(list(...))){
@@ -637,13 +634,25 @@ setMethod("xyplot", signature(x="formula", data="TrioSet"),
 					   b=c(0,1),
 					   r=range(data$r, na.rm=TRUE))
 		  }
+		  if("is.snp" %in% colnames(data)){
+			  is.snp <- data$is.snp
+		  }
+		  ## this does not call DataFrameCnv method -- it calls the method for data.frame
 		  if(!panel.specified){
 			  xyplot(x=x, data=data,
-				 panel=panel, fmonames=fmonames, xlimit=xlimit, ylimit=ylimit,
-				 what=data$id, ...)
+				 panel=panel,
+				 fmonames=fmonames,
+				 xlimit=xlimit,
+				 ylimit=ylimit,
+				 what=data$id,
+				 is.snp=is.snp, ...)
 		  } else{
-			  xyplot(x=x, data=data, fmonames=fmonames, xlimit=xlimit, ylimit=ylimit,
-				 what=data$id, ...)
+			  xyplot(x=x, data=data,
+				 fmonames=fmonames,
+				 xlimit=xlimit,
+				 ylimit=ylimit,
+				 what=data$id,
+				 is.snp=is.snp, ...)
 		  }
 	  })
 

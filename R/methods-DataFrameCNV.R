@@ -10,8 +10,8 @@ setMethod("xyplot", signature(x="formula", data="DataFrameCNV"),
 		  }
 		  data(chromosomeAnnotation)
 		  data <- as(data, "data.frame")
+		  data$y <- data$r
 		  ## could we do UseMethod here?
-
 		  if(!panel.specified){
 			  fig <- xyplot(x, data=data,
 					panel=panel,
@@ -25,7 +25,8 @@ setMethod("xyplot", signature(x="formula", data="DataFrameCNV"),
 					coverage=data$coverage,
 					prepanel=prepanel.fxn,
 					max.y=max(data$y),
-					chromosomeAnnotation=chromosomeAnnotation,...)
+					chromosomeAnnotation=chromosomeAnnotation,
+					is.snp=data$is.snp, ...)
 		  } else{
 			  fig <- xyplot(x, data=data,
 					x0=data$x0,
@@ -38,7 +39,8 @@ setMethod("xyplot", signature(x="formula", data="DataFrameCNV"),
 					coverage=data$coverage,
 					prepanel=prepanel.fxn,
 					max.y=max(data$y),
-					chromosomeAnnotation=chromosomeAnnotation,...)
+					chromosomeAnnotation=chromosomeAnnotation,
+					is.snp=data$is.snp, ...)
 		  }
 		  return(fig)
 	  })
