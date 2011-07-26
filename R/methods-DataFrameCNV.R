@@ -10,7 +10,7 @@ setMethod("xyplot", signature(x="formula", data="DataFrameCNV"),
 		  }
 		  data(chromosomeAnnotation)
 		  data <- as(data, "data.frame")
-		  data$y <- data$r
+		  ##data$y <- data$r
 		  ## could we do UseMethod here?
 		  if(!panel.specified){
 			  fig <- xyplot(x, data=data,

@@ -2702,7 +2702,7 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 	lvp <- viewport(x=0, width=unit(0.50, "npc"), just="left", name="lvp")
 	pushViewport(lvp)
 	pushViewport(dataViewport(xscale=lattice.object[[1]]$x.limits,
-				  yscale=c(0,1), clip="on"))
+				  yscale=c(0.05,1), clip="on"))
 	print(lattice.object[[1]], newpage=FALSE, prefix="plot1", more=TRUE)
 	## highlight points in range
 	L <- seq(length=length(lattice.object[[1]]$panel.args))
@@ -2738,7 +2738,7 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 	grid.text("Position (Mb)", x=unit(0.5, "npc"), y=unit(0.05, "npc"),
 		  gp=gpar(cex=0.8))
 	upViewport(0)
-	print(lattice.object[[2]], position=c(0.5, 0, 0.98, 1), more=TRUE, prefix="plot2")
+	print(lattice.object[[2]], position=c(0.5, 0.05, 0.98, 1), more=TRUE, prefix="plot2")
 	L <- seq_along(lattice.object[[2]]$panel.args)
 	seekViewport("plot2.panel.1.1.off.vp")
 	grid.move.to(unit(start(rd)/1e6, "native"),
@@ -2771,6 +2771,67 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 	TRUE
 }
 
+reportCall2 <- function(ranges, otherCall){
+	ir1 <- IRanges(start(ranges)[i],end(ranges)[i])
+	ir2 <- IRanges(start(otherCall), end(otherCall))
+	mm <- findOverlaps(ir1, ir2)
+	subject.hits <- subjectHits(mm)
+	subject.hits <- subject.hits[sampleNames(otherCall)[subject.hits] == sampleNames(ranges)[i] & chromosome(otherCall)[subject.hits] == chromosome(ranges)[i]]
+	other.call <- otherCall[subject.hits, ]
+	if(is(other.call, "character")){
+		if(other.call == "no overlap"){
+			res <- "overlapping PennCNV call: 333"
+			pr <- NULL
+		}
+	} else {
+		pr <- other.call[other.call$id == ranges$id[i], ]
+		if(nrow(pr) == 0){
+			stopifnot(other.call$method[1]=="PennCNV")
+			res <- "overlapping PennCNV call: 333"
+			pr <- NULL
+		}
+	}
+	if(!is.null(pr)){
+		method <- unique(other.call$method)
+		if(method=="PennCNV"){
+			pc <- paste(pr$triostate, collapse="-")
+		}
+		pc <- paste(state(pr), collapse="-")
+		res <- paste("overlapping", method, "call:", pc)
+	}
+	return(list(printCall=res, range=pr))
+}
+drawTicks <- function(pr, f2){
+	##pr <- pr[state(pr) != "333", ]
+	if(nrow(pr)==0) return()
+	L <- length(f2$panel.args)
+	upViewport(0)
+	seekViewport("plot2.panel.1.1.off.vp")
+	st <- max(start(pr)/1e6, f2$x.limit[1])
+	en <- min(end(pr)/1e6, f2$x.limit[2])
+	grid.segments(x0=unit(st, "native"),
+		      y0=unit(-0.1, "npc"),
+		      x1=unit(st, "native"),
+		      y1=unit(0.05, "npc"),
+		      gp=gpar(col="blue", lwd=2))
+	grid.segments(x0=unit(en, "native"),
+		      y0=unit(-0.1, "npc"),
+		      x1=unit(en, "native"),
+		      y1=unit(0.05, "npc"),
+		      gp=gpar(col="blue", lwd=2))
+	seekViewport("plot1.panel.1.1.off.vp")
+	grid.segments(x0=unit(st, "native"),
+		      y0=unit(-0.1, "npc"),
+		      x1=unit(st, "native"),
+		      y1=unit(0.05, "npc"),
+		      gp=gpar(col="blue", lwd=2))
+	grid.segments(x0=unit(en, "native"),
+		      y0=unit(-0.1, "npc"),
+		      x1=unit(en, "native"),
+		      y1=unit(0.05, "npc"),
+		      gp=gpar(col="blue", lwd=2))
+}
+
 gridlayout2 <- function(method1, xyList, otherCall, ranges, cex.call=0.6){
 	stopifnot(!missing(method1))
 	stopifnot(method1 %in% c("penn", "md"))
@@ -2787,93 +2848,34 @@ gridlayout2 <- function(method1, xyList, otherCall, ranges, cex.call=0.6){
 			plotOtherCall <- FALSE
 	} else plotOtherCall <- TRUE
 	for(i in seq_along(f1)){
+		call2 <- reportCall2(ranges=ranges,otherCall=otherCall)
+		pr <- call2$range
+		call2 <- call2$printCall
+		call1 <- paste(method1, "call for region:", ranges$triostate[i])
 		gridlayout(lattice.object=list(f1[[i]], f2[[i]]),
 			   rd=ranges[i, ],
 			   col="orange", cex=0.5,
 			   cex.pch=0.1, fill="transparent", lty="solid", lwd=1)
-		if(is(otherCall, "character")){
-			if(otherCall == "no overlap"){
-				upViewport(0)
-				grid.text("PennCNV call: 333",
-					  x=unit(0.6, "npc"),
-					  y=unit(0.01, "npc"),
-					  gp=gpar(col="grey30", cex=cex.call))
-				pr <- NULL
-			}
-		} else {
-			pr <- otherCall[otherCall$id == ranges$id[i], ]
-			if(nrow(pr) == 0){
-				stopifnot(otherCall$method[1]=="PennCNV")
-				upViewport(0)
-				grid.text("PennCNV call: 333",
-					  x=unit(0.6, "npc"),
-					  y=unit(0.01, "npc"),
-					  gp=gpar(col="blue", cex=cex.call))
-				pr <- NULL
-			}
-		}
-		if(!is.null(pr)){
-			method <- unique(otherCall$method)
-			if(method=="PennCNV"){
-				pc <- paste(pr$triostate, collapse="-")
-			}
-			pc <- paste(state(pr), collapse="-")
-			upViewport(0)
-			grid.text(paste(method, "call:", pc),
-				  x=unit(0.6, "npc"),
-				  y=unit(0.01, "npc"),
-				  gp=gpar(col="blue", cex=cex.call))
-		}
-		if(method1=="penn"){
-			grid.text(paste(method1, "call:", ranges$triostate[i]),
-				  x=unit(0.2, "npc"),
-				  y=unit(0.01, "npc"),
-				  gp=gpar(col="orange", cex=cex.call))
-		}
-		if(method1=="md"){
-			grid.text(paste("min dist call:", state(ranges)[i]),
-				  x=unit(0.2, "npc"),
-				  y=unit(0.01, "npc"),
-				  gp=gpar(col="orange", cex=cex.call))
-		}
+		calls <- paste(call1, call2, sep= "   |    ")
+		upViewport(0)
+		grid.text(calls,
+			  x=unit(0.5, "npc"),
+			  y=unit(0.01, "npc"),
+			  gp=gpar(col="black", cex=1))
 		lr1 <- ranges$lik.state[i]
 		lr2 <- ranges$lik.norm[i]
 		lrr <- lr1-lr2
 		l <- formatC(c(lr1, lr2, lrr), digits=1, format="f")
-		grid.text(paste("log(Pr(332 | .))=", l[1], "\n",
-				"log(Pr(333 | .))=", l[2], "\n",
+		grid.text(paste("log Pr(332 | .)=", l[1], "\n",
+				"log Pr(333 | .)=", l[2], "\n",
 				"log ratio:", l[3], "\n"),
-			  x=unit(1, "npc"),
+			  x=unit(0.98, "npc"),
 			  y=unit(0, "npc"),
 			  just=c("right", "bottom"),
 			  gp=gpar(col="grey10", cex=cex.call))
+		## draw tickmarks
 		if(!is.null(pr)){
-			pr <- pr[state(pr) != "333", ]
-			if(nrow(pr)==0) next()
-			L <- length(f2[[i]]$panel.args)
-			upViewport(0)
-			seekViewport("plot2.panel.1.1.off.vp")
-			grid.segments(x0=unit(start(pr)/1e6, "native"),
-				      y0=unit(-0.1, "npc"),
-				      x1=unit(start(pr)/1e6, "native"),
-				      y1=unit(0.05, "npc"),
-				      gp=gpar(col="blue", lwd=2))
-			grid.segments(x0=unit(end(pr)/1e6, "native"),
-				      y0=unit(-0.1, "npc"),
-				      x1=unit(end(pr)/1e6, "native"),
-				      y1=unit(0.05, "npc"),
-				      gp=gpar(col="blue", lwd=2))
-			seekViewport("plot1.panel.1.1.off.vp")
-			grid.segments(x0=unit(start(pr)/1e6, "native"),
-				      y0=unit(-0.1, "npc"),
-				      x1=unit(start(pr)/1e6, "native"),
-				      y1=unit(0.05, "npc"),
-				      gp=gpar(col="blue", lwd=2))
-			grid.segments(x0=unit(end(pr)/1e6, "native"),
-				      y0=unit(-0.1, "npc"),
-				      x1=unit(end(pr)/1e6, "native"),
-				      y1=unit(0.05, "npc"),
-				      gp=gpar(col="blue", lwd=2))
+			drawTicks(pr, f2[[i]])
 		}
 	}
 }
@@ -2915,7 +2917,12 @@ myfilter <- function(x, filter, ...){
 	return(res)
 }
 
-minimumDistancePlot <- function(trioSets, ranges, md.segs, cbs.segs, frame=2e6){
+minimumDistancePlot <- function(trioSets, ranges, md.segs, cbs.segs, frame=2e6,
+				cex=0.2,
+				scales.cex=0.5,
+				panelLabelsRight=c("father", "mother", "offspring")){
+	stopifnot(all(panelLabelsRight %in% c("father", "mother", "offspring", "min dist", "genes", "CNV")))
+	if("genes" %in% panelLabelsRight) require(locuszoom)
 	index <- which(chromosome(md.segs) %in% chromosome(ranges) & sampleNames(md.segs) %in% sampleNames(ranges))
 	stopifnot(length(index) > 0)
 	if(length(index) > 0){
@@ -2939,28 +2946,34 @@ minimumDistancePlot <- function(trioSets, ranges, md.segs, cbs.segs, frame=2e6){
 				  frame=frame,
 				  md.segs=md.segs,
 				  ylim=c(-2.5, 1),
-				  par.settings=list(plot.symbol=list(pch=21, cex=0.2, col="grey50"),
+				  par.settings=list(plot.symbol=list(pch=21, cex=cex, col="grey50"),
 				  par.xlab.text=list(cex=0.8),
 				  par.ylab.text=list(cex=0.8)),
 				  xlab="",
 				  ylab="log R ratio",
-				  scales=list(x=list(tick.number=10, cex=0.5, tck=c(1,0), axs="i"),
-				  alternating=rep(1,3),
-				  y=list(cex=0.5)),
+				  scales=list(x=list(tick.number=10, cex=scales.cex, tck=c(1,0), axs="i"),
+  				              alternating=rep(1,3),
+				              y=list(cex=scales.cex)),
 				  par.strip.text=list(lines=0.8, cex=0.7),
 				  cbs.segs=cbs.segs)
 		f1[[i]]$panel.args <- MinimumDistance:::thresholdY(f1[[i]])
 		##print(f1a)
-		panelLabels <- c("father", "mother", "offspring")
+		if(length(panelLabelsRight) == 3){
+			alternating <- c(2,2,2)
+		} else{
+			alternating <- c(0,0,2,2,2)
+		}
 		f2[[i]] <- xyplot(b ~ x | id, trioSets, range=r1[i, ],
-				  panelLabels=panelLabels, frame=frame,
-				  scales=list(x=list(cex=0.5, tick.number=10,
+				  panelLabels=panelLabelsRight,
+				  frame=frame,
+				  scales=list(x=list(cex=scales.cex, tick.number=10,
 					      tck=c(1,0), alternating=1),
-				  y=list(cex=0.5, tck=c(0,1),
-				  alternating=c(2,2,2))),
-				  ##alternating=c(0,0,2,2,2))),
-				  layout=c(1,length(panelLabels)), index.cond=list(length(panelLabels):1), pch=21,
-				  par.settings=list(plot.symbol=list(pch=21, cex=0.2, col="grey50"),
+				              y=list(cex=scales.cex, tck=c(0,1),
+					             alternating=alternating)),
+				  layout=c(1,length(panelLabelsRight)),
+				  index.cond=list(length(panelLabelsRight):1),
+				  pch=21,
+				  par.settings=list(plot.symbol=list(pch=21, cex=cex, col="grey50"),
 				  par.xlab.text=list(cex=0.8),
 				  par.ylab.text=list(cex=0.8)),
 				  par.strip.text=list(lines=0.8, cex=0.7),
