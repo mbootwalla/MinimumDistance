@@ -2852,7 +2852,7 @@ drawTicks <- function(pr, f2){
 }
 
 gridlayout2 <- function(method1, xyList, otherCall, ranges,
-			call.cex=0.8){
+			call.cex=0.8, fontsize=5){
 	stopifnot(!missing(method1))
 	stopifnot(method1 %in% c("penn", "md"))
 	f1 <- xyList[[1]]
@@ -2878,15 +2878,12 @@ gridlayout2 <- function(method1, xyList, otherCall, ranges,
 			   cex.pch=0.1, fill="transparent", lty="solid", lwd=1)
 		calls <- paste(call1, call2, sep= "   |    ")
 		upViewport(0)
-		fontsize <- 7
-		tg <- textGrob(##call1,
-			       call1,
+		tg <- textGrob(call1,
 			       name="tg1",
 			       x=unit(0.2, "npc"),
 			       y=unit(0.01, "npc"),
 			       gp=gpar(fontsize=fontsize))
-		grid.text(##call1,
-			  label=call1,
+		grid.text(label=call1,
 			  name="tg1",
 			  x=unit(0.2, "npc"),
 			  y=unit(0.01, "npc"),
