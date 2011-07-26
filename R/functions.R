@@ -2911,43 +2911,39 @@ gridlayout2 <- function(method1, xyList, otherCall, ranges,
 			       x=unit(0.7, "npc"),
 			       y=unit(0.01, "npc"))
 		grid.draw(rg)
-
-		##boxedText <- gTree(children=gList(tg, rg))
-		grid.draw(editGrob(boxedText, gp=gpar(col="orange", cex=1)))
-		##boundary 1
-		seekViewport("plot1.panel.1.1.off.vp")
-		grid.move.to(x=unit(start(ranges)[i]/1e6, "native"),
-			     y=unit(-0.01, "npc"))
-		upViewport(0)
-		grid.line.to(x=unit(0.2, "npc"),
-			     y=unit(0.03, "npc"),
-			     gp=gpar(col="orange"))
-		grid.text(call1,
-			  x=unit(0.2, "npc"),
-			  y=unit(0.01, "npc"),
-			  gp=gpar(col="black", cex=call.cex),
-			  just="left")
-		##boundary 2
-		seekViewport("plot1.panel.1.1.off.vp")
-		grid.move.to(unit(end(ranges)[i]/1e6, "native"),
-			     unit(0, "npc"))
-		upViewport(0)
-		grid.line.to(x=unit(0.3, "npc"),
-			     y=unit(0.03, "npc"),
-			     gp=gpar(col="orange"))
-##		grid.line.to(unit(start(rd)/1e6, "native"),
-##			     unit(1, "npc"), ##gp=gpar(col="purple", lty="dashed", lwd=1))
-##			     gp=gpar(...))
+##		seekViewport("plot1.panel.1.1.off.vp")
+##		grid.move.to(x=unit(start(ranges)[i]/1e6, "native"),
+##			     y=unit(-0.01, "npc"))
 ##		upViewport(0)
-##		grid.text(calls,
-##			  x=unit(0.5, "npc"),
+##		grid.line.to(x=unit(0.2, "npc"),
+##			     y=unit(0.03, "npc"),
+##			     gp=gpar(col="orange"))
+##		grid.text(call1,
+##			  x=unit(0.2, "npc"),
 ##			  y=unit(0.01, "npc"),
-##			  gp=gpar(col="black", cex=1))
-		grid.text(call2,
-			  x=unit(0.6, "npc"),
-			  y=unit(0.01, "npc"),
-			  gp=gpar(col="black", cex=call.cex),
-			  just="left")
+##			  gp=gpar(col="black", cex=call.cex),
+##			  just="left")
+##		##boundary 2
+##		seekViewport("plot1.panel.1.1.off.vp")
+##		grid.move.to(unit(end(ranges)[i]/1e6, "native"),
+##			     unit(0, "npc"))
+##		upViewport(0)
+##		grid.line.to(x=unit(0.3, "npc"),
+##			     y=unit(0.03, "npc"),
+##			     gp=gpar(col="orange"))
+####		grid.line.to(unit(start(rd)/1e6, "native"),
+####			     unit(1, "npc"), ##gp=gpar(col="purple", lty="dashed", lwd=1))
+####			     gp=gpar(...))
+####		upViewport(0)
+####		grid.text(calls,
+####			  x=unit(0.5, "npc"),
+####			  y=unit(0.01, "npc"),
+####			  gp=gpar(col="black", cex=1))
+##		grid.text(call2,
+##			  x=unit(0.6, "npc"),
+##			  y=unit(0.01, "npc"),
+##			  gp=gpar(col="black", cex=call.cex),
+##			  just="left")
 		lr1 <- ranges$lik.state[i]
 		lr2 <- ranges$lik.norm[i]
 		lrr <- lr1-lr2
