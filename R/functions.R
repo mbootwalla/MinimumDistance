@@ -2280,7 +2280,10 @@ initializeTrioContainer <- function(path, samplesheet, pedigree, trio.phenodata,
 	return(trioSets)
 }
 
-minimumDistance <- function(path, samplesheet, pedigree,
+minimumDistance <- function(path,
+			    samplesheet,
+			    pedigree,
+			    container,
 			    container.filename,
 			    chromosomes=1:22,
 			    cdfName, file.ext=".txt",
@@ -2290,55 +2293,57 @@ minimumDistance <- function(path, samplesheet, pedigree,
 			    exclusionRule, ## for calculateing row-wise mads
 			    ..., ##additional arguments for segment
 			    verbose=TRUE){#samplesheet, ...){
-	stopifnot(nrow(pedigree) > 1) ## need to fix initialization of trioSet object otherwise
-	## the rownames of the samplesheet correspond to the name of the parsed beadstudio data
-	stopifnot(all(file.exists(file.path(path, paste(rownames(samplesheet), file.ext, sep="")))))
-	if(!file.exists(container.filename)){
-	##---------------------------------------------------------------------------
-	##
-	## initialize container
-	##
-	##----------------------------------------------------------------------------
-		stopifnot(file.exists(dirname(container.filename)))
-		stopifnot("Sample.Name" %in% colnames(samplesheet))
-		stopifnot(colnames(pedigree) == c("F", "M", "O"))
-		if(verbose) message("Instantiating a container for the assay data.")
-		container <- initializeTrioContainer(path,
-						     samplesheet,
-						     pedigree,
-						     trio.phenodata,
-						     chromosomes, cdfName,
-						     verbose=verbose)
-		if(verbose) message("Saving as ", container.filename)
-		container <- as(container, "TrioSetList")
-		save(container, file=container.filename)
-	} else {
-		load(container.filename)
-		container <- get("container")
-	}
-	##---------------------------------------------------------------------------
-	##
-	## reading processed files
-	##
-	##----------------------------------------------------------------------------
-	if(readFiles){
-		if(verbose) message("Reading ", nrow(pedigree), " files")
-		##fatherIds <- as.character(paste(fullId(container[[1]])[, "F"], file.ext, sep=""))
-		mads <- matrix(NA, nrow(pedigree), 3)
-		dimnames(mads) <- list(sampleNames(container), c("F", "M", "O"))
-		mads[, "F"] <- readParsedFiles(path, "F", container, chromosomes, file.ext, verbose)
-		##motherIds <- as.character(paste(fullId(container[[1]])[, "M"], file.ext, sep=""))
-		mads[, "M"] <- readParsedFiles(path, "M", container, chromosomes, file.ext, verbose)
-		##offspringIds <- as.character(paste(fullId(container[[1]])[, "O"], file.ext, sep=""))
-		mads[, "O"] <- readParsedFiles(path, "O", container, chromosomes, file.ext, verbose)
-		mad(container[[1]]) <- mads
-		for(CHR in 2:22){
-			container[[CHR]]@mad <- mad(container[[1]])
+	if(missing(container)){
+		stopifnot(nrow(pedigree) > 1) ## need to fix initialization of trioSet object otherwise
+		## the rownames of the samplesheet correspond to the name of the parsed beadstudio data
+		stopifnot(all(file.exists(file.path(path, paste(rownames(samplesheet), file.ext, sep="")))))
+		if(!file.exists(container.filename)){
+			##---------------------------------------------------------------------------
+			##
+			## initialize container
+			##
+			##----------------------------------------------------------------------------
+			stopifnot(file.exists(dirname(container.filename)))
+			stopifnot("Sample.Name" %in% colnames(samplesheet))
+			stopifnot(colnames(pedigree) == c("F", "M", "O"))
+			if(verbose) message("Instantiating a container for the assay data.")
+			container <- initializeTrioContainer(path,
+							     samplesheet,
+							     pedigree,
+							     trio.phenodata,
+							     chromosomes, cdfName,
+							     verbose=verbose)
+			if(verbose) message("Saving as ", container.filename)
+			container <- as(container, "TrioSetList")
+			save(container, file=container.filename)
+		} else {
+			load(container.filename)
+			container <- get("container")
 		}
-		save(container, file=container.filename)
-	} else {
-		if(verbose) message("readFiles is FALSE.")
-	}
+		##---------------------------------------------------------------------------
+		##
+		## reading processed files
+		##
+		##----------------------------------------------------------------------------
+		if(readFiles){
+			if(verbose) message("Reading ", nrow(pedigree), " files")
+			##fatherIds <- as.character(paste(fullId(container[[1]])[, "F"], file.ext, sep=""))
+			mads <- matrix(NA, nrow(pedigree), 3)
+			dimnames(mads) <- list(sampleNames(container), c("F", "M", "O"))
+			mads[, "F"] <- readParsedFiles(path, "F", container, chromosomes, file.ext, verbose)
+			##motherIds <- as.character(paste(fullId(container[[1]])[, "M"], file.ext, sep=""))
+			mads[, "M"] <- readParsedFiles(path, "M", container, chromosomes, file.ext, verbose)
+			##offspringIds <- as.character(paste(fullId(container[[1]])[, "O"], file.ext, sep=""))
+			mads[, "O"] <- readParsedFiles(path, "O", container, chromosomes, file.ext, verbose)
+			mad(container[[1]]) <- mads
+			for(CHR in 2:22){
+				container[[CHR]]@mad <- mad(container[[1]])
+			}
+			save(container, file=container.filename)
+		} else {
+			if(verbose) message("readFiles is FALSE.")
+		}
+	} else stopifnot(is(container, "TrioSetList"))
 	##---------------------------------------------------------------------------
 	##
 	## calculate minimum distance
@@ -2699,7 +2704,11 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 	stopifnot(!missing(rd))
 	chr.name <- paste("chr", rd$chrom[[1]], sep="")
 	grid.newpage()
-	lvp <- viewport(x=0, width=unit(0.50, "npc"), just="left", name="lvp")
+	lvp <- viewport(x=0,
+			y=0.05,
+			width=unit(0.50, "npc"),
+			height=unit(0.95, "npc"), just=c("left", "bottom"),
+			name="lvp")
 	pushViewport(lvp)
 	pushViewport(dataViewport(xscale=lattice.object[[1]]$x.limits,
 				  yscale=c(0.05,1), clip="on"))
@@ -2735,8 +2744,8 @@ gridlayout <- function(figname, lattice.object, rd, cex.pch=0.3, ...){
 	upViewport(0)
 	grid.text(paste(chr.name, ", Family", ss(rd$id)), x=unit(0.5, "npc"), y=unit(0.98, "npc"),
 		  gp=gpar(cex=0.9))
-	grid.text("Position (Mb)", x=unit(0.5, "npc"), y=unit(0.05, "npc"),
-		  gp=gpar(cex=0.8))
+	grid.text("Position (Mb)", x=unit(0.5, "npc"), y=unit(0.02, "npc"),
+		  gp=gpar(cex=0.9))
 	upViewport(0)
 	print(lattice.object[[2]], position=c(0.5, 0.05, 0.98, 1), more=TRUE, prefix="plot2")
 	L <- seq_along(lattice.object[[2]]$panel.args)
@@ -2797,9 +2806,10 @@ reportCall2 <- function(ranges, otherCall){
 	if(!is.null(pr)){
 		method <- unique(other.call$method)
 		if(method=="PennCNV"){
-			pc <- paste(pr$triostate, collapse="-")
+			pc <- paste(pr$triostate, collapse=" | ")
+		} else {
+			pc <- paste(state(pr), collapse=" | ")
 		}
-		pc <- paste(state(pr), collapse="-")
 		res <- paste("overlapping", method, "call:", pc)
 	}
 	return(list(printCall=res, range=pr))
@@ -2810,8 +2820,17 @@ drawTicks <- function(pr, f2){
 	L <- length(f2$panel.args)
 	upViewport(0)
 	seekViewport("plot2.panel.1.1.off.vp")
-	st <- max(start(pr)/1e6, f2$x.limit[1])
-	en <- min(end(pr)/1e6, f2$x.limit[2])
+	if(nrow(pr) > 1){
+		pr <- pr[order(start(pr)), ]
+	}
+	##start(pr) <- start(pr)
+	##end(pr) <- end(pr)
+	st <- max(start(pr)[1], f2$x.limit[1]*1e6)
+	en <- min(end(pr)[nrow(pr)], f2$x.limit[2]*1e6)
+	start(pr)[1] <- st
+	end(pr)[nrow(pr)] <- en
+	st <- start(pr)/1e6
+	en <- end(pr)/1e6
 	grid.segments(x0=unit(st, "native"),
 		      y0=unit(-0.1, "npc"),
 		      x1=unit(st, "native"),
@@ -2822,22 +2841,6 @@ drawTicks <- function(pr, f2){
 		      x1=unit(en, "native"),
 		      y1=unit(0.05, "npc"),
 		      gp=gpar(col="blue", lwd=2))
-	if(nrow(pr)==1){
-		seekViewport("plot2.panel.1.1.off.vp")
-		grid.move.to(x=unit(st, "native"),
-			     y=unit(0, "npc"))
-		upViewport(0)
-		grid.line.to(x=unit(0.6, "npc"),
-			     y=unit(0.03, "npc"),
-			     gp=gpar(col="blue"))
-		seekViewport("plot2.panel.1.1.off.vp")
-		grid.move.to(x=unit(en, "native"),
-			     y=unit(0, "npc"))
-		upViewport(0)
-		grid.line.to(x=unit(0.7, "npc"),
-			     y=unit(0.03, "npc"),
-			     gp=gpar(col="blue"))
-	}
 	seekViewport("plot1.panel.1.1.off.vp")
 	grid.segments(x0=unit(st, "native"),
 		      y0=unit(-0.1, "npc"),
@@ -2871,90 +2874,80 @@ gridlayout2 <- function(method1, xyList, otherCall, ranges,
 		call2 <- reportCall2(ranges=ranges[i, ],otherCall=otherCall)
 		pr <- call2$range
 		call2 <- call2$printCall
-		call1 <- paste(method1, "call:", ranges$triostate[i])
+		if(method1=="penn"){
+			call1 <- paste(method1, "call:", ranges$triostate[i])
+		} else 	call1 <- paste("min dist call:", state(ranges)[i])
 		gridlayout(lattice.object=list(f1[[i]], f2[[i]]),
 			   rd=ranges[i, ],
 			   col="orange", cex=0.5,
 			   cex.pch=0.1, fill="transparent", lty="solid", lwd=1)
-		calls <- paste(call1, call2, sep= "   |    ")
+		##calls <- paste(call1, call2, sep= "   |    ")
 		upViewport(0)
-		tg <- textGrob(call1,
-			       name="tg1",
-			       x=unit(0.2, "npc"),
-			       y=unit(0.01, "npc"),
-			       gp=gpar(fontsize=fontsize))
-		grid.text(label=call1,
-			  name="tg1",
-			  x=unit(0.2, "npc"),
-			  y=unit(0.01, "npc"),
-			  gp=gpar(fontsize=fontsize),draw=T)
-		rg <- rectGrob(width=1.1*grobWidth(tg),
-			       height=1.3*grobHeight(tg),
-			       gp=gpar(col="orange", lwd=2),
-			       x=unit(0.2, "npc"),
-			       y=unit(0.01, "npc"))
-		grid.draw(rg)
 		tg <- textGrob(call2,
 			       name="tg1",
-			       x=unit(0.7, "npc"),
-			       y=unit(0.01, "npc"),
-			       gp=gpar(fontsize=fontsize))
-		grid.text(call2,
+			       x=unit(0.01, "npc"),
+			       y=unit(0.02, "npc"),
+			       gp=gpar(fontsize=fontsize),
+			       just=c("left", "center"))
+		grid.text(label=call2,
 			  name="tg1",
-			  x=unit(0.7, "npc"),
-			  y=unit(0.01, "npc"),
-			  gp=gpar(fontsize=fontsize), draw=TRUE)
-		##tg <- textGrob("sample", name="tg1")
-		rg <- rectGrob(width=1.1*grobWidth(tg),
-			       height=1.3*grobHeight(tg),
-			       gp=gpar(col="blue", lwd=2),
-			       x=unit(0.7, "npc"),
-			       y=unit(0.01, "npc"))
+			  x=unit(0.01, "npc"),
+			  y=unit(0.02, "npc"),
+			  gp=gpar(fontsize=fontsize),draw=T,
+			  just=c("left", "center"))
+		rg <- rectGrob(width=1.2*grobWidth(tg),
+			       height=1.5*grobHeight(tg),
+			       gp=gpar(col="blue", lwd=1),
+			       x=unit(0.005, "npc"),
+			       y=unit(0.02, "npc"),
+			       just=c("left", "center"))
 		grid.draw(rg)
-##		seekViewport("plot1.panel.1.1.off.vp")
-##		grid.move.to(x=unit(start(ranges)[i]/1e6, "native"),
-##			     y=unit(-0.01, "npc"))
-##		upViewport(0)
-##		grid.line.to(x=unit(0.2, "npc"),
-##			     y=unit(0.03, "npc"),
-##			     gp=gpar(col="orange"))
-##		grid.text(call1,
-##			  x=unit(0.2, "npc"),
-##			  y=unit(0.01, "npc"),
-##			  gp=gpar(col="black", cex=call.cex),
-##			  just="left")
-##		##boundary 2
-##		seekViewport("plot1.panel.1.1.off.vp")
-##		grid.move.to(unit(end(ranges)[i]/1e6, "native"),
-##			     unit(0, "npc"))
-##		upViewport(0)
-##		grid.line.to(x=unit(0.3, "npc"),
-##			     y=unit(0.03, "npc"),
-##			     gp=gpar(col="orange"))
-####		grid.line.to(unit(start(rd)/1e6, "native"),
-####			     unit(1, "npc"), ##gp=gpar(col="purple", lty="dashed", lwd=1))
-####			     gp=gpar(...))
-####		upViewport(0)
-####		grid.text(calls,
-####			  x=unit(0.5, "npc"),
-####			  y=unit(0.01, "npc"),
-####			  gp=gpar(col="black", cex=1))
-##		grid.text(call2,
-##			  x=unit(0.6, "npc"),
-##			  y=unit(0.01, "npc"),
-##			  gp=gpar(col="black", cex=call.cex),
-##			  just="left")
+		tg <- textGrob(call1,
+			       name="tg1",
+			       x=unit(0.01, "npc"),
+			       y=unit(0.07, "npc"),
+			       gp=gpar(fontsize=fontsize),
+			       just=c("left", "center"))
+		grid.text(call1,
+			  name="tg1",
+			  x=unit(0.01, "npc"),
+			  y=unit(0.07, "npc"),
+			  gp=gpar(fontsize=fontsize), draw=TRUE,
+			  just=c("left", "center"))
+		##tg <- textGrob("sample", name="tg1")
+		rg <- rectGrob(width=1.2*grobWidth(tg),
+			       height=1.5*grobHeight(tg),
+			       gp=gpar(col="orange", lwd=1),
+			       x=unit(0.005, "npc"),
+			       y=unit(0.07, "npc"),
+			       just=c("left", "center"))
+		grid.draw(rg)
 		lr1 <- ranges$lik.state[i]
 		lr2 <- ranges$lik.norm[i]
 		lrr <- lr1-lr2
 		l <- formatC(c(lr1, lr2, lrr), digits=1, format="f")
+		upViewport(0)
 		grid.text(paste("log Pr(332 | .)=", l[1], "\n",
 				"log Pr(333 | .)=", l[2], "\n",
 				"log ratio:", l[3], "\n"),
 			  x=unit(0.98, "npc"),
-			  y=unit(0, "npc"),
+			  y=unit(-0.01, "npc"),
 			  just=c("right", "bottom"),
-			  gp=gpar(col="grey10", cex=call.cex))
+			  gp=gpar(col="grey10", cex=call.cex*0.95))
+		tg <- textGrob(paste("log Pr(332 | .)=", l[1], "\n",
+				     "log Pr(333 | .)=", l[2], "\n",
+				     "log ratio:", l[3], "\n"),
+			       x=unit(0.98, "npc"),
+			       y=unit(-0.01, "npc"),
+			       just=c("right", "bottom"),
+			       gp=gpar(col="grey10", cex=call.cex*0.95))
+		rg <- rectGrob(width=1.2*grobWidth(tg),
+			       height=1.2*grobHeight(tg),
+			       gp=gpar(col="orange", lwd=1),
+			       x=unit(0.995, "npc"),
+			       y=unit(-0.01, "npc"),
+			       just=c("right", "bottom"))
+		grid.draw(rg)
 		## draw tickmarks
 		if(!is.null(pr)){
 			drawTicks(pr, f2[[i]])
