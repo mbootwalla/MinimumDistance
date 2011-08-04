@@ -70,7 +70,9 @@ concAtTop <- function(ranges.query, ranges.subject, list.size, verbose=TRUE){
 		pAny2[i] <- catFun2(ranges.subject[seq(length=L), ], ranges.query)
 	}
 	if(verbose) close(pb)
-	return(list(p=p, pAny.queryList=pAny1, pAny.subjectList=pAny2))
+	res <- list(p=p, pAny.queryList=pAny1, pAny.subjectList=pAny2)
+	names(res) <- c("cat", "topMD", "topPenn")
+	return(res)
 }
 
 
@@ -915,6 +917,48 @@ tnorm <- function(x, mean, sd, lower=0, upper=1){
 	res
 }
 TN <- tnorm
+
+
+addRangeIndex <- function(id, trioSet, ranges){
+	ranges <- ranges[sampleNames(ranges) %in% id, ]
+	stopifnot(nrow(ranges) > 0)
+	stopifnot(id %in% sampleNames(trioSet))
+	ir1 <- IRanges(start=position(trioSet), end=position(trioSet))
+	ir2 <- IRanges(start(ranges), end(ranges))
+	mm <- findOverlaps(ir1, ir2)
+	## there should be no query that is in more than 1 subject
+	qhits <- queryHits(mm)
+	shits <- subjectHits(mm)
+	right.chromosome <- chromosome(ranges)[shits] == chromosome(trioSet)[qhits]
+	qhits <- qhits[right.chromosome]
+	shits <- shits[right.chromosome]
+	range.index <- rep(NA, nrow(trioSet))
+	##fData(object)$range.index <- NA
+	##fData(object)$range.index[qhits] <- shits
+	range.index[qhits] <- shits
+	if(sum(table(range.index)) != nrow(trioSet)){
+		message("# of markers in the ranges not equal to total number of markers")
+		browser()
+	}
+	return(range.index)
+}
+
+pHet <- function(i, id, trioSet){
+	j <- match(id, sampleNames(trioSet))
+	stopifnot(length(j) > 0)
+	open(baf(trioSet))
+	b <- baf(trioSet)[i, j, 3]
+	close(baf(trioSet))
+	mean(b > 0.4 & b < 0.6, na.rm=TRUE)
+}
+meanLogR <- function(i, id, trioSet){
+	j <- match(id, sampleNames(trioSet))
+	stopifnot(length(j) > 0)
+	open(logR(trioSet))
+	r <- logR(trioSet)[i, j, 3]
+	close(logR(trioSet))
+	mean(r, na.rm=TRUE)
+}
 
 
 constructSet <- function(trioSet, CHR, id, states, ranges){
@@ -2223,11 +2267,11 @@ discordance <- function(rd1, rd2, I.STATE, ...){
 	return(rd1)
 }
 
-initializeTrioContainer <- function(path, samplesheet, pedigree, trio.phenodata, chromosomes=1:22, cdfName, ..., verbose){
+initializeTrioContainer <- function(path, samplesheet, pedigree, trio.phenodata, chromosomes=1:22, file.ext="", cdfName, ..., verbose){
 	stopifnot(require(ff))
 	stopifnot(all(chromosomes %in% 1:22))
 	##stopifnot(all(file.exists(dirname(filenames))))
-	stopifnot(all(file.exists(file.path(path, paste(rownames(samplesheet), ".txt", sep="")))))
+	stopifnot(all(file.exists(file.path(path, paste(rownames(samplesheet), file.ext, sep="")))))
 	stopifnot(!missing(pedigree))
 	if(is.null(rownames(pedigree))){
 		rns <- apply(pedigree, 1, paste, collapse=",")
@@ -2236,7 +2280,7 @@ initializeTrioContainer <- function(path, samplesheet, pedigree, trio.phenodata,
 	stopifnot(!any(duplicated(rownames(pedigree))))
 	##samplesheet <- samplesheet[-match(c("sampleNames", "filenames"), names(samplesheet))]
 	fD <- constructFeatureData(list.files(path, full.names=TRUE)[1],
-					   cdfName=cdfName)
+				   cdfName=cdfName)
 	ss <- array(NA, dim=c(nrow(pedigree), ncol(samplesheet), 3),
 		    dimnames=list(rownames(pedigree),
 		    colnames(samplesheet),
@@ -2250,9 +2294,11 @@ initializeTrioContainer <- function(path, samplesheet, pedigree, trio.phenodata,
 	marker.index.list <- split(seq(length=nrow(fD)), fD$chromosome)
 	stopifnot(all(diff(order(fD$chromosome, fD$position))>0))
 	trioSets <- vector("list", length(chromosomes))
-
 	for(j in seq_along(chromosomes)){
 		CHR <- chromosomes[j]
+		##
+		## WOULD BE BETTER TO HAVE A NON-FF OPTION
+		##
 		if(verbose) message("\t Chromosome ", CHR)
 		L <- length(marker.index.list[[CHR]])
 		logR <- createFF(paste("logR_chr", CHR, "_", sep=""),
@@ -2265,8 +2311,12 @@ initializeTrioContainer <- function(path, samplesheet, pedigree, trio.phenodata,
 		dimnames(logR) <- dimnames(baf) <- list(featureNames(fd),
 							as.character(pedigree[, "O"]),
 							c("F", "M", "O"))
-		pD <- annotatedDataFrameFrom(logR[, , 1], byrow=FALSE)
-		trioSets[[j]] <- new("TrioSet", logRRatio=logR,
+		##pD <- annotatedDataFrameFrom(as.matrix(logR[, , 1]), byrow=FALSE)
+		pD <- annotatedDataFrameFrom(as.matrix(logR[, , 1]), byrow=FALSE)
+		sampleNames(pD) <- colnames(logR)
+		## having trouble initializing an object for one trio
+		trioSets[[j]] <- new("TrioSet",
+				     logRRatio=logR,
 				     BAF=baf,
 				     phenoData=pD,
 				     featureData=fD[marker.index.list[[CHR]], ],
@@ -2278,6 +2328,48 @@ initializeTrioContainer <- function(path, samplesheet, pedigree, trio.phenodata,
 		trioSets[[CHR]]@phenoData2 <- ss
 	}
 	return(trioSets)
+}
+
+readParsedFiles <- function(path, member, container, chromosomes, file.ext, verbose){
+	ids <- switch(member,
+		      F=as.character(paste(fullId(container[[1]])[, "F"], file.ext, sep="")),
+		      M=as.character(paste(fullId(container[[1]])[, "M"], file.ext, sep="")),
+		      O=as.character(paste(fullId(container[[1]])[, "O"], file.ext, sep="")))
+	memberName <- switch(member,
+			     F="father",
+			     M="mother",
+			     O="offspring")
+	stopifnot(!is.null(ids))
+	col.index <- switch(member, F=1, M=2, O=3)
+	##stopifnot(all(ids %in% basename(filenames)))
+	##sample.index <- match(ids, basename(filenames))
+	filenames <- list.files(path, pattern=ids, full.names=TRUE)
+	stopifnot(length(filenames)>0)
+	## Read in the first file
+	dat <- read.delim(filenames[1], colClasses=c("character", "numeric", "numeric"))
+	nms <- dat[[1]]
+	dat <- dat[-1]
+	nr <- nrow(dat)
+	mads <- rep(NA, length(filenames))
+	message("Parsing files for family member ", memberName)
+	for(j in seq_along(filenames)){
+		if(verbose){
+			if(j %% 10 == 0) message("\tFile ", j, " of ", length(filenames))
+		}
+		if(j > 1) dat <- read.delim(filenames[j], colClasses=c("NULL", "numeric", "numeric"))
+		mads[j] <- mad(dat[[1]], na.rm=TRUE)
+		for(k in seq_along(chromosomes)){
+			CHR <- chromosomes[k]
+			open(logR(container[[CHR]]))
+			open(baf(container[[CHR]]))
+			marker.index <- match(featureNames(container[[k]]), nms)
+			logR(container[[k]])[, j, col.index] <- dat[[1]][marker.index]
+			baf(container[[k]])[, j, col.index] <- dat[[2]][marker.index]
+			close(logR(container[[k]]))
+			close(baf(container[[k]]))
+		}
+	}
+	return(mads)
 }
 
 minimumDistance <- function(path,
@@ -2294,7 +2386,7 @@ minimumDistance <- function(path,
 			    ..., ##additional arguments for segment
 			    verbose=TRUE){#samplesheet, ...){
 	if(missing(container)){
-		stopifnot(nrow(pedigree) > 1) ## need to fix initialization of trioSet object otherwise
+		stopifnot(nrow(pedigree) > 0) ## need to fix initialization of trioSet object otherwise
 		## the rownames of the samplesheet correspond to the name of the parsed beadstudio data
 		stopifnot(all(file.exists(file.path(path, paste(rownames(samplesheet), file.ext, sep="")))))
 		if(!file.exists(container.filename)){
@@ -2312,6 +2404,7 @@ minimumDistance <- function(path,
 							     pedigree,
 							     trio.phenodata,
 							     chromosomes, cdfName,
+							     file.ext=file.ext,
 							     verbose=verbose)
 			if(verbose) message("Saving as ", container.filename)
 			container <- as(container, "TrioSetList")
@@ -2372,9 +2465,11 @@ minimumDistanceCalls <- function(id, container,
 				 chromosomes=1:22,
 				 ranges,
 				 cbs.filename,
+				 cbs.segs.offspring,
 				 segment.md=missing(cbs.filename)&missing(ranges),
 				 offspring.segs,
 				 mindistance.threshold=0.075,
+				 narrowRanges=TRUE,
 				 calculate.lr=TRUE,
 				 prOutlier=c(0.01, 1e-15),
 				 prMosaic=0.01,
@@ -2461,27 +2556,44 @@ minimumDistanceCalls <- function(id, container,
 	##
 	##---------------------------------------------------------------------------
 	## compute likelihood ratio to infer most likely state
-	if(calculate.lr){
-		if(pruneMinimumDistance){
-			message("Pruning ranges")
-			pruned.segs <- prune(container[chromosomes],
-					     ranges=mdRanges,
-					     id=id,
-					     lambda=0.05,
-					     min.change=0.1,
-					     min.coverage=10,
-					     scale.exp=0.02,
-					     verbose=verbose)
-			rd <- stack(RangedDataList(pruned.segs))
-			rd <- rd[, -grep("sample", colnames(rd))]
-			prunedRanges <- RangedDataCBS(ranges=ranges(rd), values=values(rd))
-			rm(rd, pruned.segs); gc()
-		} else {
-			message("Minimum distance ranges not pruned")
-			prunedRanges <- mdRanges
-			prunedRanges <- prunedRanges[sampleNames(prunedRanges) %in% id & chromosome(prunedRanges) %in% chromosomes, ]
-			rm(mdRanges); gc()
+	if(pruneMinimumDistance){
+		message("Pruning ranges")
+		pruned.segs <- prune(container[chromosomes],
+				     ranges=mdRanges,
+				     id=id,
+				     lambda=0.05,
+				     min.change=0.1,
+				     min.coverage=10,
+				     scale.exp=0.02,
+				     verbose=verbose)
+		rd <- stack(RangedDataList(pruned.segs))
+		rd <- rd[, -grep("sample", colnames(rd))]
+		prunedRanges <- RangedDataCBS(ranges=ranges(rd), values=values(rd))
+		rm(rd, pruned.segs); gc()
+	} else {
+		message("Minimum distance ranges not pruned")
+		prunedRanges <- mdRanges
+		prunedRanges <- prunedRanges[sampleNames(prunedRanges) %in% id & chromosome(prunedRanges) %in% chromosomes, ]
+		rm(mdRanges); gc()
+	}
+	if(narrowRanges){
+		if(missing(cbs.segs.offspring)){
+			df <- xsegment(container[chromosomes], id=id, segment.mindist=FALSE, ..., verbose=verbose,
+				       DNAcopy.verbose=DNAcopy.verbose)
+			df$ID <- gsub("^[X]", "", df$ID)
+			cbs.segs.offspring <- RangedDataCBS(ranges=IRanges(df$loc.start, df$loc.end),
+							    chromosome=df$chrom,
+							    sampleId=df$ID,
+							    coverage=df$num.mark,
+							    seg.mean=df$seg.mean,
+							    startIndexInChromosome=df$start.index,
+							    endIndexInChromosome=df$end.index)
+			save(cbs.segs.offspring, file=file.path(dirname(cbs.filename), "cbs.segs.offspring.rda"))
 		}
+		prunedRanges <- narrow(prunedRanges, cbs.segs.offspring, thr=0.075)
+	}
+	if(calculate.lr){
+
 ##		if(!missing(offspring.ranges)){
 ##			ii <- which(sampleNames(offspring.ranges) %in% id & chromosome(offspring.ranges) %in% chromosomes)
 ##			offspring.ranges <- offspring.ranges[ii, ]
@@ -3162,4 +3274,36 @@ plotRange <- function(range, trioSets, md.segs,cbs.segs, penn.offspring, frame=2
 						     frame=frame)
 	penn.call <- correspondingCall(range, penn.offspring, subject.method="PennCNV")
 	MinimumDistance:::gridlayout2("md", tmp, penn.call, ranges=range)
+}
+
+concordanceFun <- function(penn332, md332, rank.by="coverage", list.size=500, by=10){
+	stopifnot(rank.by %in% c("coverage", "posterior"))
+	I <- sampleNames(penn332) %in% sampleNames(md)
+	penn332 <- penn332[I, ]
+	penn332 <- penn332[order(sampleNames(penn332)), ] ## this way ties in coverage will hopefull result in the same sample
+	md332 <- md332[order(sampleNames(penn332)), ]
+
+	if(rank.by=="coverage"){
+		penn332$rank <- rank(-coverage(penn332), ties.method="first")
+		md332$rank <- rank(-coverage(md332), ties.method="first")
+	}
+
+	md332 <- md332[order(md332$rank), ]
+	penn332 <- penn332[order(penn332$rank), ]
+
+	##	pennOnly <- discAtTop(penn332[1:100, ], md332)
+##	mm <- findOverlaps(IRanges(32.4e6, 32.6e6), IRanges(start(pennOnly),end(pennOnly)))
+##	sHits <- subjectHits(mm)
+##	sHits <- subjectHits(mm)##[chromosome(pennOnly)[sHits] == 16]
+##	uniqueHits <- length(sHits)
+##	totalHits <- nrow(pennOnly)
+##	sHits <- sHits[-1]
+	list.size <- c(1, seq(by, list.size, by=by))
+	plist <- concAtTop(ranges.query=md332, ranges.subject=penn332, list.size=list.size)
+	names(plist) <- c("cat", "topMD", "topPenn")
+	lr <- md332$lik.state - md332$lik.norm
+	md332.llr <- md332[order(lr, decreasing=TRUE), ]
+	plist2 <- concAtTop(ranges.query=md332.llr, ranges.subject=penn332, list.size=list.size)
+	names(plist2) <- c("cat", "topMD", "topPenn")
+	return(list(coverageList=plist, posteriorList=plist2))
 }

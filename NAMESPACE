@@ -48,6 +48,7 @@ exportMethods("[", baf, "baf<-",
 	      xyplot)
 export("[", completeTrios,
        concAtTop,
+       concordanceFun,
        correspondingCall,
        discAtTop,
        fmoNames,

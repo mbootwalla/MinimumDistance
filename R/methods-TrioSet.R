@@ -298,7 +298,7 @@ setMethod("varLabels2", signature(object="TrioSet"), function(object) colnames(p
 
 
 setMethod("xsegment", signature(object="TrioSet"),
-	  function(object, id, ..., verbose=FALSE, DNAcopy.verbose=0){
+	  function(object, id, segment.mindist=TRUE, ..., verbose=FALSE, DNAcopy.verbose=0){
 		  ## needs to be ordered
 		  if(verbose) message("Segmenting chromosome ", unique(chromosome(object)))
 		  ix <- order(chromosome(object), position(object))
@@ -319,7 +319,13 @@ setMethod("xsegment", signature(object="TrioSet"),
 		  marker.index <- seq(length=nrow(object))[!duplicated(position(object))]
 		  pos <- position(object)[marker.index]
 		  chrom <- chromosome(object)[marker.index]
-		  CN <- mindist(object)[marker.index, sample.index, drop=FALSE]
+		  if(segment.mindist){
+			  CN <- mindist(object)[marker.index, sample.index, drop=FALSE]
+		  } else{
+			  open(logR(object))
+			  ##segment offspring copy number
+			  CN <- logR(object)[marker.index, 3, sample.index, drop=FALSE]
+		  }
 		  CN <- matrix(as.numeric(CN), nrow(CN), ncol(CN))
 		  dimnames(CN) <- list(featureNames(object)[marker.index], sampleNames(object)[sample.index])
 		  arm <- splitByDistance(pos, thr=75e3)
@@ -356,6 +362,7 @@ setMethod("xsegment", signature(object="TrioSet"),
 			  md.segs <- do.call("rbind", md.segs)
 		  } else md.segs=md.segs[[1]]
 		  close(mindist(object))
+		  if(!segment.mindist) close(logR(object))
 		  return(md.segs)
 })
 
